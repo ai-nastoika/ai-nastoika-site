@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { trpc } from "@/providers/trpc";
 import {
   User,
   Mail,
@@ -23,7 +24,6 @@ import {
   MessageCircle,
   ThumbsUp,
 } from "lucide-react";
-import { recipesData } from "../data/recipes";
 
 /* ─── dummy data ─── */
 const userData = {
@@ -42,7 +42,6 @@ const userData = {
   commentsCount: 7,
 };
 
-const savedRecipes = [recipesData[0], recipesData[2], recipesData[4]];
 const savedPlaces = [
   { id: 1, name: "Дымный Котёл", city: "Москва", rating: 4.9, image: "/bar-1.jpg" },
   { id: 2, name: "Тайга", city: "Санкт-Петербург", rating: 4.8, image: "/bar-2.jpg" },
@@ -53,18 +52,12 @@ const savedLabels = [
   { id: 2, name: "Лимончелло", style: "craft", date: "18.03.2025" },
   { id: 3, name: "Травяной эликсир", style: "minimal", date: "25.03.2025" },
 ];
-const myRecipes = [recipesData[1], recipesData[3]];
 const aiHistory = [
   { id: 1, tool: "Калькулятор вкуса", query: "Вишня, ваниль, корица", date: "05.05.2025", model: "Базовая" },
   { id: 2, tool: "Калькулятор вкуса", query: "Лимон, имбирь, мёд", date: "03.05.2025", model: "GPT-4" },
   { id: 3, tool: "Расчёт крепости", query: "1000 мл, 40%, 100 г сахара", date: "01.05.2025", model: "—" },
   { id: 4, tool: "Калькулятор вкуса", query: "Кофе, шоколад, апельсин", date: "28.04.2025", model: "Базовая" },
   { id: 5, tool: "Конструктор этикеток", query: "Винтаж — Вишнёвая настойка", date: "25.04.2025", model: "—" },
-];
-const myRatings = [
-  { recipe: recipesData[0], rating: 5 },
-  { recipe: recipesData[2], rating: 4 },
-  { recipe: recipesData[4], rating: 5 },
 ];
 const myComments = [
   { recipe: "Вишнёвая домашняя 2025", text: "Добавила мускатный орех — придало глубину. Рекомендую!", date: "05.05.2025", likes: 12 },
@@ -98,6 +91,16 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "history" | "settings">("overview");
   const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
+
+  const { data: recipesData } = trpc.recipe.list.useQuery();
+  const allRecipes = recipesData ?? [];
+  const savedRecipes = [allRecipes[0], allRecipes[2], allRecipes[4]].filter(Boolean);
+  const myRecipesList = [allRecipes[1], allRecipes[3]].filter(Boolean);
+  const myRatings = [
+    { recipe: allRecipes[0], rating: 5 },
+    { recipe: allRecipes[2], rating: 4 },
+    { recipe: allRecipes[4], rating: 5 },
+  ].filter((r) => r.recipe);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -250,7 +253,7 @@ export default function ProfilePage() {
                     className="flex items-center gap-4 rounded-xl p-4"
                     style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                   >
-                    <img src={recipe.heroImage} alt={recipe.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                    <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                         {recipe.title}
@@ -376,7 +379,7 @@ export default function ProfilePage() {
                     style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                   >
                     <div className="relative overflow-hidden h-40">
-                      <img src={r.heroImage} alt={r.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                      <img src={r.heroImage ?? "/recipe-cherry.jpg"} alt={r.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                       <div className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "var(--accent)" }}>
                         <Heart size={28} fill="#fff" color="#fff" />
                       </div>
@@ -481,17 +484,17 @@ export default function ProfilePage() {
               </button>
             </div>
             <div className="space-y-4">
-              {myRecipes.map((r) => (
+              {myRecipesList.map((r) => (
                 <div
                   key={r.id}
                   className="flex gap-4 rounded-xl overflow-hidden"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
-                  <img src={r.heroImage} alt={r.title} className="w-32 h-32 object-cover shrink-0" />
+                  <img src={r.heroImage ?? "/recipe-cherry.jpg"} alt={r.title} className="w-32 h-32 object-cover shrink-0" />
                   <div className="py-4 pr-4 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-base rounded-full px-2 py-0.5" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                        {r.categoryLabel}
+                        {r.categoryLabel ?? r.category}
                       </span>
                       <span className="text-base flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                         <Star size={10} fill="var(--accent)" color="var(--accent)" /> {r.rating} ({r.reviews})
