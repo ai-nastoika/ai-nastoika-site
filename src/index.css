@@ -1,75 +1,107 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.625rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* UI scale for accessibility */
+    --ui-scale: 1;
+
+    /* Warm Amber (default) */
+    --bg-primary: #faf6f0;
+    --bg-secondary: #f5efe6;
+    --bg-card: #ffffff;
+    --text-primary: #2c1810;
+    --text-secondary: #6b4c3a;
+    --text-muted: #9c8578;
+    --accent: #b87333;
+    --accent-light: #d4a574;
+    --accent-dark: #8b5a2b;
+    --border: #e8ddd0;
+    --surface: #fff8f0;
+    --surface-hover: #f0e6d8;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-heading: "Playfair Display", Georgia, serif;
+    --radius: 0.75rem;
   }
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  html {
+    font-size: calc(16px * var(--ui-scale, 1));
+  }
+
+  [data-theme="dark-premium"] {
+    --bg-primary: #1a1410;
+    --bg-secondary: #251e18;
+    --bg-card: #2d2420;
+    --text-primary: #f5efe6;
+    --text-secondary: #c4b5a5;
+    --text-muted: #8a7b6b;
+    --accent: #d4af37;
+    --accent-light: #e8c87a;
+    --accent-dark: #b8960c;
+    --border: #3d3228;
+    --surface: #352c24;
+    --surface-hover: #423830;
+    --radius: 0.5rem;
+  }
+
+  [data-theme="herbal"] {
+    --bg-primary: #f4f7f2;
+    --bg-secondary: #e8ede4;
+    --bg-card: #ffffff;
+    --text-primary: #1a2e1a;
+    --text-secondary: #3d5c3d;
+    --text-muted: #6b8a6b;
+    --accent: #5a7d4a;
+    --accent-light: #8ab07a;
+    --accent-dark: #3d5c30;
+    --border: #d0e0c8;
+    --surface: #f0f7ec;
+    --surface-hover: #e0ecd8;
+    --radius: 1rem;
+  }
+
+  [data-theme="modern"] {
+    --bg-primary: #fafafa;
+    --bg-secondary: #f0f0f0;
+    --bg-card: #ffffff;
+    --text-primary: #111111;
+    --text-secondary: #444444;
+    --text-muted: #888888;
+    --accent: #c41e3a;
+    --accent-light: #e85d75;
+    --accent-dark: #9a1530;
+    --border: #e5e5e5;
+    --surface: #f5f5f5;
+    --surface-hover: #ebebeb;
+    --radius: 0.375rem;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
+@layer components {
+  .theme-transition {
+    transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  [data-theme="dark-premium"] .glass-card {
+    background: rgba(45, 36, 32, 0.7);
+    border: 1px solid rgba(212, 175, 55, 0.15);
   }
 }
