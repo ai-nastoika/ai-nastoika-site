@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Clock, Star, ArrowRight } from "lucide-react";
 

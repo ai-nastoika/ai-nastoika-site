@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 
 const SWIPE_THRESHOLD = 100; // px to trigger back
 const EDGE_ZONE = 36; // px from left edge

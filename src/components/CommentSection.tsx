@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+// CommentSection component
 import {
   MessageCircle,
   ThumbsUp,

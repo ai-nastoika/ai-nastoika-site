@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Wand2, Calculator, Tag, ArrowRight, Sparkles } from "lucide-react";
 
 const tools = [

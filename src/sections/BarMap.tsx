@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation } from "lucide-react";
 

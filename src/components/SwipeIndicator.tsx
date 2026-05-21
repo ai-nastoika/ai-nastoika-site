@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react";
-import { useSwipeBack } from "../hooks/useSwipeBack";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 
 export default function SwipeIndicator() {
   const { progress, isSwiping } = useSwipeBack(true);
