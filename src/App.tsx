@@ -16,6 +16,7 @@ import Footer from "./sections/Footer";
 import BarMap from "./sections/BarMap";
 import RulesPage from "./sections/RulesPage";
 import FeedbackPage from "./sections/FeedbackPage";
+import AdminPage from "./sections/AdminPage";
 import BarMapPreview from "./sections/BarMapPreview";
 import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/recipe/:slug" element={<RecipeDetail />} />
         <Route path="/feedback" element={<FeedbackPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
       <Footer />
       <StyleSwitcher
