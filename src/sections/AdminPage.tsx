@@ -65,7 +65,7 @@ export default function AdminPage() {
   };
 
   const startEditRecipe = (r: any) => {
-    setEditId(r.id);
+    setEditId(Number(r.id));
     setRTitle(r.title || ""); setRSlug(r.slug || ""); setRSubtitle(r.subtitle || "");
     setRCategory(r.category || "berry"); setRAbv(r.abv || ""); setRTime(r.time || "");
     setRDifficulty(r.difficulty || "Легко"); setRRating(String(r.rating || "0"));
@@ -74,7 +74,7 @@ export default function AdminPage() {
   };
 
   const startEditPlace = (p: any) => {
-    setEditId(p.id);
+    setEditId(Number(p.id));
     setPName(p.name || ""); setPSlug(p.slug || ""); setPCity(p.city || "");
     setPAddress(p.address || ""); setPPhone(p.phone || ""); setPHours(p.hours || "");
     setPImage(p.image || ""); setPDesc(p.description || "");
@@ -161,7 +161,7 @@ export default function AdminPage() {
                       <button onClick={() => startEditRecipe(r)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "var(--accent)" }}>
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => { if (confirm("Удалить?")) deleteRecipe.mutate({ id: r.id }); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "#c41e3a" }}>
+                      <button onClick={() => { if (confirm("Удалить?")) deleteRecipe.mutate({ id: Number(r.id) }); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "#c41e3a" }}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -199,7 +199,7 @@ export default function AdminPage() {
                       <button onClick={() => startEditPlace(p)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "var(--accent)" }}>
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => { if (confirm("Удалить?")) deletePlace.mutate({ id: p.id }); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "#c41e3a" }}>
+                      <button onClick={() => { if (confirm("Удалить?")) deletePlace.mutate({ id: Number(p.id) }); }} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", color: "#c41e3a" }}>
                         <Trash2 size={16} />
                       </button>
                     </div>
