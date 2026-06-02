@@ -1,9 +1,11 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { fallbackRecipes } from "@/data/fallbackData";
 import { Clock, Star, ArrowRight } from "lucide-react";
 
 export default function Recipes() {
-  const { data: recipes, isLoading } = trpc.recipe.list.useQuery();
+  const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
+  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : fallbackRecipes;
 
   if (isLoading) {
     return (
@@ -22,15 +24,15 @@ export default function Recipes() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between mb-10">
           <div>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               Популярные рецепты
             </h2>
-            <p style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
               Проверенные классические и смелые эксперименты от сообщества
             </p>
           </div>
           <Link to="/recipes" className="hidden sm:inline-flex items-center gap-1 text-base font-medium transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-            Все рецепты <ArrowRight size={22} />
+            Все рецепты <ArrowRight size={18} />
           </Link>
         </div>
 

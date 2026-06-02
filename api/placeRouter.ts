@@ -19,7 +19,6 @@ export const placeRouter = createRouter({
       const place = await db.query.places.findFirst({
         where: eq(places.slug, input.slug),
         with: {
-          infusions: true,
           comments: true,
         },
       });

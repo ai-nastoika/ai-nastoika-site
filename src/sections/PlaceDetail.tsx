@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { fallbackPlaces } from "@/data/fallbackData";
 import {
   ArrowLeft, Star, MapPin, Clock, Phone, Globe, Train,
   Heart, Share2, Printer, ThumbsUp, MessageCircle, Send,
@@ -7,10 +8,15 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+function findFallbackPlace(slug: string) {
+  return fallbackPlaces.find((p) => p.slug === slug) ?? null;
+}
+
 export default function PlaceDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { data: place, isLoading } = trpc.place.bySlug.useQuery({ slug: slug! }, { enabled: !!slug });
+  const { data: apiPlace, isLoading } = trpc.place.bySlug.useQuery({ slug: slug! }, { enabled: !!slug });
+  const place = apiPlace ?? findFallbackPlace(slug ?? "");
   const utils = trpc.useUtils();
 
   const placeId = place?.id ?? 0;
@@ -57,7 +63,7 @@ export default function PlaceDetail() {
     createComment.mutate({ placeId, authorName: "Александр", text: newComment.trim() });
   };
 
-  const infusions = place.infusions ?? [];
+  const infusions = (place as Record<string, unknown>).infusions as Array<{name: string, note?: string}> ?? [];
   const tags: string[] = place.tags ? (place.tags as string[]) : [];
   const comments = commentsData ?? [];
   const pros: string[] = place.externalPros ? (place.externalPros as string[]) : [];
@@ -95,7 +101,7 @@ export default function PlaceDetail() {
                 </span>
               ))}
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-heading)", textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-heading)", textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
               {place.name}
             </h1>
             <p className="text-sm sm:text-base text-white/80 flex items-center gap-2" style={{ fontFamily: "var(--font-body)" }}>
@@ -176,8 +182,8 @@ export default function PlaceDetail() {
             </div>
 
             <div className="space-y-3 mb-5">
-              {infusions.map((inf) => (
-                <div key={inf.id} className="flex items-start gap-3">
+              {infusions.map((inf: {name: string, note?: string}, i: number) => (
+                <div key={i} className="flex items-start gap-3">
                   <Check size={16} className="shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }} />
                   <div>
                     <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-body)" }}>{inf.name}</span>

@@ -1,10 +1,1623 @@
+import { useState, useCallback, type ReactNode } from "react";
+import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
+import { fallbackRecipes, fallbackPlaces } from "@/data/fallbackData";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+/* ═══════════════════════════════════════
+   Типы
+   ═══════════════════════════════════════ */
+type IngredientInput = { name: string; amount?: string; note?: string };
+type StepInput = { stepNum: number; title?: string; text: string };
+
+const EMPTY_RECIPE = {
+  slug: "", title: "", subtitle: "", category: "sweet", categoryLabel: "",
+  heroImage: "", abv: "", time: "", difficulty: "", rating: "",
+  reviews: 0, year: "", origin: "", historyTitle: "", historyText: "",
+  tastingColor: "", tastingDescription: "", tastingTemp: "", tastingGlass: "",
+  tastingPairing: [] as string[], sweet: 0, sour: 0, bitter: 0, spicy: 0, fruity: 0, herbal: 0,
+  tips: [] as string[], authorName: "", authorDate: "",
+  ingredients: [] as IngredientInput[], steps: [] as StepInput[],
+};
+
+const EMPTY_PLACE = {
+  slug: "", name: "", city: "", address: "", metro: "", phone: "",
+  website: "", rating: "", reviews: 0, price: "", hours: "", image: "",
+  tags: [] as string[], description: "", infusionsHighlight: "", infusionsSignature: "",
+  externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
+};
+
+/* ═══════════════════════════════════════
+   localStorage helpers (fallback when API down)
+   ═══════════════════════════════════════ */
+const LS_KEY = "local-recipes";
+
+type LocalRecipe = {
+  id: number; /* negative = local */
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  category: string;
+  categoryLabel: string | null;
+  heroImage: string | null;
+  abv: string | null;
+  time: string | null;
+  difficulty: string | null;
+  rating: string | null;
+  reviews: number | null;
+  year: string | null;
+  origin: string | null;
+  historyTitle: string | null;
+  historyText: string | null;
+  tastingColor: string | null;
+  tastingDescription: string | null;
+  tastingTemp: string | null;
+  tastingGlass: string | null;
+  tastingPairing: string[] | null;
+  sweet: number | null;
+  sour: number | null;
+  bitter: number | null;
+  spicy: number | null;
+  fruity: number | null;
+  herbal: number | null;
+  tips: string[] | null;
+  authorName: string | null;
+  authorDate: string | null;
+};
+
+function getLocalRecipes(): LocalRecipe[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveLocalRecipe(data: Omit<LocalRecipe, "id">) {
+  const list = getLocalRecipes();
+  const id = -(Date.now()); /* negative = local */
+  list.unshift({ ...data, id });
+  localStorage.setItem(LS_KEY, JSON.stringify(list));
+  return id;
+}
+
+function deleteLocalRecipe(id: number) {
+  const list = getLocalRecipes().filter((r) => r.id !== id);
+  localStorage.setItem(LS_KEY, JSON.stringify(list));
+}
+
+function jsonArr(val: string): string[] {
+  return val.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+function arrStr(arr?: string[] | null): string {
+  return (arr ?? []).join("\n");
+}
+
+/* ═══════════════════════════════════════
+   AdminPage
+   ═══════════════════════════════════════ */
 export default function AdminPage() {
+  const { isLoggedIn, isLoading, isAdmin } = useAuth();
+
+  /* Защита: только админы */
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--card-bg)" }}>
+        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+      </main>
+    );
+  }
+
+  if (!isLoggedIn || !isAdmin) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--card-bg)" }}>
+        <div className="text-center max-w-md">
+          <Shield size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
+          <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Доступ ограничен
+          </h1>
+          <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            {isLoggedIn
+              ? "Эта страница доступна только администраторам проекта."
+              : "Войдите в аккаунт администратора для доступа к этой странице."}
+          </p>
+          {!isLoggedIn && (
+            <a
+              href="/#/login"
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              Войти
+            </a>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  return <AdminPanel />;
+}
+
+function AdminPanel() {
+  const utils = trpc.useUtils();
+  const [tab, setTab] = useState("recipes");
+  const [localRecipes, setLocalRecipes] = useState<LocalRecipe[]>(getLocalRecipes);
+  const [saveNotice, setSaveNotice] = useState("");
+
+  /* Queries */
+  const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery();
+  const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
+
+  /* Merge: API first, then local, then fallback */
+  const recipes = [
+    ...(apiRecipes ?? []),
+    ...localRecipes.filter((lr) => !(apiRecipes ?? []).some((ar) => ar.slug === lr.slug)),
+  ];
+  const displayRecipes = recipes.length > 0 ? recipes : fallbackRecipes;
+  const places = apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces;
+
+  /* Mutations */
+  const deleteRecipe = trpc.recipe.delete.useMutation({
+    onSuccess: () => utils.recipe.list.invalidate(),
+  });
+  const deletePlace = trpc.place.delete.useMutation({
+    onSuccess: () => utils.place.list.invalidate(),
+  });
+  const upsertRecipe = trpc.recipe.upsert.useMutation({
+    onSuccess: () => { utils.recipe.list.invalidate(); setRecipeOpen(false); resetRecipe(); setSaveNotice(""); },
+    onError: (_err, variables) => {
+      /* API down — save to localStorage */
+      const data = variables as Record<string, unknown>;
+      saveLocalRecipe({
+        slug: String(data.slug ?? ""),
+        title: String(data.title ?? ""),
+        subtitle: String(data.subtitle ?? "") || null,
+        category: String(data.category ?? ""),
+        categoryLabel: String(data.categoryLabel ?? "") || null,
+        heroImage: String(data.heroImage ?? "") || null,
+        abv: String(data.abv ?? "") || null,
+        time: String(data.time ?? "") || null,
+        difficulty: String(data.difficulty ?? "") || null,
+        rating: String(data.rating ?? "") || null,
+        reviews: Number(data.reviews ?? 0) || null,
+        year: String(data.year ?? "") || null,
+        origin: String(data.origin ?? "") || null,
+        historyTitle: String(data.historyTitle ?? "") || null,
+        historyText: String(data.historyText ?? "") || null,
+        tastingColor: String(data.tastingColor ?? "") || null,
+        tastingDescription: String(data.tastingDescription ?? "") || null,
+        tastingTemp: String(data.tastingTemp ?? "") || null,
+        tastingGlass: String(data.tastingGlass ?? "") || null,
+        tastingPairing: Array.isArray(data.tastingPairing) ? data.tastingPairing : null,
+        sweet: Number(data.sweet ?? 0) || null,
+        sour: Number(data.sour ?? 0) || null,
+        bitter: Number(data.bitter ?? 0) || null,
+        spicy: Number(data.spicy ?? 0) || null,
+        fruity: Number(data.fruity ?? 0) || null,
+        herbal: Number(data.herbal ?? 0) || null,
+        tips: Array.isArray(data.tips) ? data.tips : null,
+        authorName: String(data.authorName ?? "") || null,
+        authorDate: String(data.authorDate ?? "") || null,
+      });
+      setLocalRecipes(getLocalRecipes());
+      setRecipeOpen(false);
+      resetRecipe();
+      setSaveNotice(`Рецепт «${data.title}» сохранён локально (API недоступен). На VPS с запущенным бэкендом он попадёт в базу автоматически.`);
+    },
+  });
+  const upsertPlace = trpc.place.upsert.useMutation({
+    onSuccess: () => { utils.place.list.invalidate(); setPlaceOpen(false); resetPlace(); },
+  });
+
+  /* Recipe form state */
+  const [recipeOpen, setRecipeOpen] = useState(false);
+  const [editRecipeId, setEditRecipeId] = useState<number | undefined>();
+  const [rForm, setRForm] = useState({ ...EMPTY_RECIPE });
+  const [pairingStr, setPairingStr] = useState("");
+  const [tipsStr, setTipsStr] = useState("");
+
+  function resetRecipe() {
+    setRForm({ ...EMPTY_RECIPE });
+    setPairingStr(""); setTipsStr(""); setEditRecipeId(undefined);
+  }
+  function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
+    setEditRecipeId(r.id);
+    setRForm({
+      ...EMPTY_RECIPE,
+      slug: r.slug, title: r.title, subtitle: r.subtitle ?? "",
+      category: r.category, categoryLabel: r.categoryLabel ?? "",
+      heroImage: r.heroImage ?? "", abv: r.abv ?? "", time: r.time ?? "",
+      difficulty: r.difficulty ?? "", rating: String(r.rating ?? ""),
+      reviews: r.reviews ?? 0, year: r.year ?? "", origin: r.origin ?? "",
+      historyTitle: r.historyTitle ?? "", historyText: r.historyText ?? "",
+      tastingColor: r.tastingColor ?? "", tastingDescription: r.tastingDescription ?? "",
+      tastingTemp: r.tastingTemp ?? "", tastingGlass: r.tastingGlass ?? "",
+      tastingPairing: r.tastingPairing ?? [],
+      sweet: r.sweet ?? 0, sour: r.sour ?? 0, bitter: r.bitter ?? 0,
+      spicy: r.spicy ?? 0, fruity: r.fruity ?? 0, herbal: r.herbal ?? 0,
+      tips: r.tips ?? [],
+      authorName: r.authorName ?? "", authorDate: r.authorDate ?? "",
+      ingredients: [], steps: [],
+    });
+    setPairingStr(arrStr(r.tastingPairing));
+    setTipsStr(arrStr(r.tips));
+    setRecipeOpen(true);
+  }
+  function submitRecipe() {
+    const data = {
+      ...rForm,
+      id: editRecipeId,
+      rating: rForm.rating || undefined,
+      tastingPairing: jsonArr(pairingStr),
+      tips: jsonArr(tipsStr),
+      ingredients: rForm.ingredients.length > 0 ? rForm.ingredients : undefined,
+      steps: rForm.steps.length > 0 ? rForm.steps : undefined,
+    };
+    upsertRecipe.mutate(data);
+  }
+
+  /* Place form state */
+  const [placeOpen, setPlaceOpen] = useState(false);
+  const [editPlaceId, setEditPlaceId] = useState<number | undefined>();
+  const [pForm, setPForm] = useState({ ...EMPTY_PLACE });
+  const [tagsStr, setTagsStr] = useState("");
+  const [prosStr, setProsStr] = useState("");
+  const [consStr, setConsStr] = useState("");
+
+  function resetPlace() {
+    setPForm({ ...EMPTY_PLACE });
+    setTagsStr(""); setProsStr(""); setConsStr(""); setEditPlaceId(undefined);
+  }
+  function startEditPlace(p: NonNullable<typeof places>[0]) {
+    setEditPlaceId(p.id);
+    setPForm({
+      ...EMPTY_PLACE,
+      slug: p.slug, name: p.name, city: p.city ?? "", address: p.address ?? "",
+      metro: p.metro ?? "", phone: p.phone ?? "", website: p.website ?? "",
+      rating: String(p.rating ?? ""), reviews: p.reviews ?? 0,
+      price: p.price ?? "", hours: p.hours ?? "", image: p.image ?? "",
+      tags: p.tags ?? [], description: p.description ?? "",
+      infusionsHighlight: p.infusionsHighlight ?? "", infusionsSignature: p.infusionsSignature ?? "",
+      externalSource: p.externalSource ?? "", externalSummary: p.externalSummary ?? "",
+      externalPros: p.externalPros ?? [], externalCons: p.externalCons ?? [],
+    });
+    setTagsStr(arrStr(p.tags));
+    setProsStr(arrStr(p.externalPros));
+    setConsStr(arrStr(p.externalCons));
+    setPlaceOpen(true);
+  }
+  function submitPlace() {
+    const data = {
+      ...pForm,
+      id: editPlaceId,
+      rating: pForm.rating || undefined,
+      tags: jsonArr(tagsStr),
+      externalPros: jsonArr(prosStr),
+      externalCons: jsonArr(consStr),
+    };
+    upsertPlace.mutate(data);
+  }
+
+  /* ═══════════════════════════════════════
+     Render
+     ═══════════════════════════════════════ */
   return (
-    <div style={{ padding: 100, color: "#000", background: "#fff", minHeight: "100vh" }}>
-      <h1 style={{ fontSize: 32, fontWeight: "bold", color: "#c41e3a" }}>АДМИН-ПАНЕЛЬ</h1>
-      <p style={{ fontSize: 18, marginTop: 20 }}>Если вы это видите — страница работает!</p>
+    <main className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--card-bg)", color: "var(--text-primary)" }}>
+      <div className="mx-auto max-w-6xl">
+        <h1 className="text-3xl font-bold mb-8" style={{ fontFamily: "var(--font-heading)", color: "var(--accent)" }}>
+          Админ-панель
+        </h1>
+
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="mb-6 flex-wrap">
+            <TabsTrigger value="parser">Из текста</TabsTrigger>
+            <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="labelTemplates">Этикетки</TabsTrigger>
+            <TabsTrigger value="moderation">Модерация</TabsTrigger>
+          </TabsList>
+
+          {/* ─── Парсер из текста ─── */}
+          <TabsContent value="parser">
+            <RecipeFromTextTab onLocalSave={() => setLocalRecipes(getLocalRecipes())} onNotice={setSaveNotice} />
+          </TabsContent>
+
+          {/* ─── Уведомление о локальном сохранении ─── */}
+          {saveNotice && (
+            <div className="mb-4 p-4 rounded-lg text-sm" style={{ background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e" }}>
+              {saveNotice}
+              <button className="ml-2 underline" onClick={() => setSaveNotice("")}>Закрыть</button>
+            </div>
+          )}
+
+          {/* ─── Рецепты ─── */}
+          <TabsContent value="recipes">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Список рецептов</CardTitle>
+                <Dialog open={recipeOpen} onOpenChange={(o) => { if (!o) resetRecipe(); setRecipeOpen(o); }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" onClick={() => { resetRecipe(); setRecipeOpen(true); }}>
+                      + Добавить рецепт
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>{editRecipeId ? "Редактировать" : "Новый"} рецепт</DialogTitle>
+                    </DialogHeader>
+                    <RecipeForm
+                      form={rForm} setForm={setRForm}
+                      pairingStr={pairingStr} setPairingStr={setPairingStr}
+                      tipsStr={tipsStr} setTipsStr={setTipsStr}
+                    />
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => { resetRecipe(); setRecipeOpen(false); }}>Отмена</Button>
+                      <Button onClick={submitRecipe} disabled={upsertRecipe.isPending}>
+                        {upsertRecipe.isPending ? "Сохраняю..." : "Сохранить"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {rLoading ? (
+                  <p>Загрузка...</p>
+                ) : !displayRecipes?.length ? (
+                  <p className="text-muted-foreground">Нет рецептов</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Название</TableHead>
+                        <TableHead>Slug</TableHead>
+                        <TableHead>Категория</TableHead>
+                        <TableHead className="text-right">Действия</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayRecipes.map((r) => {
+                        const isLocal = r.id < 0;
+                        return (
+                          <TableRow key={r.id} style={isLocal ? { background: "rgba(254, 243, 199, 0.3)" } : undefined}>
+                            <TableCell>
+                              {r.id}
+                              {isLocal && <span className="ml-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "#fde68a", color: "#92400e" }}>local</span>}
+                            </TableCell>
+                            <TableCell className="font-medium">{r.title}</TableCell>
+                            <TableCell className="text-muted-foreground">{r.slug}</TableCell>
+                            <TableCell>{r.categoryLabel || r.category}</TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <Button size="sm" variant="outline" onClick={() => startEditRecipe(r)}>
+                                Изменить
+                              </Button>
+                              <Button size="sm" variant="destructive"
+                                onClick={() => {
+                                  if (!confirm("Удалить рецепт?")) return;
+                                  if (isLocal) {
+                                    deleteLocalRecipe(r.id);
+                                    setLocalRecipes(getLocalRecipes());
+                                  } else {
+                                    deleteRecipe.mutate({ id: r.id });
+                                  }
+                                }}>
+                                Удалить
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── Шаблоны этикеток ─── */}
+          <TabsContent value="labelTemplates">
+            <LabelTemplatesAdmin />
+          </TabsContent>
+
+          {/* ─── Места ─── */}
+          <TabsContent value="places">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Список мест</CardTitle>
+                <Dialog open={placeOpen} onOpenChange={(o) => { if (!o) resetPlace(); setPlaceOpen(o); }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" onClick={() => { resetPlace(); setPlaceOpen(true); }}>
+                      + Добавить место
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>{editPlaceId ? "Редактировать" : "Новое"} место</DialogTitle>
+                    </DialogHeader>
+                    <PlaceForm
+                      form={pForm} setForm={setPForm}
+                      tagsStr={tagsStr} setTagsStr={setTagsStr}
+                      prosStr={prosStr} setProsStr={setProsStr}
+                      consStr={consStr} setConsStr={setConsStr}
+                    />
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => { resetPlace(); setPlaceOpen(false); }}>Отмена</Button>
+                      <Button onClick={submitPlace} disabled={upsertPlace.isPending}>
+                        {upsertPlace.isPending ? "Сохраняю..." : "Сохранить"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {pLoading ? (
+                  <p>Загрузка...</p>
+                ) : !places?.length ? (
+                  <p className="text-muted-foreground">Нет мест</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Название</TableHead>
+                        <TableHead>Город</TableHead>
+                        <TableHead className="text-right">Действия</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {places.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell>{p.id}</TableCell>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell>{p.city}</TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button size="sm" variant="outline" onClick={() => startEditPlace(p)}>
+                              Изменить
+                            </Button>
+                            <Button size="sm" variant="destructive"
+                              onClick={() => { if (confirm("Удалить место?")) deletePlace.mutate({ id: p.id }); }}>
+                              Удалить
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── Модерация заявок ─── */}
+          <TabsContent value="moderation">
+            <ModerationTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </main>
+  );
+}
+
+/* ═══════════════════════════════════════
+   RecipeForm
+   ═══════════════════════════════════════ */
+function RecipeForm({
+  form, setForm,
+  pairingStr, setPairingStr,
+  tipsStr, setTipsStr,
+}: {
+  form: typeof EMPTY_RECIPE; setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_RECIPE>>;
+  pairingStr: string; setPairingStr: (v: string) => void;
+  tipsStr: string; setTipsStr: (v: string) => void;
+}) {
+  const f = form;
+  const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
+  const num = (v: string) => (v === "" ? 0 : Number(v));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Slug (URL)*" value={f.slug} onChange={(v) => update({ slug: v })} />
+        <Field label="Название*" value={f.title} onChange={(v) => update({ title: v })} />
+      </div>
+      <Field label="Подзаголовок" value={f.subtitle} onChange={(v) => update({ subtitle: v })} />
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Категория*" value={f.category} onChange={(v) => update({ category: v })} placeholder="sweet / bitter / herbal ..." />
+        <Field label="Метка категории" value={f.categoryLabel} onChange={(v) => update({ categoryLabel: v })} />
+        <Field label="Изображение (hero)" value={f.heroImage} onChange={(v) => update({ heroImage: v })} placeholder="recipe-name.jpg" />
+      </div>
+      <div className="grid grid-cols-4 gap-4">
+        <Field label="Крепость (ABV)" value={f.abv} onChange={(v) => update({ abv: v })} />
+        <Field label="Время" value={f.time} onChange={(v) => update({ time: v })} />
+        <Field label="Сложность" value={f.difficulty} onChange={(v) => update({ difficulty: v })} />
+        <Field label="Год / Период" value={f.year} onChange={(v) => update({ year: v })} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Рейтинг" value={f.rating} onChange={(v) => update({ rating: v })} />
+        <Field label="Отзывы (число)" value={String(f.reviews)} onChange={(v) => update({ reviews: num(v) })} />
+        <Field label="Происхождение" value={f.origin} onChange={(v) => update({ origin: v })} />
+      </div>
+
+      <h3 className="font-semibold mt-4" style={{ color: "var(--accent)" }}>История</h3>
+      <Field label="Заголовок истории" value={f.historyTitle} onChange={(v) => update({ historyTitle: v })} />
+      <Area label="Текст истории" value={f.historyText} onChange={(v) => update({ historyText: v })} />
+
+      <h3 className="font-semibold mt-4" style={{ color: "var(--accent)" }}>Дегустация</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Цвет" value={f.tastingColor} onChange={(v) => update({ tastingColor: v })} />
+        <Field label="Температура подачи" value={f.tastingTemp} onChange={(v) => update({ tastingTemp: v })} />
+      </div>
+      <Field label="Бокал" value={f.tastingGlass} onChange={(v) => update({ tastingGlass: v })} />
+      <Area label="Описание вкуса" value={f.tastingDescription} onChange={(v) => update({ tastingDescription: v })} />
+      <Area label="Сочетания (по строкам)" value={pairingStr} onChange={setPairingStr} placeholder="Сыр\nШоколад\nМясо" />
+
+      <h3 className="font-semibold mt-4" style={{ color: "var(--accent)" }}>Вкусовой профиль (0-100)</h3>
+      <div className="grid grid-cols-3 gap-4">
+        {(
+          [
+            ["sweet", "Сладость"],
+            ["sour", "Кислотность"],
+            ["bitter", "Горечь"],
+            ["spicy", "Острота"],
+            ["fruity", "Фруктовость"],
+            ["herbal", "Травянистость"],
+          ] as const
+        ).map(([key, label]) => (
+          <div key={key}>
+            <Label>{label}</Label>
+            <Input
+              type="number" min={0} max={100}
+              value={f[key]}
+              onChange={(e) => update({ [key]: num(e.target.value) })}
+            />
+          </div>
+        ))}
+      </div>
+
+      <Area label="Советы (по строкам)" value={tipsStr} onChange={setTipsStr} placeholder="Совет 1\nСовет 2" />
+
+      <h3 className="font-semibold mt-4" style={{ color: "var(--accent)" }}>Автор</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Имя автора" value={f.authorName} onChange={(v) => update({ authorName: v })} />
+        <Field label="Дата" value={f.authorDate} onChange={(v) => update({ authorDate: v })} />
+      </div>
     </div>
   );
 }
-// build 1779375235
-// force change 1779375322
+
+/* ═══════════════════════════════════════
+   PlaceForm
+   ═══════════════════════════════════════ */
+function PlaceForm({
+  form, setForm,
+  tagsStr, setTagsStr,
+  prosStr, setProsStr,
+  consStr, setConsStr,
+}: {
+  form: typeof EMPTY_PLACE; setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_PLACE>>;
+  tagsStr: string; setTagsStr: (v: string) => void;
+  prosStr: string; setProsStr: (v: string) => void;
+  consStr: string; setConsStr: (v: string) => void;
+}) {
+  const f = form;
+  const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
+  const num = (v: string) => (v === "" ? 0 : Number(v));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Slug (URL)*" value={f.slug} onChange={(v) => update({ slug: v })} />
+        <Field label="Название*" value={f.name} onChange={(v) => update({ name: v })} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Город" value={f.city} onChange={(v) => update({ city: v })} />
+        <Field label="Адрес" value={f.address} onChange={(v) => update({ address: v })} />
+        <Field label="Метро" value={f.metro} onChange={(v) => update({ metro: v })} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Телефон" value={f.phone} onChange={(v) => update({ phone: v })} />
+        <Field label="Сайт" value={f.website} onChange={(v) => update({ website: v })} />
+        <Field label="Часы работы" value={f.hours} onChange={(v) => update({ hours: v })} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Рейтинг" value={f.rating} onChange={(v) => update({ rating: v })} />
+        <Field label="Отзывы (число)" value={String(f.reviews)} onChange={(v) => update({ reviews: num(v) })} />
+        <Field label="Ценовая категория" value={f.price} onChange={(v) => update({ price: v })} />
+      </div>
+      <Field label="Изображение" value={f.image} onChange={(v) => update({ image: v })} placeholder="place-name.jpg" />
+      <Area label="Теги (по строкам)" value={tagsStr} onChange={setTagsStr} placeholder="настойки\nавторские коктейли" />
+      <Area label="Описание" value={f.description} onChange={(v) => update({ description: v })} />
+      <Field label="Изюминка настоек" value={f.infusionsHighlight} onChange={(v) => update({ infusionsHighlight: v })} />
+      <Field label="Фирменная настойка" value={f.infusionsSignature} onChange={(v) => update({ infusionsSignature: v })} />
+      <Field label="Внешний источник" value={f.externalSource} onChange={(v) => update({ externalSource: v })} />
+      <Area label="Резюме из внешнего источника" value={f.externalSummary} onChange={(v) => update({ externalSummary: v })} />
+      <Area label="Плюсы (по строкам)" value={prosStr} onChange={setProsStr} />
+      <Area label="Минусы (по строкам)" value={consStr} onChange={setConsStr} />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   Small helpers
+   ═══════════════════════════════════════ */
+/* ═══════════════════════════════════════
+   RecipeFromTextTab — frontend LLM parser
+   ═══════════════════════════════════════ */
+
+const SYSTEM_PROMPT = `Ты — эксперт по домашним настойкам. Тебе даётся текст рецепта напитка (вишнёвка, самогон, наливка, настойка и т.д.).
+
+Проанализируй текст и извлеки структурированные данные в формате JSON. Если какая-то информация отсутствует в тексте — предложи на основе своих знаний (вкусовой профиль, история, происхождение, сочетания).
+
+Ответь ТОЛЬКО валидным JSON, без markdown, без объяснений:
+
+{
+  "slug": "krasnaya-smorodinovka",
+  "title": "Красная смородиновка",
+  "subtitle": "Классическая ягодная настойка с богатым вкусом",
+  "category": "sweet",
+  "categoryLabel": "Сладкая",
+  "abv": "25%",
+  "time": "21-30 дней",
+  "difficulty": "Средняя",
+  "year": "XIX век",
+  "origin": "Россия, Средняя полоса",
+  "historyTitle": "История смородиновки",
+  "historyText": "2-3 абзаца истории напитка...",
+  "tastingColor": "Насыщенный рубиново-красный",
+  "tastingDescription": "Описание вкуса, аромата, послевкусия...",
+  "tastingTemp": "12-14°C",
+  "tastingGlass": "Бокал для ликёра или маленький винный",
+  "tastingPairing": ["Тёмный шоколад", "Сливочный чизкейк", "Свежие ягоды"],
+  "sweet": 70,
+  "sour": 50,
+  "bitter": 20,
+  "spicy": 10,
+  "fruity": 85,
+  "herbal": 15,
+  "tips": ["Используйте только спелые ягоды", "Сахар можно заменить мёдом"],
+  "authorName": "Народный рецепт",
+  "authorDate": "2025",
+  "ingredients": [
+    { "name": "Красная смородина", "amount": "1 кг", "note": "свежая или замороженная" },
+    { "name": "Водка/спирт", "amount": "0.5 л", "note": "40%" },
+    { "name": "Сахар", "amount": "400 г", "note": "можно больше по вкусу" }
+  ],
+  "steps": [
+    { "stepNum": 1, "title": "Подготовка ягод", "text": "Промойте смородину..." },
+    { "stepNum": 2, "title": "Заливка", "text": "Залейте ягоды спиртом..." }
+  ]
+}
+
+Правила:
+- slug: латиница через дефис, маленькие буквы
+- category: sweet | bitter | herbal | spicy | fruity | citrus | coffee | berry
+- categoryLabel: русское название категории
+- difficulty: Простая | Средняя | Сложная
+- sweet/sour/bitter/spicy/fruity/herbal: число от 0 до 100
+- tastingPairing: массив строк (закуски/сочетания)
+- tips: массив советов (3-5 штук)
+- Всегда предлагай историю напитка (2-3 абзаца), даже если в тексте её нет
+- Всегда предлагай вкусовой профиль на основе ингредиентов
+- Всегда предлагай подходящие закуски
+- steps должны быть подробными, с конкретными пропорциями и временем`;
+
+function RecipeFromTextTab({ onLocalSave, onNotice }: { onLocalSave: () => void; onNotice: (msg: string) => void }) {
+  useAuth(); /* для инициализации токена */
+  const utils = trpc.useUtils();
+  const [rawText, setRawText] = useState("");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("moonshot-api-key") || "");
+  const [parsedForm, setParsedForm] = useState<typeof EMPTY_RECIPE | null>(null);
+  const [pairingStr, setPairingStr] = useState("");
+  const [tipsStr, setTipsStr] = useState("");
+  const [ingredientsStr, setIngredientsStr] = useState("");
+  const [stepsStr, setStepsStr] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [error, setError] = useState("");
+  const fingerprint = useCallback(getFingerprint, [])();
+
+  const upsertRecipe = trpc.recipe.upsert.useMutation({
+    onSuccess: () => {
+      utils.recipe.list.invalidate();
+      setParsedForm(null);
+      setRawText("");
+      onNotice("");
+    },
+    onError: (_err, variables) => {
+      const data = variables as Record<string, unknown>;
+      saveLocalRecipe({
+        slug: String(data.slug ?? ""),
+        title: String(data.title ?? ""),
+        subtitle: String(data.subtitle ?? "") || null,
+        category: String(data.category ?? ""),
+        categoryLabel: String(data.categoryLabel ?? "") || null,
+        heroImage: String(data.heroImage ?? "") || null,
+        abv: String(data.abv ?? "") || null,
+        time: String(data.time ?? "") || null,
+        difficulty: String(data.difficulty ?? "") || null,
+        rating: String(data.rating ?? "") || null,
+        reviews: Number(data.reviews ?? 0) || null,
+        year: String(data.year ?? "") || null,
+        origin: String(data.origin ?? "") || null,
+        historyTitle: String(data.historyTitle ?? "") || null,
+        historyText: String(data.historyText ?? "") || null,
+        tastingColor: String(data.tastingColor ?? "") || null,
+        tastingDescription: String(data.tastingDescription ?? "") || null,
+        tastingTemp: String(data.tastingTemp ?? "") || null,
+        tastingGlass: String(data.tastingGlass ?? "") || null,
+        tastingPairing: Array.isArray(data.tastingPairing) ? data.tastingPairing : null,
+        sweet: Number(data.sweet ?? 0) || null,
+        sour: Number(data.sour ?? 0) || null,
+        bitter: Number(data.bitter ?? 0) || null,
+        spicy: Number(data.spicy ?? 0) || null,
+        fruity: Number(data.fruity ?? 0) || null,
+        herbal: Number(data.herbal ?? 0) || null,
+        tips: Array.isArray(data.tips) ? data.tips : null,
+        authorName: String(data.authorName ?? "") || null,
+        authorDate: String(data.authorDate ?? "") || null,
+      });
+      onLocalSave();
+      setParsedForm(null);
+      onNotice(`Рецепт «${data.title}» сохранён локально (API недоступен). На VPS с запущенным бэкендом он попадёт в базу автоматически.`);
+    },
+  });
+
+  async function handleParse() {
+    if (rawText.trim().length < 10) return;
+    if (!apiKey.trim()) {
+      setError("Введите API-ключ Moonshot");
+      return;
+    }
+    setIsParsing(true);
+    setError("");
+
+    /* Проверяем лимит через бэкенд (если доступен) */
+    try {
+      const limitCheck = await fetch("/api/trpc/recipeParser.checkLimit?input=" + encodeURIComponent(JSON.stringify({ json: { fingerprint } })));
+      if (limitCheck.ok) {
+        const limitData = await limitCheck.json();
+        const result = limitData.result?.data;
+        if (result && !result.allowed) {
+          setError(result.isLoggedIn
+            ? "Дневной лимит исчерпан (5 запросов). Попробуйте завтра."
+            : "Лимит бесплатных запросов исчерпан (2 из 2). Войдите в аккаунт для продолжения."
+          );
+          setIsParsing(false);
+          return;
+        }
+      }
+    } catch { /* бэкенд недоступен — пропускаем проверку */ }
+
+    try {
+      const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: "moonshot-v1-8k",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: rawText },
+          ],
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      const content = json.choices?.[0]?.message?.content;
+      if (!content) throw new Error("Пустой ответ от API");
+      const d = JSON.parse(content);
+      setParsedForm({
+        ...EMPTY_RECIPE,
+        slug: d.slug ?? "",
+        title: d.title ?? "",
+        subtitle: d.subtitle ?? "",
+        category: d.category ?? "sweet",
+        categoryLabel: d.categoryLabel ?? "",
+        abv: d.abv ?? "",
+        time: d.time ?? "",
+        difficulty: d.difficulty ?? "",
+        year: d.year ?? "",
+        origin: d.origin ?? "",
+        historyTitle: d.historyTitle ?? "",
+        historyText: d.historyText ?? "",
+        tastingColor: d.tastingColor ?? "",
+        tastingDescription: d.tastingDescription ?? "",
+        tastingTemp: d.tastingTemp ?? "",
+        tastingGlass: d.tastingGlass ?? "",
+        tastingPairing: Array.isArray(d.tastingPairing) ? d.tastingPairing : [],
+        sweet: d.sweet ?? 0,
+        sour: d.sour ?? 0,
+        bitter: d.bitter ?? 0,
+        spicy: d.spicy ?? 0,
+        fruity: d.fruity ?? 0,
+        herbal: d.herbal ?? 0,
+        tips: Array.isArray(d.tips) ? d.tips : [],
+        authorName: d.authorName ?? "",
+        authorDate: d.authorDate ?? "",
+        ingredients: Array.isArray(d.ingredients) ? d.ingredients : [],
+        steps: Array.isArray(d.steps) ? d.steps : [],
+      });
+      setPairingStr(Array.isArray(d.tastingPairing) ? d.tastingPairing.join("\n") : "");
+      setTipsStr(Array.isArray(d.tips) ? d.tips.join("\n") : "");
+      setIngredientsStr(Array.isArray(d.ingredients) ? d.ingredients.map((i: {name: string, amount?: string, note?: string}) => `${i.name} | ${i.amount ?? ""} | ${i.note ?? ""}`).join("\n") : "");
+      setStepsStr(Array.isArray(d.steps) ? d.steps.map((s: {stepNum: number, title?: string, text: string}) => `${s.stepNum}. ${s.title ?? ""}: ${s.text}`).join("\n\n") : "");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ошибка запроса");
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function handleSave() {
+    if (!parsedForm) return;
+    const data = {
+      ...parsedForm,
+      rating: parsedForm.rating || undefined,
+      tastingPairing: jsonArr(pairingStr),
+      tips: jsonArr(tipsStr),
+      ingredients: parsedForm.ingredients.length > 0 ? parsedForm.ingredients : undefined,
+      steps: parsedForm.steps.length > 0 ? parsedForm.steps : undefined,
+    };
+    upsertRecipe.mutate(data);
+  }
+
+  const [mode, setMode] = useState<"api" | "manual">("manual");
+  const [manualJson, setManualJson] = useState("");
+
+  function handleManualParse() {
+    setError("");
+    try {
+      const d = JSON.parse(manualJson.trim());
+      setParsedForm({
+        ...EMPTY_RECIPE,
+        slug: d.slug ?? "",
+        title: d.title ?? "",
+        subtitle: d.subtitle ?? "",
+        category: d.category ?? "sweet",
+        categoryLabel: d.categoryLabel ?? "",
+        abv: d.abv ?? "",
+        time: d.time ?? "",
+        difficulty: d.difficulty ?? "",
+        year: d.year ?? "",
+        origin: d.origin ?? "",
+        historyTitle: d.historyTitle ?? "",
+        historyText: d.historyText ?? "",
+        tastingColor: d.tastingColor ?? "",
+        tastingDescription: d.tastingDescription ?? "",
+        tastingTemp: d.tastingTemp ?? "",
+        tastingGlass: d.tastingGlass ?? "",
+        tastingPairing: Array.isArray(d.tastingPairing) ? d.tastingPairing : [],
+        sweet: d.sweet ?? 0,
+        sour: d.sour ?? 0,
+        bitter: d.bitter ?? 0,
+        spicy: d.spicy ?? 0,
+        fruity: d.fruity ?? 0,
+        herbal: d.herbal ?? 0,
+        tips: Array.isArray(d.tips) ? d.tips : [],
+        authorName: d.authorName ?? "",
+        authorDate: d.authorDate ?? "",
+        ingredients: Array.isArray(d.ingredients) ? d.ingredients : [],
+        steps: Array.isArray(d.steps) ? d.steps : [],
+      });
+      setPairingStr(Array.isArray(d.tastingPairing) ? d.tastingPairing.join("\n") : "");
+      setTipsStr(Array.isArray(d.tips) ? d.tips.join("\n") : "");
+      setIngredientsStr(Array.isArray(d.ingredients) ? d.ingredients.map((i: {name: string, amount?: string, note?: string}) => `${i.name} | ${i.amount ?? ""} | ${i.note ?? ""}`).join("\n") : "");
+      setStepsStr(Array.isArray(d.steps) ? d.steps.map((s: {stepNum: number, title?: string, text: string}) => `${s.stepNum}. ${s.title ?? ""}: ${s.text}`).join("\n\n") : "");
+    } catch {
+      setError("Невалидный JSON. Проверьте формат ответа от Kimi.");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {!parsedForm ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Добавить рецепт из текста (ИИ)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 rounded-lg text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <strong>Как это работает:</strong> вставьте текст рецепта с любого сайта.
+              Kimi проанализирует его, додумает недостающие параметры (вкусовой профиль, история, закуски)
+              и заполнит форму. Вы сможете отредактировать результат перед сохранением.
+            </div>
+
+            {/* Mode switch */}
+            <div className="flex gap-2">
+              <Button size="sm" variant={mode === "manual" ? "default" : "outline"} onClick={() => setMode("manual")}>
+                Через мой аккаунт Kimi
+              </Button>
+              <Button size="sm" variant={mode === "api" ? "default" : "outline"} onClick={() => setMode("api")}>
+                Через API-ключ (авто)
+              </Button>
+            </div>
+
+            {mode === "api" ? (
+              <>
+                <div>
+                  <Label>API-ключ Moonshot</Label>
+                  <Input
+                    value={apiKey}
+                    onChange={(e) => { setApiKey(e.target.value); localStorage.setItem("moonshot-api-key", e.target.value); }}
+                    placeholder="sk-xxxxxxxxxxxxxxxx"
+                    type="password"
+                    className="mt-1"
+                  />
+                  <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                    Ключ сохраняется локально. Получить бесплатно: {" "}
+                    <a href="https://platform.moonshot.cn" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>platform.moonshot.cn</a>
+                  </p>
+                </div>
+                <Textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder="Вставьте сюда текст рецепта..."
+                  className="min-h-[200px]"
+                />
+                {error && (
+                  <div className="p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>{error}</div>
+                )}
+                <Button onClick={handleParse} disabled={isParsing || rawText.trim().length < 10}>
+                  {isParsing ? "Анализирую..." : "Анализировать"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg text-sm" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" }}>
+                    <strong>Шаг 1:</strong> Скопируйте текст рецепта ниже
+                  </div>
+                  <Textarea
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    placeholder="Вставьте сюда текст рецепта с любого сайта..."
+                    className="min-h-[120px]"
+                  />
+
+                  <div className="p-3 rounded-lg text-sm" style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" }}>
+                    <strong>Шаг 2:</strong> Откройте <a href="https://kimi.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>kimi.com</a> в новой вкладке, вставьте промпт ниже + текст рецепта, отправьте
+                  </div>
+                  <div className="relative">
+                    <Textarea
+                      value={SYSTEM_PROMPT + "\n\n---\n\nТекст рецепта:\n" + rawText}
+                      readOnly
+                      className="min-h-[200px] text-xs font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => navigator.clipboard.writeText(SYSTEM_PROMPT + "\n\n---\n\nТекст рецепта:\n" + rawText)}
+                    >
+                      Копировать промпт
+                    </Button>
+                  </div>
+
+                  <div className="p-3 rounded-lg text-sm" style={{ background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e" }}>
+                    <strong>Шаг 3:</strong> Вставьте JSON-ответ от Kimi сюда
+                  </div>
+                  <Textarea
+                    value={manualJson}
+                    onChange={(e) => setManualJson(e.target.value)}
+                    placeholder={`{\n  "slug": "vishnevka",\n  "title": "Вишнёвка",\n  ...\n}`}
+                    className="min-h-[150px] text-xs font-mono"
+                  />
+                  {error && (
+                    <div className="p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>{error}</div>
+                  )}
+                  <Button onClick={handleManualParse} disabled={manualJson.trim().length < 10}>
+                    Распарсить ответ Kimi
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Результат анализа — проверьте и отредактируйте</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {parsedForm && (
+              <RecipeForm
+                form={parsedForm}
+                setForm={(v) => setParsedForm(v as typeof EMPTY_RECIPE)}
+                pairingStr={pairingStr} setPairingStr={setPairingStr}
+                tipsStr={tipsStr} setTipsStr={setTipsStr}
+              />
+            )}
+
+            {/* Ингредиенты textarea для удобного редактирования */}
+            <h3 className="font-semibold mt-4 mb-2" style={{ color: "var(--accent)" }}>Ингредиенты (формат: название | количество | примечание)</h3>
+            <Textarea
+              value={ingredientsStr}
+              onChange={(e) => {
+                setIngredientsStr(e.target.value);
+                const lines = e.target.value.split("\n").filter(Boolean);
+                const parsed = lines.map((line) => {
+                  const parts = line.split("|").map((s) => s.trim());
+                  return { name: parts[0] ?? "", amount: parts[1] ?? "", note: parts[2] ?? "" };
+                });
+                setParsedForm((prev) => prev ? { ...prev, ingredients: parsed } : null);
+              }}
+              placeholder="Вишня | 1 кг | свежая&#10;Водка | 0.5 л | 40%"
+              className="min-h-[100px]"
+            />
+
+            {/* Шаги textarea */}
+            <h3 className="font-semibold mt-4 mb-2" style={{ color: "var(--accent)" }}>Шаги (формат: номер. название: описание)</h3>
+            <Textarea
+              value={stepsStr}
+              onChange={(e) => {
+                setStepsStr(e.target.value);
+                const lines = e.target.value.split("\n").filter(Boolean);
+                const parsed = lines.map((line, idx) => {
+                  const match = line.match(/^(\d+)\.\s*(.*?):\s*(.*)$/);
+                  if (match) {
+                    return { stepNum: Number(match[1]), title: match[2].trim(), text: match[3].trim() };
+                  }
+                  return { stepNum: idx + 1, title: "", text: line.trim() };
+                });
+                setParsedForm((prev) => prev ? { ...prev, steps: parsed } : null);
+              }}
+              placeholder="1. Подготовка: Промойте ягоды...&#10;2. Заливка: Залейте спиртом..."
+              className="min-h-[120px]"
+            />
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="outline" onClick={() => { setParsedForm(null); setRawText(""); }}>
+                ← Новый рецепт
+              </Button>
+              <Button onClick={handleSave} disabled={upsertRecipe.isPending}>
+                {upsertRecipe.isPending ? "Сохраняю..." : "Сохранить в базу"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   Small helpers
+   ═══════════════════════════════════════ */
+/* Fingerprint для отслеживания незарегистрированных пользователей */
+function getFingerprint(): string {
+  try {
+    const fp = [
+      navigator.userAgent,
+      screen.width + "x" + screen.height,
+      navigator.language,
+      new Date().getTimezoneOffset(),
+    ].join("|");
+    let hash = 0;
+    for (let i = 0; i < fp.length; i++) {
+      const chr = fp.charCodeAt(i);
+      hash = ((hash << 5) - hash) + chr;
+      hash |= 0;
+    }
+    return "fp_" + Math.abs(hash).toString(16);
+  } catch {
+    return "fp_unknown_" + Math.random().toString(36).slice(2);
+  }
+}
+
+/* ═══════════════════════════════════════
+   ModerationTab — модерация заявок на рецепты
+   ═══════════════════════════════════════ */
+function ModerationTab() {
+  const utils = trpc.useUtils();
+  const [filter, setFilter] = useState<string>("all");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejectId, setRejectId] = useState<number | null>(null);
+
+  const { data: submissions, isLoading } = trpc.submission.listAll.useQuery();
+  const approve = trpc.submission.approve.useMutation({
+    onSuccess: () => { utils.submission.listAll.invalidate(); },
+  });
+  const reject = trpc.submission.reject.useMutation({
+    onSuccess: () => { utils.submission.listAll.invalidate(); setRejectId(null); setRejectNote(""); },
+  });
+  const publishRecipe = trpc.recipe.upsert.useMutation({
+    onSuccess: () => { utils.recipe.list.invalidate(); },
+  });
+
+  const filtered = (submissions ?? []).filter((s) => {
+    if (filter === "all") return true;
+    return s.status === filter;
+  });
+
+  const statusMeta: Record<string, { label: string; bg: string; color: string; icon: ReactNode }> = {
+    draft: { label: "Черновик", bg: "#f3f4f6", color: "#6b7280", icon: <Clock size={14} /> },
+    ai_processed: { label: "Обработан ИИ", bg: "#eff6ff", color: "#1e40af", icon: <Sparkles size={14} /> },
+    pending: { label: "На проверке", bg: "#fef3c7", color: "#92400e", icon: <Gavel size={14} /> },
+    approved: { label: "Одобрен", bg: "#d8f3dc", color: "#386641", icon: <Check size={14} /> },
+    rejected: { label: "Отклонён", bg: "#fee2e2", color: "#991b1b", icon: <X size={14} /> },
+  };
+
+  function handleApprove(s: NonNullable<typeof submissions>[0]) {
+    if (!confirm(`Одобрить и опубликовать рецепт «${s.title || s.rawTitle}»?`)) return;
+    /* Approve submission */
+    approve.mutate({ id: s.id });
+    /* Publish to recipes table */
+    if (s.title && s.slug) {
+      publishRecipe.mutate({
+        slug: s.slug,
+        title: s.title,
+        subtitle: s.subtitle ?? undefined,
+        category: s.category || "sweet",
+        categoryLabel: s.categoryLabel ?? undefined,
+        abv: s.abv ?? undefined,
+        time: s.time ?? undefined,
+        difficulty: s.difficulty ?? undefined,
+        year: s.year ?? undefined,
+        origin: s.origin ?? undefined,
+        historyTitle: s.historyTitle ?? undefined,
+        historyText: s.historyText ?? undefined,
+        tastingColor: s.tastingColor ?? undefined,
+        tastingDescription: s.tastingDescription ?? undefined,
+        tastingTemp: s.tastingTemp ?? undefined,
+        tastingGlass: s.tastingGlass ?? undefined,
+        authorName: s.authorName ?? undefined,
+        authorDate: s.authorDate ?? undefined,
+        sweet: s.sweet ?? undefined,
+        sour: s.sour ?? undefined,
+        bitter: s.bitter ?? undefined,
+        spicy: s.spicy ?? undefined,
+        fruity: s.fruity ?? undefined,
+        herbal: s.herbal ?? undefined,
+      });
+    }
+  }
+
+  function handleReject(id: number) {
+    if (!rejectNote.trim()) {
+      setRejectId(id);
+      return;
+    }
+    reject.mutate({ id, adminNotes: rejectNote });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gavel size={20} style={{ color: "var(--accent)" }} />
+          Заявки на добавление рецептов
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "all", label: `Все (${submissions?.length ?? 0})` },
+            { key: "pending", label: `На проверке (${submissions?.filter((s) => s.status === "pending").length ?? 0})` },
+            { key: "approved", label: `Одобрены (${submissions?.filter((s) => s.status === "approved").length ?? 0})` },
+            { key: "rejected", label: `Отклонены (${submissions?.filter((s) => s.status === "rejected").length ?? 0})` },
+            { key: "draft", label: `Черновики (${submissions?.filter((s) => s.status === "draft").length ?? 0})` },
+            { key: "ai_processed", label: `Обработаны ИИ (${submissions?.filter((s) => s.status === "ai_processed").length ?? 0})` },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: filter === f.key ? "var(--accent)" : "var(--surface)",
+                color: filter === f.key ? "#fff" : "var(--text-secondary)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <p>Загрузка...</p>
+        ) : !filtered.length ? (
+          <div className="text-center py-8">
+            <AlertCircle size={32} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
+            <p style={{ color: "var(--text-muted)" }}>Нет заявок в выбранной категории</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((s) => {
+              const meta = statusMeta[s.status] || statusMeta.draft;
+              const isExpanded = expandedId === s.id;
+              return (
+                <div
+                  key={s.id}
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: "1px solid var(--border)", background: "var(--bg-primary)" }}
+                >
+                  {/* Header row */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:opacity-80"
+                    onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                  >
+                    <span
+                      className="shrink-0 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+                      style={{ background: meta.bg, color: meta.color }}
+                    >
+                      {meta.icon} {meta.label}
+                    </span>
+                    <span className="font-medium text-sm flex-1 truncate" style={{ fontFamily: "var(--font-body)" }}>
+                      {s.title || s.rawTitle || "(без названия)"}
+                    </span>
+                    <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+                      <User size={12} className="inline mr-1" />
+                      {s.authorName || "Аноним"}
+                    </span>
+                    <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+                      {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ru-RU") : ""}
+                    </span>
+                    <Eye size={16} style={{ color: "var(--text-muted)" }} />
+                  </div>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+                      {/* Raw input */}
+                      <div className="pt-3 space-y-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                          Исходные данные пользователя
+                        </h4>
+                        {s.rawDescription && (
+                          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.rawDescription}</p>
+                        )}
+                        {s.rawIngredients && (
+                          <div>
+                            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Ингредиенты:</span>
+                            <pre className="text-sm mt-1 p-2 rounded" style={{ background: "var(--surface)", whiteSpace: "pre-wrap" }}>{s.rawIngredients}</pre>
+                          </div>
+                        )}
+                        {s.rawSteps && (
+                          <div>
+                            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Шаги:</span>
+                            <pre className="text-sm mt-1 p-2 rounded" style={{ background: "var(--surface)", whiteSpace: "pre-wrap" }}>{s.rawSteps}</pre>
+                          </div>
+                        )}
+                        {s.rawNotes && (
+                          <div>
+                            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Заметки:</span>
+                            <p className="text-sm mt-1">{s.rawNotes}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* AI-processed data */}
+                      {(s.slug || s.title) && (
+                        <div className="space-y-2 p-3 rounded-lg" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+                          <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                            Обработанные данные
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div><span style={{ color: "var(--text-muted)" }}>Slug:</span> {s.slug}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Категория:</span> {s.categoryLabel || s.category}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Крепость:</span> {s.abv}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Время:</span> {s.time}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Сложность:</span> {s.difficulty}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Происхождение:</span> {s.origin}</div>
+                          </div>
+                          {s.tastingDescription && (
+                            <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Описание:</span> {s.tastingDescription}</p>
+                          )}
+                          {s.historyText && (
+                            <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>История:</span> {s.historyText.slice(0, 200)}...</p>
+                          )}
+                          {/* Taste profile */}
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {[
+                              ["sweet", "Сладость"],
+                              ["sour", "Кислотность"],
+                              ["bitter", "Горечь"],
+                              ["spicy", "Острота"],
+                              ["fruity", "Фруктовость"],
+                              ["herbal", "Травянистость"],
+                            ].map(([key, label]) => {
+                              const val = (s as Record<string, unknown>)[key];
+                              if (val === null || val === undefined) return null;
+                              return (
+                                <span key={key} className="text-xs px-2 py-1 rounded-full" style={{ background: "var(--surface)" }}>
+                                  {label}: {val}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Admin notes (if rejected) */}
+                      {s.adminNotes && (
+                        <div className="p-2 rounded text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>
+                          <strong>Причина отклонения:</strong> {s.adminNotes}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {s.status === "pending" && (
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(s)}
+                            disabled={approve.isPending}
+                            style={{ background: "#386641", color: "#fff" }}
+                          >
+                            <Check size={16} className="mr-1" />
+                            {approve.isPending ? "Публикуем..." : "Одобрить и опубликовать"}
+                          </Button>
+                          {rejectId === s.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <Input
+                                value={rejectNote}
+                                onChange={(e) => setRejectNote(e.target.value)}
+                                placeholder="Причина отклонения..."
+                                className="text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleReject(s.id)}
+                                disabled={!rejectNote.trim() || reject.isPending}
+                              >
+                                {reject.isPending ? "..." : "Отклонить"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { setRejectId(null); setRejectNote(""); }}>
+                                Отмена
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="destructive" onClick={() => setRejectId(s.id)}>
+                              <X size={16} className="mr-1" /> Отклонить
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ═══════════════════════════════════════
+   LabelTemplatesAdmin — CRUD шаблонов этикеток
+   ═══════════════════════════════════════ */
+function LabelTemplatesAdmin() {
+  const utils = trpc.useUtils();
+  const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
+
+  const upsert = trpc.labelTemplate.upsert.useMutation({
+    onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); },
+  });
+  const del = trpc.labelTemplate.delete.useMutation({
+    onSuccess: () => utils.labelTemplate.list.invalidate(),
+  });
+  const toggle = trpc.labelTemplate.toggleActive.useMutation({
+    onSuccess: () => utils.labelTemplate.list.invalidate(),
+  });
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [image, setImage] = useState("");
+  const [bg, setBg] = useState("");
+  const [border, setBorder] = useState("");
+  const [accent, setAccent] = useState("#8B4513");
+  const [fontFamily, setFontFamily] = useState("serif");
+  const [sortOrder, setSortOrder] = useState(0);
+  const [isActive, setIsActive] = useState(1);
+
+  function resetForm() {
+    setEditId(null);
+    setName(""); setImage(""); setBg(""); setBorder("");
+    setAccent("#8B4513"); setFontFamily("serif");
+    setSortOrder(0); setIsActive(1);
+  }
+
+  function startEdit(t: NonNullable<typeof templates>[0]) {
+    setEditId(t.id);
+    setName(t.name); setImage(t.image ?? ""); setBg(t.bg ?? "");
+    setBorder(t.border ?? ""); setAccent(t.accent); setFontFamily(t.fontFamily);
+    setSortOrder(t.sortOrder); setIsActive(t.isActive);
+  }
+
+  function handleSave() {
+    upsert.mutate({
+      id: editId ?? undefined,
+      name, image: image || undefined, bg: bg || undefined,
+      border: border || undefined, accent, fontFamily,
+      sortOrder, isActive,
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Шаблоны этикеток ({templates?.length ?? 0})</CardTitle>
+        <Button size="sm" onClick={() => { resetForm(); }}>
+          + Добавить шаблон
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Edit form */}
+        <div className="p-4 rounded-xl space-y-3" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+          <h4 className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+            {editId ? "Редактировать шаблон" : "Новый шаблон"}
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Название *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Изображение (путь)</Label>
+              <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="/labels/template-01.jpg" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">CSS фон (bg)</Label>
+              <Input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="linear-gradient(...)" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">CSS рамка (border)</Label>
+              <Input value={border} onChange={(e) => setBorder(e.target.value)} placeholder="3px solid #8B4513" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Цвет акцента</Label>
+              <div className="flex gap-2 mt-1">
+                {["#8B4513","#2d2d2d","#b8860b","#ffffff","#c9a227","#9b2226","#2a9d8f","#7209b7"].map((c) => (
+                  <button key={c} onClick={() => setAccent(c)} className="w-6 h-6 rounded-full" style={{ background: c, border: accent === c ? "2px solid var(--accent)" : "1px solid var(--border)" }} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Шрифт</Label>
+              <div className="flex gap-1 mt-1">
+                {["serif","sans","mono"].map((f) => (
+                  <button key={f} onClick={() => setFontFamily(f)} className="px-2 py-1 rounded text-xs font-medium" style={{ background: fontFamily === f ? "var(--accent)" : "var(--surface)", color: fontFamily === f ? "#fff" : "var(--text-secondary)" }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Порядок сортировки</Label>
+              <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className="mt-1" />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={isActive === 1} onChange={(e) => setIsActive(e.target.checked ? 1 : 0)} />
+                <span style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>Активен</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Mini preview */}
+          {(image || bg) && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Превью:</span>
+              <div
+                className="rounded flex items-center justify-center text-center overflow-hidden"
+                style={{ width: 60, height: 80, background: bg || "#fff", border: border || "1px solid #ccc", color: accent, fontSize: 8, fontWeight: "bold" }}
+              >
+                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : "Aa"}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} disabled={!name.trim() || upsert.isPending}>
+              {upsert.isPending ? "Сохраняю..." : "Сохранить"}
+            </Button>
+            {editId && (
+              <Button size="sm" variant="outline" onClick={resetForm}>Отмена</Button>
+            )}
+          </div>
+        </div>
+
+        {/* Table */}
+        {isLoading ? <p>Загрузка...</p> : !templates?.length ? (
+          <p className="text-muted-foreground">Нет шаблонов</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">ID</TableHead>
+                <TableHead>Превью</TableHead>
+                <TableHead>Название</TableHead>
+                <TableHead>Тип</TableHead>
+                <TableHead>Порядок</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead className="text-right">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {templates.map((t) => (
+                <TableRow key={t.id} style={!t.isActive ? { opacity: 0.5 } : undefined}>
+                  <TableCell>{t.id}</TableCell>
+                  <TableCell>
+                    <div className="rounded overflow-hidden" style={{ width: 36, height: 48, background: t.bg ?? "#fff", border: t.border ?? "1px solid #ccc" }}>
+                      {t.image && <img src={t.image} alt="" className="w-full h-full object-cover" />}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{t.name}</TableCell>
+                  <TableCell className="text-xs">
+                    {t.image ? "🖼️ Изображение" : "🎨 CSS"}
+                  </TableCell>
+                  <TableCell>{t.sortOrder}</TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => toggle.mutate({ id: t.id, isActive: t.isActive ? 0 : 1 })}
+                      className="px-2 py-0.5 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        background: t.isActive ? "#d8f3dc" : "#fee2e2",
+                        color: t.isActive ? "#386641" : "#991b1b",
+                      }}
+                    >
+                      {t.isActive ? "Активен" : "Неактивен"}
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Изменить</Button>
+                    <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить?")) del.mutate({ id: t.id }); }}>
+                      Удалить
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({ label, value, onChange, placeholder }: { label: string; value: string | number; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1" />
+    </div>
+  );
+}
+function Area({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1 min-h-[60px]" />
+    </div>
+  );
+}

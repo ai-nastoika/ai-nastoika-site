@@ -12,15 +12,15 @@ export default function Hero() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
             <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
+              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-5"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
             >
-              <Sparkles size={22} />
+              <Sparkles size={18} />
               Сообщество любителей настоек
             </div>
 
             <h1
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6"
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold leading-[1.2] mb-5"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             >
               Место, где{" "}
@@ -30,25 +30,25 @@ export default function Hero() {
             </h1>
 
             <p
-              className="text-lg mb-8 max-w-lg"
-              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
+              className="text-base sm:text-lg mb-8 max-w-lg"
+              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.75 }}
             >
               Для тех, кто любит настойки — не только попробовать, но и сделать своими руками.
               Рецепты, живые обсуждения, ИИ-инструменты и этикетки ручной работы.
             </p>
 
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-3">
               <Link
                 to="/recipes"
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-transform hover:scale-105"
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-base font-medium text-white transition-transform hover:scale-105"
                 style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
               >
                 Подобрать рецепт
-                <ArrowRight size={22} />
+                <ArrowRight size={18} />
               </Link>
               <Link
                 to="/recipes"
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium transition-transform hover:scale-105"
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-base font-medium transition-transform hover:scale-105"
                 style={{
                   background: "var(--bg-card)",
                   color: "var(--text-primary)",

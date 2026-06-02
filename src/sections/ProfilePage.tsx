@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { fallbackRecipes } from "@/data/fallbackData";
 import {
   User,
   Mail,
   Wallet,
+  ArrowLeft,
   Star,
   Heart,
   Clock,
@@ -88,12 +90,13 @@ function StatCard({ icon: Icon, value, label }: { icon: any; value: string; labe
 }
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "history" | "settings">("overview");
   const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
 
   const { data: recipesData } = trpc.recipe.list.useQuery();
-  const allRecipes = recipesData ?? [];
+  const allRecipes = recipesData && recipesData.length > 0 ? recipesData : fallbackRecipes;
   const savedRecipes = [allRecipes[0], allRecipes[2], allRecipes[4]].filter(Boolean);
   const myRecipesList = [allRecipes[1], allRecipes[3]].filter(Boolean);
   const myRatings = [
@@ -108,6 +111,13 @@ export default function ProfilePage() {
       <section className="relative overflow-hidden py-14" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(40%, -40%)" }} />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-2 text-sm mb-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+          >
+            <ArrowLeft size={18} /> Назад
+          </button>
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Avatar */}
             <div className="relative">

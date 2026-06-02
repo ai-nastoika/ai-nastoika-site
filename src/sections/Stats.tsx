@@ -48,7 +48,7 @@ export default function Stats() {
                 <stat.icon size={28} style={{ color: "var(--accent)" }} />
               </div>
               <div
-                className="text-3xl font-bold mb-1"
+                className="text-2xl font-bold mb-1"
                 style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
               >
                 {stat.value}
@@ -60,7 +60,7 @@ export default function Stats() {
                 {stat.label}
               </div>
               <div
-                className="text-base"
+                className="text-sm"
                 style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
               >
                 {stat.desc}

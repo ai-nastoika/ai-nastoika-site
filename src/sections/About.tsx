@@ -21,21 +21,21 @@ export default function About() {
 
           <div className="order-1 lg:order-2">
             <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
+              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-4"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
             >
-              <Info size={22} />
+              <Info size={18} />
               О проекте
             </div>
 
             <h2
-              className="text-3xl sm:text-4xl font-bold mb-6"
-              style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
+              className="text-2xl sm:text-3xl font-bold mb-5"
+              style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)", lineHeight: 1.25 }}
             >
               Для тех, кто делает настойки — и для тех, кто только собирается
             </h2>
 
-            <div className="space-y-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+            <div className="space-y-4 text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
               <p>
                 «Ай, настойка» вырос из простой идеи: собрать в одном месте всё, что нужно настоящему энтузиасту. Рецепты — от проверенной классики до смелых экспериментов.
               </p>

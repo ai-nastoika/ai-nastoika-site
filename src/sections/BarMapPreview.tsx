@@ -23,7 +23,7 @@ export default function BarMapPreview() {
             </div>
 
             <h2
-              className="text-3xl sm:text-4xl font-bold mb-4"
+              className="text-2xl sm:text-3xl font-bold mb-4"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             >
               Места с <span style={{ color: "var(--accent)" }}>авторскими</span> настойками

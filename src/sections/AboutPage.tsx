@@ -59,7 +59,7 @@ export default function AboutPage() {
             О проекте
           </div>
           <h1
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 max-w-4xl mx-auto"
+            className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 max-w-4xl mx-auto"
             style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
           >
             Место, где настойка — это{" "}
@@ -86,7 +86,7 @@ export default function AboutPage() {
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
                 <div
-                  className="text-4xl font-bold mb-2"
+                  className="text-2xl font-bold mb-2"
                   style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}
                 >
                   {stat.value}
@@ -109,7 +109,7 @@ export default function AboutPage() {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
               <h2
-                className="text-3xl sm:text-4xl font-bold mb-6"
+                className="text-2xl sm:text-3xl font-bold mb-6"
                 style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
               >
                 Как всё начиналось
@@ -161,7 +161,7 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <h2
-              className="text-3xl sm:text-4xl font-bold mb-4"
+              className="text-2xl sm:text-3xl font-bold mb-4"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             >
               Наши принципы
@@ -209,7 +209,7 @@ export default function AboutPage() {
       <section className="py-16" style={{ background: "var(--bg-secondary)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2
-            className="text-3xl sm:text-4xl font-bold mb-10 text-center"
+            className="text-2xl sm:text-3xl font-bold mb-10 text-center"
             style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
           >
             Что внутри проекта
@@ -277,7 +277,7 @@ export default function AboutPage() {
       <section className="py-20" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2
-            className="text-3xl sm:text-4xl font-bold mb-4"
+            className="text-2xl sm:text-3xl font-bold mb-4"
             style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
           >
             Присоединяйтесь

@@ -34,7 +34,7 @@ export default function Tools() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
           <h2
-            className="text-3xl sm:text-4xl font-bold mb-4"
+            className="text-2xl sm:text-3xl font-bold mb-4"
             style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
           >
             Инструменты проекта

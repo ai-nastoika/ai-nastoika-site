@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation } from "lucide-react";
+import { fallbackPlaces } from "@/data/fallbackData";
+import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft } from "lucide-react";
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
@@ -13,7 +14,9 @@ const coordMap: Record<string, { top: string; left: string }> = {
 };
 
 export default function BarMap() {
-  const { data: places, isLoading } = trpc.place.list.useQuery();
+  const navigate = useNavigate();
+  const { data: apiPlaces, isLoading } = trpc.place.list.useQuery();
+  const places = apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces;
   const [activeCity, setActiveCity] = useState("Все города");
   const [hoveredVenue, setHoveredVenue] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,13 +46,20 @@ export default function BarMap() {
       <section className="relative overflow-hidden py-16" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-2 text-sm mb-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+          >
+            <ArrowLeft size={18} /> Назад
+          </button>
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                 <Navigation size={22} />
                 Барная карта
               </div>
-              <h1 className="text-4xl sm:text-5xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Где пить <span style={{ color: "var(--accent)" }}>настойки</span>
               </h1>
               <p className="text-lg max-w-xl" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>

@@ -1,12 +1,5 @@
 import { relations } from "drizzle-orm";
-import {
-  recipes,
-  recipeIngredients,
-  recipeSteps,
-  places,
-  placeInfusions,
-  comments,
-} from "./schema";
+import { recipes, recipeIngredients, recipeSteps, places, comments, labelTemplates, userRecipeSubmissions } from "./schema";
 
 export const recipesRelations = relations(recipes, ({ many }) => ({
   ingredients: many(recipeIngredients),
@@ -14,45 +7,23 @@ export const recipesRelations = relations(recipes, ({ many }) => ({
   comments: many(comments),
 }));
 
-export const recipeIngredientsRelations = relations(
-  recipeIngredients,
-  ({ one }) => ({
-    recipe: one(recipes, {
-      fields: [recipeIngredients.recipeId],
-      references: [recipes.id],
-    }),
-  })
-);
+export const recipeIngredientsRelations = relations(recipeIngredients, ({ one }) => ({
+  recipe: one(recipes, { fields: [recipeIngredients.recipeId], references: [recipes.id] }),
+}));
 
 export const recipeStepsRelations = relations(recipeSteps, ({ one }) => ({
-  recipe: one(recipes, {
-    fields: [recipeSteps.recipeId],
-    references: [recipes.id],
-  }),
+  recipe: one(recipes, { fields: [recipeSteps.recipeId], references: [recipes.id] }),
 }));
 
 export const placesRelations = relations(places, ({ many }) => ({
-  infusions: many(placeInfusions),
   comments: many(comments),
 }));
 
-export const placeInfusionsRelations = relations(
-  placeInfusions,
-  ({ one }) => ({
-    place: one(places, {
-      fields: [placeInfusions.placeId],
-      references: [places.id],
-    }),
-  })
-);
-
 export const commentsRelations = relations(comments, ({ one }) => ({
-  recipe: one(recipes, {
-    fields: [comments.recipeId],
-    references: [recipes.id],
-  }),
-  place: one(places, {
-    fields: [comments.placeId],
-    references: [places.id],
-  }),
+  recipe: one(recipes, { fields: [comments.recipeId], references: [recipes.id] }),
+  place: one(places, { fields: [comments.placeId], references: [places.id] }),
 }));
+
+export const labelTemplatesRelations = relations(labelTemplates, () => ({}));
+
+export const userRecipeSubmissionsRelations = relations(userRecipeSubmissions, () => ({}));

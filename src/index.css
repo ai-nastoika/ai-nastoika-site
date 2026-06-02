@@ -27,6 +27,11 @@
 
   html {
     font-size: calc(16px * var(--ui-scale, 1));
+    overflow-x: hidden;
+  }
+
+  body {
+    overflow-x: hidden;
   }
 
   [data-theme="dark-premium"] {

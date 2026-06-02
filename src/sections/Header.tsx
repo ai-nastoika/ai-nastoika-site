@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X, User, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Heart } from "lucide-react";
 
 const navItems = [
   { label: "Рецепты", href: "/recipes" },
+  { label: "Добавить рецепт", href: "/add-recipe" },
   { label: "Инструменты", href: "/tools" },
   { label: "Барная карта", href: "/barmap" },
   { label: "Правила", href: "/rules" },
@@ -13,6 +16,7 @@ const navItems = [
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { user, isLoggedIn, logout } = useAuth();
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
@@ -28,29 +32,23 @@ export default function Header() {
     >
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         {/* Main header row */}
-        <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Logo: icon + text */}
-          <Link to="/" className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center justify-between h-20 md:h-24">
+          {/* Logo */}
+          <Link to="/" className="shrink-0">
             <img
-              src="/logo-icon.png"
-              alt=""
-              className="h-8 md:h-12 w-auto"
+              src="/logo-full.png"
+              alt="Ай, настойка!"
+              className="h-14 md:h-[72px] w-auto"
             />
-            <span
-              className="text-lg md:text-2xl font-bold leading-none"
-              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
-            >
-              Ай, настойка!
-            </span>
           </Link>
 
           {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-3">
             {navItems.map((item) => (
               <Link
                 key={item.label}
                 to={item.href}
-                className="px-3 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-70"
+                className="px-4 py-2 text-base md:text-lg font-medium rounded-lg transition-all hover:opacity-70"
                 style={{
                   color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
                   fontFamily: "var(--font-body)",
@@ -60,24 +58,70 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
-            <Link
-              to="/profile"
-              className="ml-2 w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-105"
-              style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+
+            {/* Donate */}
+            <a
+              href="https://boosty.to/ainastoika"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105"
+              style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              title="Поддержать проект"
             >
-              <User size={20} />
-            </Link>
+              <Heart size={16} />
+              <span className="hidden lg:inline">Поддержать</span>
+            </a>
+
+            {/* Auth */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2 ml-2">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-70"
+                  style={{ background: "var(--surface)", color: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  <User size={16} />
+                  {user?.name || user?.email}
+                </Link>
+                <button
+                  onClick={logout}
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:opacity-70"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                  title="Выйти"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="ml-2 px-4 py-2 rounded-lg text-base font-medium transition-all hover:opacity-70"
+                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+              >
+                Вход
+              </Link>
+            )}
           </nav>
 
           {/* Mobile: profile + hamburger */}
           <div className="md:hidden flex items-center gap-2">
-            <Link
-              to="/profile"
-              className="w-8 h-8 rounded-full flex items-center justify-center"
-              style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-            >
-              <User size={18} />
-            </Link>
+            {isLoggedIn ? (
+              <button
+                onClick={logout}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+              >
+                <LogOut size={16} />
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Вход
+              </Link>
+            )}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="p-1"
@@ -92,15 +136,17 @@ export default function Header() {
       {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden px-4 pb-4 space-y-1" style={{ background: "var(--bg-primary)" }}>
-          <Link
-            to="/profile"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 py-2.5 text-base font-medium"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
-            <User size={20} />
-            Личный кабинет
-          </Link>
+          {isLoggedIn && (
+            <Link
+              to="/profile"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 py-2.5 text-base font-medium"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              <User size={20} />
+              {user?.name || user?.email}
+            </Link>
+          )}
           <div style={{ borderBottom: "1px solid var(--border)", margin: "4px 0" }} />
           {navItems.map((item) => (
             <Link
@@ -113,6 +159,28 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
+          <div style={{ borderBottom: "1px solid var(--border)", margin: "4px 0" }} />
+          <a
+            href="https://boosty.to/ainastoika"
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 py-2.5 text-base font-medium"
+            style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <Heart size={18} />
+            Поддержать проект
+          </a>
+          {!isLoggedIn && (
+            <Link
+              to="/login"
+              onClick={() => setMobileOpen(false)}
+              className="block py-2.5 text-base font-medium"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              Вход / Регистрация
+            </Link>
+          )}
         </div>
       )}
     </header>

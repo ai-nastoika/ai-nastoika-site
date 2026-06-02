@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { fallbackRecipes } from "@/data/fallbackData";
 import {
   Search, SlidersHorizontal, Star, Clock, Heart, Flame,
-  Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown,
+  Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown, ArrowLeft,
 } from "lucide-react";
 
 const categories = [
@@ -24,7 +25,9 @@ const sortOptions = [
 ];
 
 export default function RecipesPage() {
-  const { data: recipes, isLoading } = trpc.recipe.list.useQuery();
+  const navigate = useNavigate();
+  const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
+  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : fallbackRecipes;
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("popular");
@@ -71,13 +74,22 @@ export default function RecipesPage() {
       <section className="relative overflow-hidden py-16" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          {/* Back button */}
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-2 text-sm mb-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+          >
+            <ArrowLeft size={18} /> Назад
+          </button>
+
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                 <Grape size={22} />
                 {allRecipes.length}+ рецептов
               </div>
-              <h1 className="text-4xl sm:text-5xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Рецепты <span style={{ color: "var(--accent)" }}>настоек</span>
               </h1>
               <p className="text-lg max-w-xl" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>

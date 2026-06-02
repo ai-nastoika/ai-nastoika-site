@@ -1,26 +1,43 @@
-import { useState, useEffect } from "react";
-import { Routes, Route } from "react-router";
+import { useState, useEffect, lazy, Suspense } from "react";
+import { createHashRouter, RouterProvider, Outlet } from "react-router";
 import AgeGate from "./sections/AgeGate";
 import Header from "./sections/Header";
 import Hero from "./sections/Hero";
 import About from "./sections/About";
 import Stats from "./sections/Stats";
 import Tools from "./sections/Tools";
-import ToolsPage from "./sections/ToolsPage";
-import RecipesPage from "./sections/RecipesPage";
-import RecipeDetail from "./sections/RecipeDetail";
-import PlaceDetail from "./sections/PlaceDetail";
-import ProfilePage from "./sections/ProfilePage";
 import Recipes from "./sections/Recipes";
 import Footer from "./sections/Footer";
-import BarMap from "./sections/BarMap";
-import RulesPage from "./sections/RulesPage";
-import FeedbackPage from "./sections/FeedbackPage";
-import AdminPage from "./sections/AdminPage";
 import BarMapPreview from "./sections/BarMapPreview";
 import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
 import ScrollToTop from "./components/ScrollToTop";
+
+/* Lazy-loaded pages — code splitting for faster initial load */
+const ToolsPage = lazy(() => import("./sections/ToolsPage"));
+const RecipesPage = lazy(() => import("./sections/RecipesPage"));
+const RecipeDetail = lazy(() => import("./sections/RecipeDetail"));
+const PlaceDetail = lazy(() => import("./sections/PlaceDetail"));
+const ProfilePage = lazy(() => import("./sections/ProfilePage"));
+const BarMap = lazy(() => import("./sections/BarMap"));
+const RulesPage = lazy(() => import("./sections/RulesPage"));
+const FeedbackPage = lazy(() => import("./sections/FeedbackPage"));
+const AdminPage = lazy(() => import("./sections/AdminPage"));
+const RecipeParserPage = lazy(() => import("./sections/RecipeParserPage"));
+const LoginPage = lazy(() => import("./sections/LoginPage"));
+const LabelGeneratorPage = lazy(() => import("./sections/LabelGeneratorPage"));
+const AddRecipePage = lazy(() => import("./sections/AddRecipePage"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div
+        className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin"
+        style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+      />
+    </div>
+  );
+}
 
 const fontMap: Record<string, { heading: string; body: string }> = {
   classic: { heading: '"Playfair Display", Georgia, serif', body: '"Inter", system-ui, sans-serif' },
@@ -41,7 +58,7 @@ function HomePage() {
   );
 }
 
-export default function App() {
+function Layout() {
   const [activePalette, setActivePalette] = useState(() => localStorage.getItem("theme-palette") || "warm-amber");
   const [activeFont, setActiveFont] = useState(() => localStorage.getItem("theme-font") || "classic");
   const [activeScale, setActiveScale] = useState(() => localStorage.getItem("theme-scale") || "1");
@@ -68,18 +85,7 @@ export default function App() {
       <ScrollToTop />
       <AgeGate />
       <Header />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/recipes" element={<RecipesPage />} />
-        <Route path="/tools" element={<ToolsPage />} />
-        <Route path="/barmap" element={<BarMap />} />
-        <Route path="/place/:slug" element={<PlaceDetail />} />
-        <Route path="/rules" element={<RulesPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/recipe/:slug" element={<RecipeDetail />} />
-        <Route path="/feedback" element={<FeedbackPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-      </Routes>
+      <Outlet />
       <Footer />
       <StyleSwitcher
         activePalette={activePalette}
@@ -92,5 +98,32 @@ export default function App() {
       <SwipeIndicator />
     </div>
   );
+}
+
+const router = createHashRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      { path: "/", element: <HomePage /> },
+      { path: "/recipes", element: <Suspense fallback={<PageLoader />}><RecipesPage /></Suspense> },
+      { path: "/tools", element: <Suspense fallback={<PageLoader />}><ToolsPage /></Suspense> },
+      { path: "/barmap", element: <Suspense fallback={<PageLoader />}><BarMap /></Suspense> },
+      { path: "/place/:slug", element: <Suspense fallback={<PageLoader />}><PlaceDetail /></Suspense> },
+      { path: "/rules", element: <Suspense fallback={<PageLoader />}><RulesPage /></Suspense> },
+      { path: "/profile", element: <Suspense fallback={<PageLoader />}><ProfilePage /></Suspense> },
+      { path: "/recipe/:slug", element: <Suspense fallback={<PageLoader />}><RecipeDetail /></Suspense> },
+      { path: "/feedback", element: <Suspense fallback={<PageLoader />}><FeedbackPage /></Suspense> },
+      { path: "/admin", element: <Suspense fallback={<PageLoader />}><AdminPage /></Suspense> },
+      { path: "/tools/parse-recipe", element: <Suspense fallback={<PageLoader />}><RecipeParserPage /></Suspense> },
+      { path: "/tools/generate-label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
+      { path: "/add-recipe", element: <Suspense fallback={<PageLoader />}><AddRecipePage /></Suspense> },
+      { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
+    ],
+  },
+]);
+
+export default function App() {
+  return <RouterProvider router={router} />;
 }
 // deploy marker 1779376610

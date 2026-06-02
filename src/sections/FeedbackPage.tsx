@@ -75,7 +75,7 @@ export default function FeedbackPage() {
             Обратная связь
           </div>
           <h1
-            className="text-3xl sm:text-4xl font-bold mb-4"
+            className="text-2xl sm:text-3xl font-bold mb-4"
             style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
           >
             Напишите нам
