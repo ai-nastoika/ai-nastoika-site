@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router";
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowLeft, Send, Sparkles, Check, Loader2, User, BookOpen,
-  FlaskConical, Lightbulb, RotateCcw, ChevronRight, AlertCircle,
+  Send, Sparkles, Check, Loader2,
+  FlaskConical, RotateCcw, BookOpen,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -116,7 +115,7 @@ function Step1RawForm({
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   STEP 2+3: AI result preview + edit
+   STEP 3: AI result preview + edit
    ═══════════════════════════════════════════════════════════════ */
 function Step3Review({
   processed,
@@ -236,7 +235,7 @@ function EditArea({ label, value, onChange }: { label: string; value: string; on
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MAIN PAGE
+   SYSTEM PROMPT
    ═══════════════════════════════════════════════════════════════ */
 const SYSTEM_PROMPT_SUBMISSION = `Ты — эксперт по домашним настойкам. Проанализируй рецепт от пользователя и структурируй его.
 
@@ -262,13 +261,14 @@ const SYSTEM_PROMPT_SUBMISSION = `Ты — эксперт по домашним 
   "authorDate": "2025"
 }`;
 
-export default function AddRecipePage() {
-  const navigate = useNavigate();
+/* ═══════════════════════════════════════════════════════════════
+   MAIN COMPONENT (inline, no page layout)
+   ═══════════════════════════════════════════════════════════════ */
+export default function AddRecipeForm({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [submissionId, setSubmissionId] = useState(0);
   const [processed, setProcessed] = useState<Record<string, unknown>>({});
   const [isProcessing, setIsProcessing] = useState(false);
-  const [notice, setNotice] = useState("");
 
   const createSubmission = trpc.submission.create.useMutation();
   const saveProcessed = trpc.submission.saveProcessed.useMutation();
@@ -285,14 +285,11 @@ export default function AddRecipePage() {
   }) {
     setIsProcessing(true);
     try {
-      /* Create draft in DB */
       const draft = await createSubmission.mutateAsync(data);
       setSubmissionId(draft.id);
 
-      /* Call AI (Moonshot API from browser) */
       const apiKey = localStorage.getItem("moonshot-api-key") || "";
       if (!apiKey) {
-        /* Fallback: generate from user input */
         const fallbackResult = processFallback(data);
         setProcessed(fallbackResult);
         await saveProcessed.mutateAsync({ id: draft.id, ...fallbackResult });
@@ -325,15 +322,7 @@ export default function AddRecipePage() {
       await saveProcessed.mutateAsync({ id: draft.id, ...content });
       setStep(3);
     } catch {
-      /* Fallback */
-      const fallbackResult = processFallback({
-        ...data,
-        rawTitle: data.rawTitle,
-        rawDescription: data.rawDescription,
-        rawIngredients: data.rawIngredients,
-        rawSteps: data.rawSteps,
-        rawNotes: data.rawNotes,
-      });
+      const fallbackResult = processFallback(data);
       setProcessed(fallbackResult);
       if (submissionId) {
         await saveProcessed.mutateAsync({ id: submissionId, ...fallbackResult });
@@ -344,7 +333,6 @@ export default function AddRecipePage() {
     }
   }
 
-  /* Simple fallback when AI unavailable */
   function processFallback(data: {
     rawTitle: string;
     rawDescription: string;
@@ -401,7 +389,6 @@ export default function AddRecipePage() {
   async function handleReprocess() {
     setStep(2);
     setIsProcessing(true);
-    /* Re-call AI with edited data */
     await new Promise((r) => setTimeout(r, 1500));
     setProcessed((prev) => ({ ...prev, title: String(prev.title ?? "") + " (доработано)" }));
     setStep(3);
@@ -409,97 +396,93 @@ export default function AddRecipePage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
-          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-        >
-          <ArrowLeft size={18} /> На главную
-        </Link>
-
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          <Sparkles size={28} className="inline mr-2" style={{ color: "var(--accent)" }} />
+    <div className="max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+          <Sparkles size={24} className="inline mr-2" style={{ color: "var(--accent)" }} />
           Добавить <span style={{ color: "var(--accent)" }}>свой рецепт</span>
-        </h1>
-        <p className="text-base mb-8" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-          Поделитесь уникальным рецептом с сообществом. ИИ поможет оформить, а администратор проверит перед публикацией.
-        </p>
-
-        {/* Progress */}
-        <div className="flex gap-2 mb-8">
-          {[
-            { n: 1, label: "Заполнение" },
-            { n: 2, label: "Обработка" },
-            { n: 3, label: "Проверка" },
-            { n: 4, label: "Готово" },
-          ].map((s) => (
-            <div
-              key={s.n}
-              className="flex-1 py-2 px-3 rounded-lg text-sm font-medium text-center transition-all"
-              style={{
-                background: step >= s.n ? "var(--accent)" : "var(--surface)",
-                color: step >= s.n ? "#fff" : "var(--text-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              {s.n}. {s.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Step 2: Processing */}
-        {step === 2 && (
-          <div className="text-center py-16">
-            <Loader2 size={48} className="mx-auto mb-4 animate-spin" style={{ color: "var(--accent)" }} />
-            <p className="text-lg font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-              ИИ обрабатывает ваш рецепт...
-            </p>
-            <p className="text-sm mt-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              Структурируем ингредиенты, подбираем вкусовой профиль, пишем описание
-            </p>
-          </div>
-        )}
-
-        {/* Step 1: Form */}
-        {step === 1 && !isProcessing && <Step1RawForm onSubmit={handleRawSubmit} />}
-
-        {/* Step 3: Review */}
-        {step === 3 && <Step3Review processed={processed} onEdit={handleEdit} onSubmit={handleSubmitForReview} onReprocess={handleReprocess} />}
-
-        {/* Step 4: Done */}
-        {step === 4 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#d8f3dc" }}>
-              <Check size={32} style={{ color: "#386641" }} />
-            </div>
-            <h2 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-              Рецепт отправлен на модерацию!
-            </h2>
-            <p className="text-base mb-6 max-w-md mx-auto" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              Администратор проверит ваш рецепт и, если всё в порядке, опубликует его в общей базе. Обычно это занимает 1-2 дня.
-            </p>
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
-                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-              >
-                <ChevronRight size={18} /> На главную
-              </Link>
-              <button
-                onClick={() => { setStep(1); setProcessed({}); setSubmissionId(0); }}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
-                style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-              >
-                <BookOpen size={18} /> Добавить ещё
-              </button>
-            </div>
-          </div>
-        )}
+        </h2>
+        <button
+          onClick={onClose}
+          className="text-sm px-3 py-1.5 rounded-lg transition-all hover:opacity-70"
+          style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+        >
+          Скрыть
+        </button>
       </div>
+
+      {/* Progress */}
+      <div className="flex gap-2 mb-8">
+        {[
+          { n: 1, label: "Заполнение" },
+          { n: 2, label: "Обработка" },
+          { n: 3, label: "Проверка" },
+          { n: 4, label: "Готово" },
+        ].map((s) => (
+          <div
+            key={s.n}
+            className="flex-1 py-2 px-3 rounded-lg text-sm font-medium text-center transition-all"
+            style={{
+              background: step >= s.n ? "var(--accent)" : "var(--surface)",
+              color: step >= s.n ? "#fff" : "var(--text-muted)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            {s.n}. {s.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Step 2: Processing */}
+      {step === 2 && (
+        <div className="text-center py-16">
+          <Loader2 size={48} className="mx-auto mb-4 animate-spin" style={{ color: "var(--accent)" }} />
+          <p className="text-lg font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            ИИ обрабатывает ваш рецепт...
+          </p>
+          <p className="text-sm mt-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            Структурируем ингредиенты, подбираем вкусовой профиль, пишем описание
+          </p>
+        </div>
+      )}
+
+      {/* Step 1: Form */}
+      {step === 1 && !isProcessing && <Step1RawForm onSubmit={handleRawSubmit} />}
+
+      {/* Step 3: Review */}
+      {step === 3 && <Step3Review processed={processed} onEdit={handleEdit} onSubmit={handleSubmitForReview} onReprocess={handleReprocess} />}
+
+      {/* Step 4: Done */}
+      {step === 4 && (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#d8f3dc" }}>
+            <Check size={32} style={{ color: "#386641" }} />
+          </div>
+          <h2 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Рецепт отправлен на модерацию!
+          </h2>
+          <p className="text-base mb-6 max-w-md mx-auto" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            Администратор проверит ваш рецепт и, если всё в порядке, опубликует его в общей базе. Обычно это занимает 1-2 дня.
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              Готово
+            </button>
+            <button
+              onClick={() => { setStep(1); setProcessed({}); setSubmissionId(0); }}
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
+              style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+            >
+              <BookOpen size={18} /> Добавить ещё
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

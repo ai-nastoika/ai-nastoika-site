@@ -6,7 +6,6 @@ import { Heart } from "lucide-react";
 
 const navItems = [
   { label: "Рецепты", href: "/recipes" },
-  { label: "Добавить рецепт", href: "/add-recipe" },
   { label: "Инструменты", href: "/tools" },
   { label: "Барная карта", href: "/barmap" },
   { label: "Правила", href: "/rules" },

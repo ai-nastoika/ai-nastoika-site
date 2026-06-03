@@ -5,7 +5,9 @@ import { fallbackRecipes } from "@/data/fallbackData";
 import {
   Search, SlidersHorizontal, Star, Clock, Heart, Flame,
   Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown, ArrowLeft,
+  Sparkles, Plus,
 } from "lucide-react";
+import AddRecipeForm from "@/sections/AddRecipeForm";
 
 const categories = [
   { id: "all", label: "Все", icon: null },
@@ -33,6 +35,7 @@ export default function RecipesPage() {
   const [sortBy, setSortBy] = useState("popular");
   const [likedIds, setLikedIds] = useState<number[]>([2, 5]);
   const [showSort, setShowSort] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const toggleLike = (id: number) => {
     setLikedIds((prev) =>
@@ -97,16 +100,37 @@ export default function RecipesPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl px-4 py-3 w-full lg:w-auto" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", minWidth: 320 }}>
-              <Search size={22} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <input type="text" placeholder="Поиск по названию, ингредиентам..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent outline-none text-base w-full" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }} />
-              <SlidersHorizontal size={22} style={{ color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }} />
+            <div className="flex flex-col gap-3 items-start lg:items-end">
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-base font-medium transition-all hover:opacity-80"
+                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+              >
+                {showAddForm ? <Sparkles size={18} /> : <Plus size={18} />}
+                {showAddForm ? "К рецептам" : "Добавить свой рецепт"}
+              </button>
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3 w-full lg:w-auto" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", minWidth: 320 }}>
+                <Search size={22} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                <input type="text" placeholder="Поиск по названию, ингредиентам..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent outline-none text-base w-full" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }} />
+                <SlidersHorizontal size={22} style={{ color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }} />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Filters */}
+      {/* Add Recipe Form */}
+      {showAddForm && (
+        <section className="py-8" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <AddRecipeForm onClose={() => setShowAddForm(false)} />
+          </div>
+        </section>
+      )}
+
+      {/* Filters + Grid (hidden when form is open) */}
+      {!showAddForm && (
+      <>
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -195,6 +219,8 @@ export default function RecipesPage() {
           )}
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

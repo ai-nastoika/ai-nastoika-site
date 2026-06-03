@@ -26,7 +26,7 @@ const AdminPage = lazy(() => import("./sections/AdminPage"));
 const RecipeParserPage = lazy(() => import("./sections/RecipeParserPage"));
 const LoginPage = lazy(() => import("./sections/LoginPage"));
 const LabelGeneratorPage = lazy(() => import("./sections/LabelGeneratorPage"));
-const AddRecipePage = lazy(() => import("./sections/AddRecipePage"));
+
 
 function PageLoader() {
   return (
@@ -117,7 +117,6 @@ const router = createHashRouter([
       { path: "/admin", element: <Suspense fallback={<PageLoader />}><AdminPage /></Suspense> },
       { path: "/tools/parse-recipe", element: <Suspense fallback={<PageLoader />}><RecipeParserPage /></Suspense> },
       { path: "/tools/generate-label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
-      { path: "/add-recipe", element: <Suspense fallback={<PageLoader />}><AddRecipePage /></Suspense> },
       { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
     ],
   },
