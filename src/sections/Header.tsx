@@ -42,12 +42,12 @@ export default function Header() {
           </Link>
 
           {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2 xl:gap-3 flex-wrap justify-end">
+          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
             {navItems.map((item) => (
               <Link
                 key={item.label}
                 to={item.href}
-                className="px-2 lg:px-3 py-1.5 text-sm lg:text-base font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
                 style={{
                   color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
                   fontFamily: "var(--font-body)",
@@ -58,29 +58,29 @@ export default function Header() {
               </Link>
             ))}
 
-            {/* Donate */}
+            {/* Donate — icon only on medium screens */}
             <a
               href="https://boosty.to/ainastoika"
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1 px-2 lg:px-2.5 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all hover:scale-105 whitespace-nowrap"
+              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               title="Поддержать проект"
             >
               <Heart size={14} />
-              <span className="hidden lg:inline">Поддержать</span>
+              <span className="hidden lg:inline lg:ml-1">Поддержать</span>
             </a>
 
             {/* Auth */}
             {isLoggedIn ? (
-              <div className="flex items-center gap-1 ml-0 lg:ml-1">
+              <div className="flex items-center gap-1">
                 <Link
                   to="/profile"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs lg:text-sm font-medium transition-all hover:opacity-70 whitespace-nowrap"
+                  className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:opacity-70 whitespace-nowrap"
                   style={{ background: "var(--surface)", color: "var(--accent)", fontFamily: "var(--font-body)" }}
                 >
                   <User size={14} />
-                  <span className="hidden lg:inline">{user?.name || user?.email}</span>
+                  <span className="hidden lg:inline lg:ml-1">{user?.name || user?.email}</span>
                 </Link>
                 <button
                   onClick={logout}
@@ -94,7 +94,7 @@ export default function Header() {
             ) : (
               <Link
                 to="/login"
-                className="ml-0 lg:ml-1 px-3 py-1.5 rounded-lg text-sm lg:text-base font-medium transition-all hover:opacity-70 whitespace-nowrap"
+                className="px-2 py-1 rounded-lg text-xs lg:text-sm font-medium transition-all hover:opacity-70 whitespace-nowrap"
                 style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
               >
                 Вход
