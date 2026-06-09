@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Menu, X, User, LogOut } from "lucide-react";
+import { Menu, X, User, LogOut, Shield } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
 
@@ -15,7 +15,7 @@ const navItems = [
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, isLoggedIn, isAdmin, logout } = useAuth();
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
@@ -57,6 +57,21 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/admin") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/admin") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Shield size={12} />
+                Админ
+              </Link>
+            )}
 
             {/* Donate — icon only on medium screens */}
             <a
