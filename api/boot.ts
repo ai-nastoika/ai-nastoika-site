@@ -12,13 +12,60 @@ import superjson from "superjson";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "ainastoika-secret-key-2025");
-const pool = createPool({ uri: process.env.DATABASE_URL || "mysql://root@localhost:3306/nastoika", connectionLimit: 10 });
-const db = drizzle(pool);
+
+// Schema
 const users = mysqlTable("users", { id: serial("id").primaryKey(), email: varchar("email", { length: 320 }).notNull().unique(), passwordHash: varchar("password_hash", { length: 255 }).notNull(), name: varchar("name", { length: 100 }), avatar: varchar("avatar", { length: 255 }), role: varchar("role", { length: 20 }).default("user").notNull(), createdAt: timestamp("created_at").defaultNow().notNull() });
+
+let db: any;
+let useFallback = false;
+
+async function initDb() {
+  try {
+    const testPool = createPool({ uri: process.env.DATABASE_URL || "mysql://root@localhost:3306/nastoika", connectionLimit: 1, connectTimeout: 2000 });
+    await testPool.query("SELECT 1");
+    testPool.end();
+    db = drizzle(createPool({ uri: process.env.DATABASE_URL || "mysql://root@localhost:3306/nastoika", connectionLimit: 10 }));
+    console.log("[DB] MySQL connected");
+  } catch {
+    console.log("[DB] MySQL not available, using in-memory fallback");
+    useFallback = true;
+    const memUsers: any[] = [{ id: 1, email: "admin@ai-nastoika.ru", passwordHash: bcrypt.hashSync("admin123", 10), name: "Администратор", role: "admin", createdAt: new Date() }];
+    const memRecipes: any[] = [];
+    db = {
+      select: () => ({ from: (table: any) => ({ where: (cond: any) => {
+        const tn = table?.name || "users";
+        const data = tn === "users" ? memUsers : memRecipes;
+        if (cond && typeof cond === "function") {
+          return data.filter((r: any) => { try { return cond(r); } catch { return false; } });
+        }
+        return data;
+      }})}),
+      insert: (table: any) => ({ values: (data: any) => { 
+        const tn = table?.name || "recipes"; 
+        const arr = tn === "users" ? memUsers : memRecipes;
+        const newItem = { ...data, id: arr.length + 1, createdAt: new Date() };
+        arr.push(newItem);
+        return [{ insertId: newItem.id }];
+      }}),
+    };
+  }
+}
 
 async function createToken(userId: number, email: string, role: string) { return new SignJWT({ sub: String(userId), email, role }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("7d").sign(JWT_SECRET); }
 async function verifyToken(token: string) { try { const { payload } = await jwtVerify(token, JWT_SECRET, { clockTolerance: 60 }); return payload as any; } catch { return null; } }
-async function getAuthUser(req: http.IncomingMessage) { const auth = req.headers.authorization; if (!auth?.startsWith("Bearer ")) return null; const payload = await verifyToken(auth.slice(7)); if (!payload) return null; const rows = await db.select().from(users).where(eq(users.id, Number(payload.sub))); return rows[0] || null; }
+async function getAuthUser(req: http.IncomingMessage) { 
+  const auth = req.headers.authorization; 
+  if (!auth?.startsWith("Bearer ")) return null; 
+  const payload = await verifyToken(auth.slice(7)); 
+  if (!payload) return null; 
+  if (useFallback) {
+    // Fallback: search in mock
+    const all = await db.select().from(users);
+    return all.find((u: any) => u.id === Number(payload.sub)) || null;
+  }
+  const rows = await db.select().from(users).where(eq(users.id, Number(payload.sub))); 
+  return rows[0] || null; 
+}
 function parseBody(req: http.IncomingMessage): Promise<any> { return new Promise((resolve) => { let body = ""; req.on("data", (chunk) => (body += chunk)); req.on("end", () => { try { resolve(JSON.parse(body)); } catch { resolve({}); } }); }); }
 function setCors(res: http.ServerResponse) { res.setHeader("Access-Control-Allow-Origin", "*"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization"); res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE"); }
 
@@ -135,6 +182,21 @@ async function seedAdmin() { try { const rows = await db.select().from(users).wh
 // Static
 function serveStatic(req: http.IncomingMessage, res: http.ServerResponse) { const distPath = path.join(__dirname, "..", "dist"); const reqPath = new URL(req.url || "/", "http://localhost").pathname; const filePath = path.join(distPath, reqPath === "/" ? "index.html" : reqPath); fs.readFile(filePath, (err, data) => { if (err) { fs.readFile(path.join(distPath, "index.html"), (err2, data2) => { if (err2) { res.statusCode = 404; res.end("Not found"); } else { res.setHeader("Content-Type", "text/html"); res.end(data2); } }); return; } const ext = path.extname(filePath); const ct: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml", ".json": "application/json", ".woff2": "font/woff2" }; res.setHeader("Content-Type", ct[ext] || "application/octet-stream"); res.end(data); }); }
 
-const server = http.createServer((req, res) => { const reqUrl = new URL(req.url || "/", `http://${req.headers.host}`); if (reqUrl.pathname === "/api/debug") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(LOGS)); return; } if (reqUrl.pathname.startsWith("/api/")) { handleApi(req, res, reqUrl); return; } serveStatic(req, res); });
-server.listen(3000, () => { console.log("Server: http://localhost:3000"); seedAdmin(); });
-export default server;
+async function startServer() {
+  await initDb();
+  
+  const server = http.createServer((req, res) => { 
+    const reqUrl = new URL(req.url || "/", `http://${req.headers.host}`); 
+    if (reqUrl.pathname === "/api/debug") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(LOGS)); return; } 
+    if (reqUrl.pathname.startsWith("/api/")) { handleApi(req, res, reqUrl); return; } 
+    serveStatic(req, res); 
+  });
+  
+  server.listen(3000, () => { 
+    console.log("Server: http://localhost:3000"); 
+    seedAdmin(); 
+  });
+}
+
+startServer();
+export default {} as any;
