@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { mysqlTable, serial, varchar, text, timestamp, int, decimal, bigint, json } from "drizzle-orm/mysql-core";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
+import superjson from "superjson";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -107,6 +108,19 @@ function parseBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
+// ─── tRPC response helpers (superjson batch format) ───
+function serialize(data: any): string {
+  return superjson.stringify(data);
+}
+
+function trpcResult(data: any) {
+  return { result: { data: superjson.serialize(data) } };
+}
+
+function trpcError(message: string, code = "INTERNAL_SERVER_ERROR") {
+  return { error: { message, code } };
+}
+
 // ─── CORS ───
 function setCors(res: http.ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -114,7 +128,134 @@ function setCors(res: http.ServerResponse) {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
 }
 
-// ─── API handlers ───
+// ─── Parse tRPC batch request ───
+function getBatchPaths(url: URL): string[] {
+  const pathParam = url.searchParams.get("batch") || "1";
+  const paths: string[] = [];
+  for (let i = 0; i < Number(pathParam); i++) {
+    const p = url.searchParams.get(`path${i === 0 ? "" : "." + i}`);
+    if (p) paths.push(p);
+  }
+  // Single request
+  if (paths.length === 0) {
+    const pathname = url.pathname.replace("/api/trpc/", "");
+    if (pathname && !pathname.includes("?")) paths.push(pathname);
+  }
+  return paths;
+}
+
+// ─── API handler ───
+async function handleProcedure(pathname: string, req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<any> {
+  const body = req.method === "POST" ? await parseBody(req) : {};
+  const input = body.json || url.searchParams.get("input") ? JSON.parse(url.searchParams.get("input") || "{}").json : undefined;
+
+  // AUTH: register
+  if (pathname === "auth.register") {
+    const { email, password, name } = input || body;
+    if (!email || !password) return trpcError("Email and password required", "BAD_REQUEST");
+    const existing = await db.select().from(users).where(eq(users.email, email));
+    if (existing.length > 0) return trpcError("Email already registered", "CONFLICT");
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const result = await db.insert(users).values({ email, passwordHash, name: name || email.split("@")[0], role: "user" });
+    const userId = Number(result[0].insertId);
+    const token = await createToken(userId, email, "user");
+    return trpcResult({ token, user: { id: userId, name: name || email.split("@")[0], email, role: "user" } });
+  }
+
+  // AUTH: login
+  if (pathname === "auth.login") {
+    const { email, password } = input || body;
+    if (!email || !password) return trpcError("Email and password required", "BAD_REQUEST");
+    const rows = await db.select().from(users).where(eq(users.email, email));
+    if (rows.length === 0) return trpcError("Invalid credentials", "UNAUTHORIZED");
+    const user = rows[0];
+    if (!bcrypt.compareSync(password, user.passwordHash)) return trpcError("Invalid credentials", "UNAUTHORIZED");
+    const token = await createToken(user.id, user.email, user.role);
+    return trpcResult({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+  }
+
+  // AUTH: me
+  if (pathname === "auth.me") {
+    const user = await getAuthUser(req);
+    if (!user) return trpcResult(null);
+    return trpcResult({ id: user.id, name: user.name, email: user.email, role: user.role });
+  }
+
+  // AUTH: logout
+  if (pathname === "auth.logout") {
+    return trpcResult({ success: true });
+  }
+
+  // RECIPE: list
+  if (pathname === "recipe.list") {
+    try { const rows = await db.select().from(recipes); return trpcResult(rows); }
+    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+  }
+
+  // RECIPE: bySlug
+  if (pathname === "recipe.bySlug") {
+    const slug = input?.slug || "";
+    try { const rows = await db.select().from(recipes).where(eq(recipes.slug, slug)); return trpcResult(rows[0] || null); }
+    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+  }
+
+  // RECIPE: upsert
+  if (pathname === "recipe.upsert") {
+    const data = input || body;
+    try { await db.insert(recipes).values(data); return trpcResult({ success: true }); }
+    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+  }
+
+  // RECIPE: delete
+  if (pathname === "recipe.delete") {
+    try { return trpcResult({ success: true }); }
+    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+  }
+
+  // PLACE: list
+  if (pathname === "place.list") {
+    return trpcResult([]);
+  }
+
+  // COMMENT: list
+  if (pathname === "comment.list") {
+    return trpcResult([]);
+  }
+
+  // RECIPE PARSER: checkLimit
+  if (pathname === "recipeParser.checkLimit") {
+    return trpcResult({ allowed: true, isLoggedIn: false });
+  }
+
+  // LABEL TEMPLATE: list
+  if (pathname === "labelTemplate.list") {
+    return trpcResult([]);
+  }
+
+  // SUBMISSION: create
+  if (pathname === "submission.create") {
+    return trpcResult({ id: Date.now() });
+  }
+  if (pathname === "submission.saveProcessed") {
+    return trpcResult({ success: true });
+  }
+  if (pathname === "submission.submit") {
+    return trpcResult({ success: true });
+  }
+  if (pathname === "submission.listAll") {
+    return trpcResult([]);
+  }
+  if (pathname === "submission.approve") {
+    return trpcResult({ success: true });
+  }
+  if (pathname === "submission.reject") {
+    return trpcResult({ success: true });
+  }
+
+  return trpcError("Not found", "NOT_FOUND");
+}
+
+// ─── Main API handler ───
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   res.setHeader("Content-Type", "application/json");
   setCors(res);
@@ -123,76 +264,24 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
 
   const pathname = url.pathname.replace("/api/trpc/", "");
 
-  // AUTH: register
-  if (pathname === "auth.register" && req.method === "POST") {
-    const body = await parseBody(req);
-    const { email, password, name } = body.json || body;
-    if (!email || !password) { res.end(JSON.stringify({ error: "Email and password required" })); return; }
-    
-    const existing = await db.select().from(users).where(eq(users.email, email));
-    if (existing.length > 0) { res.end(JSON.stringify({ error: "Email already registered" })); return; }
-    
-    const passwordHash = bcrypt.hashSync(password, 10);
-    const result = await db.insert(users).values({ email, passwordHash, name: name || email.split("@")[0], role: "user" });
-    const userId = Number(result[0].insertId);
-    const token = await createToken(userId, email, "user");
-    
-    res.end(JSON.stringify({ result: { data: { token, user: { id: userId, name: name || email.split("@")[0], email, role: "user" } } } }));
+  // Check for batch request
+  if (url.searchParams.has("batch")) {
+    const paths: string[] = [];
+    for (let i = 0; i < Number(url.searchParams.get("batch")); i++) {
+      const p = url.searchParams.get(i === 0 ? "path" : `path.${i}`);
+      if (p) paths.push(p);
+    }
+    const results = [];
+    for (const p of paths) {
+      results.push(await handleProcedure(p, req, res, url));
+    }
+    res.end(JSON.stringify(results));
     return;
   }
 
-  // AUTH: login
-  if (pathname === "auth.login" && req.method === "POST") {
-    const body = await parseBody(req);
-    const { email, password } = body.json || body;
-    if (!email || !password) { res.end(JSON.stringify({ error: "Email and password required" })); return; }
-    
-    const rows = await db.select().from(users).where(eq(users.email, email));
-    if (rows.length === 0) { res.end(JSON.stringify({ error: "Invalid credentials" })); return; }
-    
-    const user = rows[0];
-    if (!bcrypt.compareSync(password, user.passwordHash)) { res.end(JSON.stringify({ error: "Invalid credentials" })); return; }
-    
-    const token = await createToken(user.id, user.email, user.role);
-    res.end(JSON.stringify({ result: { data: { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } } } }));
-    return;
-  }
-
-  // AUTH: me
-  if (pathname === "auth.me" && req.method === "GET") {
-    const user = await getAuthUser(req);
-    if (!user) { res.end(JSON.stringify({ result: { data: null } })); return; }
-    res.end(JSON.stringify({ result: { data: { id: user.id, name: user.name, email: user.email, role: user.role } } }));
-    return;
-  }
-
-  // RECIPE: list
-  if (pathname === "recipe.list" && req.method === "GET") {
-    try { const rows = await db.select().from(recipes); res.end(JSON.stringify({ result: { data: rows } })); }
-    catch { res.end(JSON.stringify({ result: { data: [] } })); }
-    return;
-  }
-
-  // RECIPE: bySlug
-  if (pathname === "recipe.bySlug" && req.method === "GET") {
-    const input = url.searchParams.get("input");
-    const slug = input ? JSON.parse(input).json.slug : "";
-    try { const rows = await db.select().from(recipes).where(eq(recipes.slug, slug)); res.end(JSON.stringify({ result: { data: rows[0] || null } })); }
-    catch { res.end(JSON.stringify({ result: { data: null } })); }
-    return;
-  }
-
-  // RECIPE: upsert
-  if (pathname === "recipe.upsert" && req.method === "POST") {
-    const body = await parseBody(req);
-    const data = body.json || body;
-    try { await db.insert(recipes).values(data); res.end(JSON.stringify({ result: { data: { success: true } } })); }
-    catch { res.end(JSON.stringify({ result: { data: { success: false } } })); }
-    return;
-  }
-
-  // Default
-  res.end(JSON.stringify({ result: { data: null } }));
+  // Single request
+  const result = await handleProcedure(pathname, req, res, url);
+  res.end(JSON.stringify(result));
 }
 
 // ─── Static files ───
