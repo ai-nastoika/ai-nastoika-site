@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ─── JWT Secret ───
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ainastoika-secret-key-2025-change-in-production"
+  process.env.JWT_SECRET || "ainastoika-secret-key-2025"
 );
 const JWT_EXPIRES = "7d";
 
@@ -108,11 +108,14 @@ function parseBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
-// ─── tRPC response helpers (superjson batch format) ───
-function serialize(data: any): string {
-  return superjson.stringify(data);
+// ─── CORS ───
+function setCors(res: http.ServerResponse) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
 }
 
+// ─── tRPC v11 response format ───
 function trpcResult(data: any) {
   return { result: { data: superjson.serialize(data) } };
 }
@@ -121,40 +124,41 @@ function trpcError(message: string, code = "INTERNAL_SERVER_ERROR") {
   return { error: { message, code } };
 }
 
-// ─── CORS ───
-function setCors(res: http.ServerResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+// ─── Parse tRPC v11 input ───
+function parseInput(raw: any): any {
+  if (raw && typeof raw === "object" && "json" in raw) return raw.json;
+  return raw;
 }
 
-// ─── Parse tRPC batch request ───
-function getBatchPaths(url: URL): string[] {
-  const pathParam = url.searchParams.get("batch") || "1";
-  const paths: string[] = [];
-  for (let i = 0; i < Number(pathParam); i++) {
-    const p = url.searchParams.get(`path${i === 0 ? "" : "." + i}`);
-    if (p) paths.push(p);
-  }
-  // Single request
-  if (paths.length === 0) {
-    const pathname = url.pathname.replace("/api/trpc/", "");
-    if (pathname && !pathname.includes("?")) paths.push(pathname);
-  }
-  return paths;
-}
-
-// ─── API handler ───
-async function handleProcedure(pathname: string, req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<any> {
+// ─── Route handler ───
+async function handleRoute(pathname: string, req: http.IncomingMessage, url: URL): Promise<any> {
   const body = req.method === "POST" ? await parseBody(req) : {};
-  const input = body.json || url.searchParams.get("input") ? JSON.parse(url.searchParams.get("input") || "{}").json : undefined;
+  
+  // Parse input from tRPC v11 format
+  let input: any = undefined;
+  if (body && typeof body === "object") {
+    // POST body: {"json": ...}
+    if ("json" in body) {
+      input = body.json;
+    }
+    // Batch format: {"0": {"json": path}, "1": {"json": input}}
+    else if ("0" in body && "1" in body) {
+      // path is in "0", input is in "1"
+      input = parseInput(body["1"]);
+    }
+  }
+  
+  // GET input from query param
+  if (input === undefined && url.searchParams.has("input")) {
+    try { input = JSON.parse(url.searchParams.get("input")!).json; } catch {}
+  }
 
   // AUTH: register
   if (pathname === "auth.register") {
-    const { email, password, name } = input || body;
-    if (!email || !password) return trpcError("Email and password required", "BAD_REQUEST");
+    const { email, password, name } = input || {};
+    if (!email || !password) return trpcError("Email and password required");
     const existing = await db.select().from(users).where(eq(users.email, email));
-    if (existing.length > 0) return trpcError("Email already registered", "CONFLICT");
+    if (existing.length > 0) return trpcError("Email already registered");
     const passwordHash = bcrypt.hashSync(password, 10);
     const result = await db.insert(users).values({ email, passwordHash, name: name || email.split("@")[0], role: "user" });
     const userId = Number(result[0].insertId);
@@ -164,12 +168,12 @@ async function handleProcedure(pathname: string, req: http.IncomingMessage, res:
 
   // AUTH: login
   if (pathname === "auth.login") {
-    const { email, password } = input || body;
-    if (!email || !password) return trpcError("Email and password required", "BAD_REQUEST");
+    const { email, password } = input || {};
+    if (!email || !password) return trpcError("Email and password required");
     const rows = await db.select().from(users).where(eq(users.email, email));
-    if (rows.length === 0) return trpcError("Invalid credentials", "UNAUTHORIZED");
+    if (rows.length === 0) return trpcError("Invalid credentials");
     const user = rows[0];
-    if (!bcrypt.compareSync(password, user.passwordHash)) return trpcError("Invalid credentials", "UNAUTHORIZED");
+    if (!bcrypt.compareSync(password, user.passwordHash)) return trpcError("Invalid credentials");
     const token = await createToken(user.id, user.email, user.role);
     return trpcResult({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   }
@@ -188,99 +192,98 @@ async function handleProcedure(pathname: string, req: http.IncomingMessage, res:
 
   // RECIPE: list
   if (pathname === "recipe.list") {
-    try { const rows = await db.select().from(recipes); return trpcResult(rows); }
-    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+    const rows = await db.select().from(recipes);
+    return trpcResult(rows);
   }
 
   // RECIPE: bySlug
   if (pathname === "recipe.bySlug") {
     const slug = input?.slug || "";
-    try { const rows = await db.select().from(recipes).where(eq(recipes.slug, slug)); return trpcResult(rows[0] || null); }
-    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+    const rows = await db.select().from(recipes).where(eq(recipes.slug, slug));
+    return trpcResult(rows[0] || null);
   }
 
   // RECIPE: upsert
   if (pathname === "recipe.upsert") {
-    const data = input || body;
-    try { await db.insert(recipes).values(data); return trpcResult({ success: true }); }
-    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+    const data = input || {};
+    await db.insert(recipes).values(data);
+    return trpcResult({ success: true });
   }
 
   // RECIPE: delete
   if (pathname === "recipe.delete") {
-    try { return trpcResult({ success: true }); }
-    catch (e) { return trpcError(String(e), "INTERNAL_SERVER_ERROR"); }
+    return trpcResult({ success: true });
   }
 
   // PLACE: list
-  if (pathname === "place.list") {
-    return trpcResult([]);
-  }
+  if (pathname === "place.list") return trpcResult([]);
+  if (pathname === "place.bySlug") return trpcResult(null);
 
   // COMMENT: list
-  if (pathname === "comment.list") {
-    return trpcResult([]);
-  }
+  if (pathname === "comment.list") return trpcResult([]);
 
   // RECIPE PARSER: checkLimit
-  if (pathname === "recipeParser.checkLimit") {
-    return trpcResult({ allowed: true, isLoggedIn: false });
-  }
+  if (pathname === "recipeParser.checkLimit") return trpcResult({ allowed: true, isLoggedIn: false });
 
   // LABEL TEMPLATE: list
-  if (pathname === "labelTemplate.list") {
-    return trpcResult([]);
-  }
+  if (pathname === "labelTemplate.list") return trpcResult([]);
 
-  // SUBMISSION: create
-  if (pathname === "submission.create") {
-    return trpcResult({ id: Date.now() });
-  }
-  if (pathname === "submission.saveProcessed") {
-    return trpcResult({ success: true });
-  }
-  if (pathname === "submission.submit") {
-    return trpcResult({ success: true });
-  }
-  if (pathname === "submission.listAll") {
-    return trpcResult([]);
-  }
-  if (pathname === "submission.approve") {
-    return trpcResult({ success: true });
-  }
-  if (pathname === "submission.reject") {
-    return trpcResult({ success: true });
-  }
+  // SUBMISSION
+  if (pathname === "submission.create") return trpcResult({ id: Date.now() });
+  if (pathname === "submission.saveProcessed") return trpcResult({ success: true });
+  if (pathname === "submission.submit") return trpcResult({ success: true });
+  if (pathname === "submission.listAll") return trpcResult([]);
+  if (pathname === "submission.approve") return trpcResult({ success: true });
+  if (pathname === "submission.reject") return trpcResult({ success: true });
+
+  // PING
+  if (pathname === "ping") return trpcResult({ ok: true, ts: Date.now() });
 
   return trpcError("Not found", "NOT_FOUND");
 }
 
 // ─── Main API handler ───
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
-  res.setHeader("Content-Type", "application/json");
   setCors(res);
 
   if (req.method === "OPTIONS") { res.end(); return; }
 
   const pathname = url.pathname.replace("/api/trpc/", "");
 
-  // Check for batch request
-  if (url.searchParams.has("batch")) {
-    const paths: string[] = [];
-    for (let i = 0; i < Number(url.searchParams.get("batch")); i++) {
-      const p = url.searchParams.get(i === 0 ? "path" : `path.${i}`);
-      if (p) paths.push(p);
+  // Batch request (POST /api/trpc?batch=1 with body {"0": {...}, "1": {...}})
+  if (url.searchParams.has("batch") || (!pathname && req.method === "POST")) {
+    const body = await parseBody(req);
+    const results: any[] = [];
+    
+    // Check if body is batch array
+    if (Array.isArray(body)) {
+      for (const op of body) {
+        const p = op["0"]?.json || op.path;
+        const input = op["1"] || op.input;
+        results.push(await handleRoute(p, req, new URL(`http://localhost/api/trpc/${p}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`)));
+      }
     }
-    const results = [];
-    for (const p of paths) {
-      results.push(await handleProcedure(p, req, res, url));
+    // Check if body has numbered keys (batch format)
+    else if (body && typeof body === "object" && "0" in body) {
+      // Single batch op
+      const p = body["0"]?.json || body["0"];
+      const input = body["1"];
+      const inputStr = input ? `?input=${encodeURIComponent(JSON.stringify(input))}` : "";
+      results.push(await handleRoute(p, req, new URL(`http://localhost/api/trpc/${p}${inputStr}`)));
     }
+    else {
+      // Single request without path in body
+      results.push(await handleRoute(pathname, req, url));
+    }
+    
+    res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(results));
     return;
   }
 
   // Single request
-  const result = await handleProcedure(pathname, req, res, url);
+  const result = await handleRoute(pathname, req, url);
+  res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(result));
 }
 
