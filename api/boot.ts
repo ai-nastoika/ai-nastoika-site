@@ -93,11 +93,11 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     const body = await parseBody(req);
     addLog({ type: "POST", pathname: url.pathname, bodyKeys: Object.keys(body), hasJson: "json" in body, has0: "0" in body, has1: "1" in body });
     
-    // Batch: {"0": {"json": "path"}, "1": {"json": input}}
-    if (body && typeof body === "object" && "0" in body && "1" in body) {
-      const path = body["0"].json || body["0"];
-      const input = body["1"];
-      const result = await handleRoute(path, req, url, { json: input?.json });
+    // tRPC v11: {"0": {"json": input}}
+    if (body && typeof body === "object" && "0" in body) {
+      const input = body["0"];
+      addLog({ tpc11Input: input, hasJson: "json" in input });
+      const result = await handleRoute(pathname, req, url, { json: input?.json });
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify([result]));
       return;
