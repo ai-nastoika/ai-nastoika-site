@@ -132,6 +132,7 @@ const server = http.createServer((req, res) => {
 });
 
 const port = Number(process.env.PORT || 3000);
+export default server;
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
