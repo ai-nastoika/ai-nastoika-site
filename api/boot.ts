@@ -89,6 +89,9 @@ async function handleRoute(pathname: string, req: http.IncomingMessage, url: URL
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   setCors(res);
   if (req.method === "OPTIONS") { res.end(); return; }
+  
+  const pathname = url.pathname.replace("/api/trpc/", "");
+  
   if (req.method === "POST") {
     const body = await parseBody(req);
     addLog({ type: "POST", pathname: url.pathname, bodyKeys: Object.keys(body), hasJson: "json" in body, has0: "0" in body, has1: "1" in body });
@@ -115,14 +118,12 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
       return;
     }
     // Single with json
-    const pathname = url.pathname.replace("/api/trpc/", "");
     const result = await handleRoute(pathname, req, url, body);
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(result));
     return;
   }
   // GET
-  const pathname = url.pathname.replace("/api/trpc/", "");
   const result = await handleRoute(pathname, req, url);
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(result));
