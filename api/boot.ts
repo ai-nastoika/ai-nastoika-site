@@ -29,7 +29,7 @@ app.use("/api/trpc/*", async (c) => {
   });
 });
 
-// Static files (assets, images, etc.)
+// Static files
 app.get("/assets/*", async (c) => {
   const filePath = path.join(distPath, c.req.path);
   try {
@@ -49,19 +49,19 @@ app.get("/assets/*", async (c) => {
   }
 });
 
-// Root + SPA fallback — always index.html
+// SPA fallback
 app.get("*", async (c) => {
   try {
     const file = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
     return c.html(file);
   } catch {
-    return c.text("index.html not found. Run npm run build first.", 500);
+    return c.text("index.html not found", 500);
   }
 });
 
 const port = Number(process.env.PORT || 3000);
 serve({ fetch: app.fetch, port }, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server: http://localhost:${port}`);
   seedAdmin();
 });
 
