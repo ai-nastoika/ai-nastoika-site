@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { mysqlTable, serial, varchar, text, timestamp, int, decimal, bigint, json } from "drizzle-orm/mysql-core";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import superjson from "superjson";
+// import superjson from "superjson"; // plain JSON for tRPC v11 compatibility
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "ainastoika-secret-key-2025");
@@ -85,7 +85,7 @@ async function handleRoute(pathname: string, req: http.IncomingMessage, url: URL
     const result = await db.insert(users).values({ email, passwordHash, name: name || email.split("@")[0], role: "user" });
     const userId = Number(result[0].insertId);
     const token = await createToken(userId, email, "user");
-    return { result: { data: superjson.serialize({ token, user: { id: userId, name: name || email.split("@")[0], email, role: "user" } }) } };
+    return { result: { data: { token, user: { id: userId, name: name || email.split("@")[0], email, role: "user" } } } };
   }
 
   if (pathname === "auth.login") {
@@ -96,41 +96,41 @@ async function handleRoute(pathname: string, req: http.IncomingMessage, url: URL
     const user = rows[0];
     if (!bcrypt.compareSync(password, user.passwordHash)) return { error: { message: "Invalid credentials", code: "UNAUTHORIZED" } };
     const token = await createToken(user.id, user.email, user.role);
-    return { result: { data: superjson.serialize({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } }) } };
+    return { result: { data: { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } } } };
   }
 
   if (pathname === "auth.me") {
     const user = await getAuthUser(req);
-    return { result: { data: superjson.serialize(user ? { id: user.id, name: user.name, email: user.email, role: user.role } : null) } };
+    return { result: { data: user ? { id: user.id, name: user.name, email: user.email, role: user.role } : null } };
   }
 
-  if (pathname === "auth.logout") return { result: { data: superjson.serialize({ success: true }) } };
-  if (pathname === "ping") return { result: { data: superjson.serialize({ ok: true }) } };
+  if (pathname === "auth.logout") return { result: { data: { success: true } } };
+  if (pathname === "ping") return { result: { data: { ok: true } } };
 
   // RECIPES
   if (pathname === "recipe.list") {
     const rTable = mysqlTable("recipes", { id: serial("id").primaryKey(), slug: varchar("slug", { length: 100 }).notNull().unique(), title: varchar("title", { length: 200 }).notNull(), subtitle: varchar("subtitle", { length: 300 }), category: varchar("category", { length: 50 }).notNull(), categoryLabel: varchar("category_label", { length: 100 }), heroImage: varchar("hero_image", { length: 255 }), abv: varchar("abv", { length: 10 }), time: varchar("time", { length: 50 }), difficulty: varchar("difficulty", { length: 20 }), rating: decimal("rating", { precision: 2, scale: 1 }).default("0"), reviews: int("reviews").default(0), year: varchar("year", { length: 50 }), origin: varchar("origin", { length: 100 }), historyTitle: varchar("history_title", { length: 200 }), historyText: text("history_text"), tastingColor: varchar("tasting_color", { length: 200 }), tastingDescription: text("tasting_description"), tastingPairing: json("tasting_pairing").$type<string[]>(), tastingTemp: varchar("tasting_temp", { length: 50 }), tastingGlass: varchar("tasting_glass", { length: 100 }), sweet: int("sweet").default(0), sour: int("sour").default(0), bitter: int("bitter").default(0), spicy: int("spicy").default(0), fruity: int("fruity").default(0), herbal: int("herbal").default(0), tips: json("tips").$type<string[]>(), authorName: varchar("author_name", { length: 100 }), authorDate: varchar("author_date", { length: 50 }), createdAt: timestamp("created_at").defaultNow().notNull() });
     const rows = await db.select().from(rTable);
-    return { result: { data: superjson.serialize(rows) } };
+    return { result: { data: rows } };
   }
 
   if (pathname === "recipe.bySlug") {
     const slug = input?.slug || "";
     const rTable = mysqlTable("recipes", { id: serial("id").primaryKey(), slug: varchar("slug", { length: 100 }).notNull().unique(), title: varchar("title", { length: 200 }).notNull(), subtitle: varchar("subtitle", { length: 300 }), category: varchar("category", { length: 50 }).notNull(), categoryLabel: varchar("category_label", { length: 100 }), heroImage: varchar("hero_image", { length: 255 }), abv: varchar("abv", { length: 10 }), time: varchar("time", { length: 50 }), difficulty: varchar("difficulty", { length: 20 }), rating: decimal("rating", { precision: 2, scale: 1 }).default("0"), reviews: int("reviews").default(0), year: varchar("year", { length: 50 }), origin: varchar("origin", { length: 100 }), historyTitle: varchar("history_title", { length: 200 }), historyText: text("history_text"), tastingColor: varchar("tasting_color", { length: 200 }), tastingDescription: text("tasting_description"), tastingPairing: json("tasting_pairing").$type<string[]>(), tastingTemp: varchar("tasting_temp", { length: 50 }), tastingGlass: varchar("tasting_glass", { length: 100 }), sweet: int("sweet").default(0), sour: int("sour").default(0), bitter: int("bitter").default(0), spicy: int("spicy").default(0), fruity: int("fruity").default(0), herbal: int("herbal").default(0), tips: json("tips").$type<string[]>(), authorName: varchar("author_name", { length: 100 }), authorDate: varchar("author_date", { length: 50 }), createdAt: timestamp("created_at").defaultNow().notNull() });
     const rows = await db.select().from(rTable).where(eq(rTable.slug, slug));
-    return { result: { data: superjson.serialize(rows[0] || null) } };
+    return { result: { data: rows[0] || null } };
   }
 
-  if (pathname === "recipe.upsert") { await db.insert(mysqlTable("recipes", { id: serial("id").primaryKey(), slug: varchar("slug", { length: 100 }).notNull().unique(), title: varchar("title", { length: 200 }).notNull() })).values(input || {}); return { result: { data: superjson.serialize({ success: true }) } }; }
-  if (pathname === "recipe.delete") return { result: { data: superjson.serialize({ success: true }) } };
-  if (pathname === "place.list") return { result: { data: superjson.serialize([]) } };
-  if (pathname === "place.bySlug") return { result: { data: superjson.serialize(null) } };
-  if (pathname === "comment.list") return { result: { data: superjson.serialize([]) } };
-  if (pathname === "recipeParser.checkLimit") return { result: { data: superjson.serialize({ allowed: true, isLoggedIn: false }) } };
-  if (pathname === "labelTemplate.list") return { result: { data: superjson.serialize([]) } };
-  if (pathname.startsWith("submission.")) return { result: { data: superjson.serialize({ success: true, id: Date.now() }) } };
+  if (pathname === "recipe.upsert") { await db.insert(mysqlTable("recipes", { id: serial("id").primaryKey(), slug: varchar("slug", { length: 100 }).notNull().unique(), title: varchar("title", { length: 200 }).notNull() })).values(input || {}); return { result: { data: { success: true } } }; }
+  if (pathname === "recipe.delete") return { result: { data: { success: true } } };
+  if (pathname === "place.list") return { result: { data: [] } };
+  if (pathname === "place.bySlug") return { result: { data: null } };
+  if (pathname === "comment.list") return { result: { data: [] } };
+  if (pathname === "recipeParser.checkLimit") return { result: { data: { allowed: true, isLoggedIn: false } } };
+  if (pathname === "labelTemplate.list") return { result: { data: [] } };
+  if (pathname.startsWith("submission.")) return { result: { data: { success: true, id: Date.now() } } };
 
-  return { result: { data: superjson.serialize(null) } };
+  return { result: { data: null } };
 }
 
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
