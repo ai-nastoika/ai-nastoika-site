@@ -59,9 +59,9 @@ async function getAuthUser(req: http.IncomingMessage) {
   const payload = await verifyToken(auth.slice(7)); 
   if (!payload) return null; 
   if (useFallback) {
-    // Fallback: search in mock
+    // Fallback: search in mock users array
     const all = await db.select().from(users);
-    return all.find((u: any) => u.id === Number(payload.sub)) || null;
+    return (Array.isArray(all) ? all : []).find((u: any) => u.id === Number(payload.sub)) || null;
   }
   const rows = await db.select().from(users).where(eq(users.id, Number(payload.sub))); 
   return rows[0] || null; 
