@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { cors } from "hono/cors";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
@@ -24,10 +25,10 @@ app.use("/api/trpc/*", async (c) => {
   });
 });
 
-// Health check
-app.get("/", (c) => c.json({ status: "ok", message: "Ай, настойка API" }));
+// Static files from dist/
+app.use("/*", serveStatic({ root: "./dist" }));
 
-// SPA fallback — отдаём index.html для всех не-API путей
+// SPA fallback — index.html for all non-file routes
 app.get("*", async (c) => {
   try {
     const file = await import("fs").then(fs => fs.readFileSync("./dist/index.html", "utf-8"));
