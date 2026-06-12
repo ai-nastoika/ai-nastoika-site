@@ -44,6 +44,27 @@ export const appRouter = router({
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
+
+    changePassword: authedProcedure
+      .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+      .mutation(async ({ input, ctx }) => {
+        const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
+        if (rows.length === 0) throw new Error("User not found");
+        const user = rows[0];
+        if (!bcrypt.compareSync(input.currentPassword, user.passwordHash)) {
+          throw new Error("Неверный текущий пароль");
+        }
+        const passwordHash = bcrypt.hashSync(input.newPassword, 10);
+        await db.update(users).set({ passwordHash }).where(eq(users.id, ctx.userId));
+        return { success: true };
+      }),
+
+    updateProfile: authedProcedure
+      .input(z.object({ name: z.string().min(1).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.update(users).set({ name: input.name }).where(eq(users.id, ctx.userId));
+        return { success: true };
+      }),
   }),
 
   recipe: router({

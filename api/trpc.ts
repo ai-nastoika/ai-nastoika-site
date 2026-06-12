@@ -99,7 +99,7 @@ export const authedProcedure = t.procedure.use(async (opts) => {
   const { ctx } = opts;
   const user = await getAuthUser((ctx as any).token);
   if (!user) throw new Error("UNAUTHORIZED");
-  return opts.next({ ctx: { ...ctx, user } });
+  return opts.next({ ctx: { ...ctx, user, userId: user.id } });
 });
 
 // ─── Seed admin ───
