@@ -49,8 +49,32 @@ app.get("/assets/*", async (c) => {
   }
 });
 
-// SPA fallback
+// Static images in root dist folder
 app.get("*", async (c) => {
+  const ext = path.extname(c.req.path);
+  const imageExts = [".jpg", ".jpeg", ".png", ".svg", ".ico", ".webp", ".gif", ".woff2", ".woff", ".ttf"];
+  if (imageExts.includes(ext)) {
+    const filePath = path.join(distPath, c.req.path);
+    try {
+      const content = fs.readFileSync(filePath);
+      const ct: Record<string, string> = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+      };
+      return new Response(content, { headers: { "Content-Type": ct[ext] || "application/octet-stream" } });
+    } catch {
+      return c.notFound();
+    }
+  }
+  // SPA fallback
   try {
     const file = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
     return c.html(file);
