@@ -31,14 +31,14 @@ import {
 function StatCard({ icon: Icon, value, label }: { icon: any; value: string; label: string }) {
   return (
     <div
-      className="rounded-xl p-4 text-center transition-transform hover:-translate-y-1"
+      className="rounded-lg p-2 text-center transition-transform hover:-translate-y-1"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
-      <Icon size={22} style={{ color: "var(--accent)" }} className="mx-auto mb-2" />
-      <div className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+      <Icon size={16} style={{ color: "var(--accent)" }} className="mx-auto mb-1" />
+      <div className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
         {value}
       </div>
-      <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+      <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
         {label}
       </div>
     </div>
@@ -156,15 +156,15 @@ export default function ProfilePage() {
       {/* STATS */}
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <StatCard icon={BookOpen} value={String(userData.recipesViewed)} label="Рецептов просмотрено" />
-            <StatCard icon={Star} value={String(userData.recipesRated)} label="Оценок поставлено" />
-            <StatCard icon={Heart} value={String(userData.favoritesCount)} label="В избранном" />
-            <StatCard icon={FlaskConical} value={String(userData.usedQueries)} label="ИИ-запросов" />
-            <StatCard icon={Tag} value={String(userData.labelsCreated)} label="Этикеток" />
-            <StatCard icon={MapPin} value={String(userData.placesSaved)} label="Мест сохранено" />
-            <StatCard icon={MessageCircle} value={String(userData.commentsCount)} label="Комментариев" />
-          </div>
+          <div className="grid grid-cols-4 lg:grid-cols-7 gap-2">
+  <StatCard icon={BookOpen} value={String(userData.recipesViewed)} label="Рецепты" />
+  <StatCard icon={Star} value={String(userData.recipesRated)} label="Оценки" />
+  <StatCard icon={Heart} value={String(userData.favoritesCount)} label="Избранное" />
+  <StatCard icon={FlaskConical} value={String(userData.usedQueries)} label="ИИ" />
+  <StatCard icon={Tag} value={String(userData.labelsCreated)} label="Этикетки" />
+  <StatCard icon={MapPin} value={String(userData.placesSaved)} label="Места" />
+  <StatCard icon={MessageCircle} value={String(userData.commentsCount)} label="Комментарии" />
+</div>
         </div>
       </section>
 
