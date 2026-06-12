@@ -19,4 +19,4 @@ jobs:
             git pull origin main
             npm ci
             npm run build
-            pm2 restart ai-site
+            pm2 restart /var/www/ai-nastoika-site/ecosystem.config.cjs --update-env
