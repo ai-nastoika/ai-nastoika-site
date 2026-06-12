@@ -1,3 +1,4 @@
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
@@ -27,50 +28,6 @@ import {
   ThumbsUp,
 } from "lucide-react";
 
-/* ─── dummy data ─── */
-const userData = {
-  name: "Александр",
-  email: "alex@example.com",
-  avatar: null as string | null,
-  joined: "15 января 2025",
-  balance: 340,
-  usedQueries: 47,
-  totalQueries: 150,
-  recipesViewed: 23,
-  recipesRated: 8,
-  favoritesCount: 12,
-  placesSaved: 3,
-  labelsCreated: 5,
-  commentsCount: 7,
-};
-
-const savedPlaces = [
-  { id: 1, name: "Дымный Котёл", city: "Москва", rating: 4.9, image: "/bar-1.jpg" },
-  { id: 2, name: "Тайга", city: "Санкт-Петербург", rating: 4.8, image: "/bar-2.jpg" },
-  { id: 3, name: "Изба Настоек", city: "Нижний Новгород", rating: 4.7, image: "/bar-3.jpg" },
-];
-const savedLabels = [
-  { id: 1, name: "Вишнёвая настойка", style: "vintage", date: "12.03.2025" },
-  { id: 2, name: "Лимончелло", style: "craft", date: "18.03.2025" },
-  { id: 3, name: "Травяной эликсир", style: "minimal", date: "25.03.2025" },
-];
-const aiHistory = [
-  { id: 1, tool: "Калькулятор вкуса", query: "Вишня, ваниль, корица", date: "05.05.2025", model: "Базовая" },
-  { id: 2, tool: "Калькулятор вкуса", query: "Лимон, имбирь, мёд", date: "03.05.2025", model: "GPT-4" },
-  { id: 3, tool: "Расчёт крепости", query: "1000 мл, 40%, 100 г сахара", date: "01.05.2025", model: "—" },
-  { id: 4, tool: "Калькулятор вкуса", query: "Кофе, шоколад, апельсин", date: "28.04.2025", model: "Базовая" },
-  { id: 5, tool: "Конструктор этикеток", query: "Винтаж — Вишнёвая настойка", date: "25.04.2025", model: "—" },
-];
-const myComments = [
-  { recipe: "Вишнёвая домашняя 2025", text: "Добавила мускатный орех — придало глубину. Рекомендую!", date: "05.05.2025", likes: 12 },
-  { recipe: "Лимонная с имбирём", text: "Имбирь лучше брать молодой — мягче по вкусу.", date: "28.04.2025", likes: 9 },
-  { recipe: "Травяная с мятой", text: "Двойное настаивание мятой действительно работает.", date: "20.04.2025", likes: 6 },
-  { recipe: "Кофейная на коньяке", text: "Коньяк можно заменить на бренди, но VSOP лучше.", date: "15.04.2025", likes: 5 },
-  { recipe: "Медовая с перцем", text: "Начните с половины стручка чили — проверено.", date: "10.04.2025", likes: 8 },
-  { recipe: "Вишнёвая домашняя 2025", text: "30 дней настаивания лучше 21 — разница огромная.", date: "05.04.2025", likes: 15 },
-  { recipe: "Облепиховый эликсир", text: "Разморозка ягод обязательна, иначе меньше сока.", date: "01.04.2025", likes: 7 },
-];
-
 /* ─── helpers ─── */
 function StatCard({ icon: Icon, value, label }: { icon: any; value: string; label: string }) {
   return (
@@ -94,6 +51,28 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "history" | "settings">("overview");
   const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
+
+  const { user } = useAuth();
+  const userData = {
+    name: user?.name ?? "Пользователь",
+    email: user?.email ?? "",
+    avatar: null as string | null,
+    joined: "—",
+    balance: 0,
+    usedQueries: 0,
+    totalQueries: 150,
+    recipesViewed: 0,
+    recipesRated: 0,
+    favoritesCount: 0,
+    placesSaved: 0,
+    labelsCreated: 0,
+    commentsCount: 0,
+  };
+
+  const savedPlaces: { id: number; name: string; city: string; rating: number; image: string }[] = [];
+  const savedLabels: { id: number; name: string; style: string; date: string }[] = [];
+  const aiHistory: { id: number; tool: string; query: string; date: string; model: string }[] = [];
+  const myComments: { recipe: string; text: string; date: string; likes: number }[] = [];
 
   const { data: recipesData } = trpc.recipe.list.useQuery();
   const allRecipes = recipesData && recipesData.length > 0 ? recipesData : fallbackRecipes;
@@ -693,12 +672,13 @@ export default function ProfilePage() {
             {/* Logout / Delete */}
             <div className="flex flex-wrap gap-3">
               <button
-                className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-base font-medium transition-all hover:scale-105"
-                style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-              >
-                <LogOut size={22} />
-                Выйти
-              </button>
+  onClick={() => { localStorage.removeItem("auth-token"); window.location.href = "/#/"; }}
+  className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-base font-medium transition-all hover:scale-105"
+  style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+>
+  <LogOut size={22} />
+  Выйти
+</button>
               <button
                 className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-base font-medium transition-all hover:scale-105"
                 style={{ background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)", fontFamily: "var(--font-body)" }}
