@@ -2,7 +2,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { fallbackRecipes } from "@/data/fallbackData";
 import {
   User,
   Mail,
@@ -73,36 +72,36 @@ export default function ProfilePage() {
     },
   });
 
+  // Реальные данные
+  const { data: myRatingsData } = trpc.rating.myRatings.useQuery(undefined, { enabled: !!user });
+  const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
+  const { data: recipesData } = trpc.recipe.list.useQuery();
+
+  // Соединяем оценки с рецептами
+  const myRatings = (myRatingsData || []).map((r) => ({
+    recipe: (recipesData || []).find((rec) => rec.id === r.recipeId),
+    rating: r.rating,
+  })).filter((r) => r.recipe);
+
+  const myComments = myCommentsData || [];
+  const allRecipes = recipesData || [];
+
   const userData = {
     name: user?.name ?? "Пользователь",
     email: user?.email ?? "",
     avatar: null as string | null,
-    joined: "—",
     balance: 0,
     usedQueries: 0,
     totalQueries: 150,
     recipesViewed: 0,
-    recipesRated: 0,
     favoritesCount: 0,
     placesSaved: 0,
     labelsCreated: 0,
-    commentsCount: 0,
   };
 
   const savedPlaces: { id: number; name: string; city: string; rating: number; image: string }[] = [];
   const savedLabels: { id: number; name: string; style: string; date: string }[] = [];
   const aiHistory: { id: number; tool: string; query: string; date: string; model: string }[] = [];
-  const myComments: { recipe: string; text: string; date: string; likes: number }[] = [];
-
-  const { data: recipesData } = trpc.recipe.list.useQuery();
-  const allRecipes = recipesData && recipesData.length > 0 ? recipesData : fallbackRecipes;
-  const savedRecipes = [allRecipes[0], allRecipes[2], allRecipes[4]].filter(Boolean);
-  const myRecipesList = [allRecipes[1], allRecipes[3]].filter(Boolean);
-  const myRatings = [
-    { recipe: allRecipes[0], rating: 5 },
-    { recipe: allRecipes[2], rating: 4 },
-    { recipe: allRecipes[4], rating: 5 },
-  ].filter((r) => r.recipe);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -157,14 +156,14 @@ export default function ProfilePage() {
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-4 lg:grid-cols-7 gap-2">
-  <StatCard icon={BookOpen} value={String(userData.recipesViewed)} label="Рецепты" />
-  <StatCard icon={Star} value={String(userData.recipesRated)} label="Оценки" />
-  <StatCard icon={Heart} value={String(userData.favoritesCount)} label="Избранное" />
-  <StatCard icon={FlaskConical} value={String(userData.usedQueries)} label="ИИ" />
-  <StatCard icon={Tag} value={String(userData.labelsCreated)} label="Этикетки" />
-  <StatCard icon={MapPin} value={String(userData.placesSaved)} label="Места" />
-  <StatCard icon={MessageCircle} value={String(userData.commentsCount)} label="Комментарии" />
-</div>
+            <StatCard icon={BookOpen} value={String(userData.recipesViewed)} label="Рецепты" />
+            <StatCard icon={Star} value={String(myRatings.length)} label="Оценки" />
+            <StatCard icon={Heart} value={String(userData.favoritesCount)} label="Избранное" />
+            <StatCard icon={FlaskConical} value={String(userData.usedQueries)} label="ИИ" />
+            <StatCard icon={Tag} value={String(userData.labelsCreated)} label="Этикетки" />
+            <StatCard icon={MapPin} value={String(userData.placesSaved)} label="Места" />
+            <StatCard icon={MessageCircle} value={String(myComments.length)} label="Комментарии" />
+          </div>
         </div>
       </section>
 
@@ -223,29 +222,38 @@ export default function ProfilePage() {
               ))}
             </div>
 
+            {/* Мои оценки — реальные данные */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <Star size={22} style={{ color: "var(--accent)" }} /> Мои оценки
               </h2>
-              <div className="space-y-3">
-                {myRatings.map(({ recipe, rating }) => (
-                  <div key={recipe.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{recipe.title}</div>
-                      <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{recipe.categoryLabel}</div>
+              {myRatings.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <Star size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не оценивали рецепты</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myRatings.map(({ recipe, rating }) => (
+                    <div key={recipe!.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                      <img src={recipe!.heroImage ?? "/recipe-cherry.jpg"} alt={recipe!.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{recipe!.title}</div>
+                        <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{recipe!.categoryLabel}</div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star key={i} size={16} fill={i < rating ? "var(--accent)" : "none"} color={i < rating ? "var(--accent)" : "var(--border)"} />
+                        ))}
+                      </div>
+                      <Link to={`/recipe/${recipe!.slug}`} style={{ color: "var(--accent)" }}><ChevronRight size={20} /></Link>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} size={16} fill={i < rating ? "var(--accent)" : "none"} color={i < rating ? "var(--accent)" : "var(--border)"} />
-                      ))}
-                    </div>
-                    <Link to={`/recipe/${recipe.slug}`} style={{ color: "var(--accent)" }}><ChevronRight size={20} /></Link>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
+            {/* Мои комментарии — реальные данные */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <MessageCircle size={22} style={{ color: "var(--accent)" }} /> Мои комментарии
@@ -257,15 +265,19 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {myComments.map((c, i) => (
-                    <div key={i} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  {myComments.map((c) => (
+                    <div key={c.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>{c.recipe}</span>
-                        <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{c.date}</span>
+                        <span className="text-base font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                          {allRecipes.find((r) => r.id === c.recipeId)?.title ?? "Рецепт"}
+                        </span>
+                        <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          {new Date(c.createdAt).toLocaleDateString("ru-RU")}
+                        </span>
                       </div>
-                      <p className="text-base mb-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>{c.text}</p>
-                      <div className="flex items-center gap-1 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        <ThumbsUp size={14} /> {c.likes} лайков
+                      <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>{c.text}</p>
+                      <div className="flex items-center gap-1 mt-2 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        <ThumbsUp size={14} /> {c.likes ?? 0} лайков
                       </div>
                     </div>
                   ))}
@@ -301,28 +313,17 @@ export default function ProfilePage() {
             </div>
 
             {favSub === "recipes" && (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {savedRecipes.map((r) => (
-                  <Link key={r.id} to={`/recipe/${r.slug}`} className="group rounded-xl overflow-hidden transition-all hover:shadow-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    <div className="relative overflow-hidden h-40">
-                      <img src={r.heroImage ?? "/recipe-cherry.jpg"} alt={r.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                    </div>
-                    <div className="p-4">
-                      <div className="text-base mb-1" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>{r.categoryLabel}</div>
-                      <div className="text-base font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{r.title}</div>
-                    </div>
-                  </Link>
-                ))}
+              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <Heart size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых рецептов нет</div>
               </div>
             )}
-
             {favSub === "labels" && (
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
                 <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
               </div>
             )}
-
             {favSub === "places" && (
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
@@ -341,19 +342,9 @@ export default function ProfilePage() {
                 <Edit3 size={16} /> Добавить рецепт
               </button>
             </div>
-            <div className="space-y-4">
-              {myRecipesList.map((r) => (
-                <div key={r.id} className="flex gap-4 rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <img src={r.heroImage ?? "/recipe-cherry.jpg"} alt={r.title} className="w-32 h-32 object-cover shrink-0" />
-                  <div className="py-4 pr-4 flex-1">
-                    <div className="text-base font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{r.title}</div>
-                    <div className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>{r.subtitle}</div>
-                    <div className="flex items-center gap-3">
-                      <Link to={`/recipe/${r.slug}`} className="text-base rounded-lg px-3 py-1.5" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>Открыть</Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <BookOpen size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+              <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Опубликованных рецептов нет</div>
             </div>
           </div>
         )}
@@ -389,7 +380,6 @@ export default function ProfilePage() {
         {/* SETTINGS */}
         {tab === "settings" && (
           <div className="max-w-2xl mx-auto space-y-8">
-            {/* Profile */}
             <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <User size={22} style={{ color: "var(--accent)" }} /> Профиль
@@ -409,7 +399,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <Lock size={22} style={{ color: "var(--accent)" }} /> Безопасность
@@ -443,7 +432,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Notifications */}
             <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <Bell size={22} style={{ color: "var(--accent)" }} /> Уведомления
@@ -471,7 +459,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Logout */}
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => { localStorage.removeItem("auth-token"); window.location.href = "/#/"; }}
