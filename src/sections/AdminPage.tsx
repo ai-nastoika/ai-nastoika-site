@@ -48,6 +48,23 @@ const EMPTY_PLACE = {
   externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
 };
 
+const CATEGORIES = [
+  { value: "sweet", label: "🍒 Сладкая" },
+  { value: "bitter", label: "🌿 Горькая" },
+  { value: "herbal", label: "🌱 Травяная" },
+  { value: "spicy", label: "🌶️ Острая" },
+  { value: "citrus", label: "🍋 Цитрусовая" },
+  { value: "coffee", label: "☕ Кофейная" },
+  { value: "honey", label: "🍯 Медовая" },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  sweet: "Сладкая", bitter: "Горькая", herbal: "Травяная",
+  spicy: "Острая", citrus: "Цитрусовая", coffee: "Кофейная", honey: "Медовая",
+};
+
+const DIFFICULTIES = ["Легко", "Средне", "Сложно"];
+
 /* ═══════════════════════════════════════
    localStorage helpers (fallback when API down)
    ═══════════════════════════════════════ */
@@ -546,14 +563,25 @@ function RecipeForm({
       </div>
       <Field label="Подзаголовок" value={f.subtitle} onChange={(v) => update({ subtitle: v })} />
       <div className="grid grid-cols-3 gap-4">
-        <Field label="Категория*" value={f.category} onChange={(v) => update({ category: v })} placeholder="sweet / bitter / herbal ..." />
+        <div>
+          <Label className="text-xs">Категория*</Label>
+          <select className="w-full h-10 rounded-md border px-3 text-sm mt-1" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={f.category} onChange={(e) => update({ category: e.target.value, categoryLabel: CATEGORY_LABELS[e.target.value] || "" })}>
+            {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
         <Field label="Метка категории" value={f.categoryLabel} onChange={(v) => update({ categoryLabel: v })} />
         <Field label="Изображение (hero)" value={f.heroImage} onChange={(v) => update({ heroImage: v })} placeholder="recipe-name.jpg" />
       </div>
       <div className="grid grid-cols-4 gap-4">
         <Field label="Крепость (ABV)" value={f.abv} onChange={(v) => update({ abv: v })} />
         <Field label="Время" value={f.time} onChange={(v) => update({ time: v })} />
-        <Field label="Сложность" value={f.difficulty} onChange={(v) => update({ difficulty: v })} />
+        <div>
+          <Label className="text-xs">Сложность</Label>
+          <select className="w-full h-10 rounded-md border px-3 text-sm mt-1" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={f.difficulty} onChange={(e) => update({ difficulty: e.target.value })}>
+            <option value="">—</option>
+            {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
         <Field label="Год / Период" value={f.year} onChange={(v) => update({ year: v })} />
       </div>
       <div className="grid grid-cols-3 gap-4">
