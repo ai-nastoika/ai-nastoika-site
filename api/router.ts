@@ -3,6 +3,13 @@ import { router, publicProcedure, authedProcedure, db, users, recipes, createTok
 import { eq, and, avg, count } from "drizzle-orm";
 import { recipeRatings, comments } from "../db/schema";
 
+// ─── Admin procedure ───
+const adminProcedure = authedProcedure.use(async (opts) => {
+  const { ctx } = opts;
+  if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+  return opts.next({ ctx });
+});
+
 export const appRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, ts: Date.now() })),
 
@@ -68,6 +75,38 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Управление пользователями (только для админа) ───
+  user: router({
+    list: adminProcedure.query(async () => {
+      return db.select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        createdAt: users.createdAt,
+      }).from(users);
+    }),
+
+    setRole: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        role: z.enum(["user", "editor", "admin"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.userId === ctx.userId) throw new Error("Нельзя изменить свою роль");
+        await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.userId === ctx.userId) throw new Error("Нельзя удалить себя");
+        await db.delete(users).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
+  }),
+
   recipe: router({
     list: publicProcedure.query(async () => {
       return db.select().from(recipes);
@@ -90,7 +129,6 @@ export const appRouter = router({
   }),
 
   rating: router({
-    // Получить оценку текущего пользователя для рецепта
     myRating: authedProcedure
       .input(z.object({ recipeId: z.number() }))
       .query(async ({ input, ctx }) => {
@@ -103,7 +141,6 @@ export const appRouter = router({
         return rows[0] || null;
       }),
 
-    // Получить все оценки текущего пользователя
     myRatings: authedProcedure.query(async ({ ctx }) => {
       const rows = await db.select({
         id: recipeRatings.id,
@@ -114,7 +151,6 @@ export const appRouter = router({
       return rows;
     }),
 
-    // Поставить или обновить оценку
     set: authedProcedure
       .input(z.object({ recipeId: z.number(), rating: z.number().min(1).max(5) }))
       .mutation(async ({ input, ctx }) => {
@@ -135,7 +171,6 @@ export const appRouter = router({
             rating: input.rating,
           });
         }
-        // Пересчитать средний рейтинг рецепта
         const result = await db.select({
           avg: avg(recipeRatings.rating),
           count: count(recipeRatings.id),
