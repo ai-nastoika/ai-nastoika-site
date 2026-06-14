@@ -51,8 +51,7 @@ export type InsertRecipe = typeof recipes.$inferInsert;
 // ─── Recipe Ingredients ────────────────────────────────────
 export const recipeIngredients = mysqlTable("recipe_ingredients", {
   id: serial("id").primaryKey(),
-  recipeId: bigint("recipe_id", { mode: "number", unsigned: true })
-    .notNull(),
+  recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   amount: varchar("amount", { length: 100 }),
   note: varchar("note", { length: 200 }),
@@ -64,8 +63,7 @@ export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 // ─── Recipe Steps ──────────────────────────────────────────
 export const recipeSteps = mysqlTable("recipe_steps", {
   id: serial("id").primaryKey(),
-  recipeId: bigint("recipe_id", { mode: "number", unsigned: true })
-    .notNull(),
+  recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
   stepNum: int("step_num").notNull(),
   title: varchar("title", { length: 200 }),
   text: text("text").notNull(),
@@ -106,8 +104,7 @@ export type InsertPlace = typeof places.$inferInsert;
 // ─── Place Infusions ───────────────────────────────────────
 export const placeInfusions = mysqlTable("place_infusions", {
   id: serial("id").primaryKey(),
-  placeId: bigint("place_id", { mode: "number", unsigned: true })
-    .notNull(),
+  placeId: bigint("place_id", { mode: "number", unsigned: true }).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   note: varchar("note", { length: 300 }),
   isSignature: int("is_signature").default(0),
@@ -120,6 +117,7 @@ export const comments = mysqlTable("comments", {
   id: serial("id").primaryKey(),
   recipeId: bigint("recipe_id", { mode: "number", unsigned: true }),
   placeId: bigint("place_id", { mode: "number", unsigned: true }),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
   authorName: varchar("author_name", { length: 100 }),
   authorAvatar: varchar("author_avatar", { length: 10 }),
   text: text("text").notNull(),
@@ -130,93 +128,9 @@ export const comments = mysqlTable("comments", {
 export type Comment = typeof comments.$inferSelect;
 export type InsertComment = typeof comments.$inferInsert;
 
-// ─── Label Templates ────────────────────────────────────────
-export const labelTemplates = mysqlTable("label_templates", {
+// ─── Recipe Ratings ────────────────────────────────────────
+export const recipeRatings = mysqlTable("recipe_ratings", {
   id: serial("id").primaryKey(),
-  name: varchar("name", { length: 100 }).notNull(),
-  image: varchar("image", { length: 255 }),
-  bg: varchar("bg", { length: 255 }),
-  border: varchar("border", { length: 255 }),
-  accent: varchar("accent", { length: 20 }).notNull().default("#8B4513"),
-  fontFamily: varchar("font_family", { length: 20 }).notNull().default("serif"),
-  sortOrder: int("sort_order").notNull().default(0),
-  isActive: int("is_active").notNull().default(1),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export type LabelTemplate = typeof labelTemplates.$inferSelect;
-export type InsertLabelTemplate = typeof labelTemplates.$inferInsert;
-
-// ─── User Recipe Submissions (moderation pipeline) ──────────
-export const userRecipeSubmissions = mysqlTable("user_recipe_submissions", {
-  id: serial("id").primaryKey(),
-  /* User info */
-  userId: bigint("user_id", { mode: "number", unsigned: true }),
-  fingerprint: varchar("fingerprint", { length: 64 }),
-  authorName: varchar("author_name", { length: 100 }),
-  /* Status: draft → ai_processed → pending → approved → rejected */
-  status: varchar("status", { length: 20 }).notNull().default("draft"),
-  /* Raw user input */
-  rawTitle: varchar("raw_title", { length: 200 }).notNull(),
-  rawDescription: text("raw_description"),
-  rawIngredients: text("raw_ingredients"),
-  rawSteps: text("raw_steps"),
-  rawNotes: text("raw_notes"),
-  /* AI processed data (JSON) */
-  processedData: text("processed_data"),
-  /* Final recipe fields (filled after AI or manual edit) */
-  slug: varchar("slug", { length: 100 }),
-  title: varchar("title", { length: 200 }),
-  subtitle: varchar("subtitle", { length: 255 }),
-  category: varchar("category", { length: 30 }),
-  categoryLabel: varchar("category_label", { length: 50 }),
-  abv: varchar("abv", { length: 20 }),
-  time: varchar("time", { length: 50 }),
-  difficulty: varchar("difficulty", { length: 20 }),
-  year: varchar("year", { length: 50 }),
-  origin: varchar("origin", { length: 100 }),
-  historyTitle: varchar("history_title", { length: 200 }),
-  historyText: text("history_text"),
-  tastingColor: varchar("tasting_color", { length: 100 }),
-  tastingDescription: text("tasting_description"),
-  tastingTemp: varchar("tasting_temp", { length: 50 }),
-  tastingGlass: varchar("tasting_glass", { length: 100 }),
-  sweet: int("sweet"),
-  sour: int("sour"),
-  bitter: int("bitter"),
-  spicy: int("spicy"),
-  fruity: int("fruity"),
-  herbal: int("herbal"),
-  authorDate: varchar("author_date", { length: 20 }),
-  /* Admin */
-  adminNotes: text("admin_notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export type UserRecipeSubmission = typeof userRecipeSubmissions.$inferSelect;
-export type InsertUserRecipeSubmission = typeof userRecipeSubmissions.$inferInsert;
-
-// ─── Users ─────────────────────────────────────────────────
-export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
-  email: varchar("email", { length: 320 }).notNull().unique(),
-  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
-  name: varchar("name", { length: 100 }),
-  avatar: varchar("avatar", { length: 255 }),
-  role: varchar("role", { length: 20 }).default("user").notNull(), // user | admin
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-
-// ─── AI Usage Tracking ─────────────────────────────────────
-export const aiUsage = mysqlTable("ai_usage", {
-  id: serial("id").primaryKey(),
-  userId: bigint("user_id", { mode: "number", unsigned: true }),
-  fingerprint: varchar("fingerprint", { length: 64 }),
-  requestType: varchar("request_type", { length: 20 }).notNull(),
-  tokensUsed: int("tokens_used").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+  recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  rating:
