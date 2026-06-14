@@ -329,7 +329,7 @@ export default function RecipeParserPage() {
 
           {/* ═════ STEP 1: Source text ═════ */}
           <TabsContent value="prompt">
-            <Card style={{ background: "var(--bg-card)" }}>
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileJson size={20} />
@@ -370,7 +370,7 @@ export default function RecipeParserPage() {
 
           {/* ═════ STEP 2: JSON from Kimi ═════ */}
           <TabsContent value="json">
-            <Card style={{ background: "var(--bg-card)" }}>
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Wand2 size={20} />
@@ -407,7 +407,7 @@ export default function RecipeParserPage() {
           <TabsContent value="edit">
             <div className="space-y-6">
               {/* Basic */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader><CardTitle>Основная информация</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -446,7 +446,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* ═════ IMAGE ═════ */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon size={20} /> Картинка рецепта</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {/* Image prompt from Kimi */}
@@ -551,7 +551,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Ingredients */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Ингредиенты ({form.ingredients.length})</CardTitle>
                   <Button size="sm" variant="outline" onClick={addIng}><Plus size={14} className="mr-1" /> Добавить</Button>
@@ -570,7 +570,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Steps */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Шаги ({form.steps.length})</CardTitle>
                   <Button size="sm" variant="outline" onClick={addStep}><Plus size={14} className="mr-1" /> Добавить</Button>
@@ -589,7 +589,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Taste */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader><CardTitle>Вкусовой профиль</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
@@ -619,7 +619,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* History */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader><CardTitle>История</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div><Label>Заголовок</Label><Input value={form.historyTitle} onChange={(e) => patch({ historyTitle: e.target.value })} /></div>
@@ -628,7 +628,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Tips */}
-              <Card style={{ background: "var(--bg-card)" }}>
+              <Card>
                 <CardHeader><CardTitle>Советы</CardTitle></CardHeader>
                 <CardContent>
                   <Textarea value={form.tips.join("\n")} onChange={(e) => patch({ tips: e.target.value.split("\n").filter(Boolean) })} className="min-h-[80px]" placeholder="Каждый совет с новой строки" />
