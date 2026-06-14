@@ -133,7 +133,7 @@ export const recipeRatings = mysqlTable("recipe_ratings", {
   id: serial("id").primaryKey(),
   recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  rating:rating: int("rating").notNull(), // 1-5
+  rating: int("rating").notNull(), // 1-5
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
