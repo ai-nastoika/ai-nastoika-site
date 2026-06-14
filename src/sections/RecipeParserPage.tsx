@@ -329,7 +329,7 @@ export default function RecipeParserPage() {
 
           {/* ═════ STEP 1: Source text ═════ */}
           <TabsContent value="prompt">
-            <Card>
+            <Card style={{ background: "var(--bg-card)" }}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileJson size={20} />
@@ -370,7 +370,7 @@ export default function RecipeParserPage() {
 
           {/* ═════ STEP 2: JSON from Kimi ═════ */}
           <TabsContent value="json">
-            <Card>
+            <Card style={{ background: "var(--bg-card)" }}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Wand2 size={20} />
@@ -407,7 +407,7 @@ export default function RecipeParserPage() {
           <TabsContent value="edit">
             <div className="space-y-6">
               {/* Basic */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader><CardTitle>Основная информация</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -417,8 +417,16 @@ export default function RecipeParserPage() {
                   <div><Label>Подзаголовок</Label><Input value={form.subtitle} onChange={(e) => patch({ subtitle: e.target.value })} /></div>
                   <div className="grid grid-cols-4 gap-4">
                     <div><Label>Категория</Label>
-                      <select className="w-full h-10 rounded-md border px-3" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.category} onChange={(e) => patch({ category: e.target.value })}>
-                        {["sweet","bitter","herbal","spicy","citrus","coffee","honey"].map((c) => <option key={c} value={c}>{c}</option>)}
+                      <select className="w-full h-10 rounded-md border px-3 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.category} onChange={(e) => patch({ category: e.target.value })}>
+                        {[
+                          { value: "sweet", label: "🍒 Сладкая" },
+                          { value: "bitter", label: "🌿 Горькая" },
+                          { value: "herbal", label: "🌱 Травяная" },
+                          { value: "spicy", label: "🌶️ Острая" },
+                          { value: "citrus", label: "🍋 Цитрусовая" },
+                          { value: "coffee", label: "☕ Кофейная" },
+                          { value: "honey", label: "🍯 Медовая" },
+                        ].map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </div>
                     <div><Label>Метка</Label><Input value={form.categoryLabel} onChange={(e) => patch({ categoryLabel: e.target.value })} /></div>
@@ -427,7 +435,7 @@ export default function RecipeParserPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div><Label>Сложность</Label>
-                      <select className="w-full h-10 rounded-md border px-3" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.difficulty} onChange={(e) => patch({ difficulty: e.target.value })}>
+                      <select className="w-full h-10 rounded-md border px-3 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.difficulty} onChange={(e) => patch({ difficulty: e.target.value })}>
                         {["Легко","Средне","Сложно"].map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
@@ -438,7 +446,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* ═════ IMAGE ═════ */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon size={20} /> Картинка рецепта</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {/* Image prompt from Kimi */}
@@ -543,7 +551,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Ingredients */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Ингредиенты ({form.ingredients.length})</CardTitle>
                   <Button size="sm" variant="outline" onClick={addIng}><Plus size={14} className="mr-1" /> Добавить</Button>
@@ -562,7 +570,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Steps */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Шаги ({form.steps.length})</CardTitle>
                   <Button size="sm" variant="outline" onClick={addStep}><Plus size={14} className="mr-1" /> Добавить</Button>
@@ -581,7 +589,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Taste */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader><CardTitle>Вкусовой профиль</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
@@ -611,7 +619,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* History */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader><CardTitle>История</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div><Label>Заголовок</Label><Input value={form.historyTitle} onChange={(e) => patch({ historyTitle: e.target.value })} /></div>
@@ -620,7 +628,7 @@ export default function RecipeParserPage() {
               </Card>
 
               {/* Tips */}
-              <Card>
+              <Card style={{ background: "var(--bg-card)" }}>
                 <CardHeader><CardTitle>Советы</CardTitle></CardHeader>
                 <CardContent>
                   <Textarea value={form.tips.join("\n")} onChange={(e) => patch({ tips: e.target.value.split("\n").filter(Boolean) })} className="min-h-[80px]" placeholder="Каждый совет с новой строки" />
