@@ -24,6 +24,7 @@ const recipeUpsertInput = z.object({
   subtitle: z.string().optional(),
   category: z.string().min(1),
   categoryLabel: z.string().optional(),
+  heroImage: z.string().optional(),
   abv: z.string().optional(),
   time: z.string().optional(),
   difficulty: z.string().optional(),
