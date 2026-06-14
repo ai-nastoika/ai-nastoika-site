@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useRef, type ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -553,6 +553,29 @@ function RecipeForm({
   const f = form;
   const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const heroFileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) { alert("Допустимые форматы: JPG, PNG, WebP"); return; }
+    if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер — 5 МБ"); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success && data.path) {
+        update({ heroImage: data.path });
+      } else {
+        alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));
+      }
+    } catch { alert("Ошибка загрузки файла"); }
+    finally { setUploading(false); if (heroFileRef.current) heroFileRef.current.value = ""; }
+  };
 
   return (
     <div className="space-y-4">
@@ -569,7 +592,19 @@ function RecipeForm({
           </select>
         </div>
         <Field label="Метка категории" value={f.categoryLabel} onChange={(v) => update({ categoryLabel: v })} />
-        <Field label="Изображение (hero)" value={f.heroImage} onChange={(v) => update({ heroImage: v })} placeholder="recipe-name.jpg" />
+        <div>
+          <Label className="text-xs">Изображение (hero)</Label>
+          <div className="flex gap-1 mt-1">
+            <Input value={f.heroImage} onChange={(e) => update({ heroImage: e.target.value })} placeholder="/uploads/recipes/..." className="flex-1" />
+            <input ref={heroFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleHeroUpload} />
+            <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => heroFileRef.current?.click()} className="shrink-0 h-10">
+              {uploading ? "..." : <Upload size={14} />}
+            </Button>
+          </div>
+          {f.heroImage && (
+            <img src={f.heroImage} alt="Превью" className="mt-2 h-20 rounded object-cover" />
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-4 gap-4">
         <Field label="Крепость (ABV)" value={f.abv} onChange={(v) => update({ abv: v })} />
