@@ -562,6 +562,14 @@ function RecipeForm({
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) { alert("Допустимые форматы: JPG, PNG, WebP"); return; }
     if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер — 5 МБ"); return; }
+    // Проверка ориентации
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    const isLandscape = await new Promise<boolean>((resolve) => {
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img.width >= img.height); };
+      img.src = url;
+    });
+    if (!isLandscape) { alert("Используйте картинку в альбомной (горизонтальной) ориентации"); return; }
     setUploading(true);
     try {
       const fd = new FormData();

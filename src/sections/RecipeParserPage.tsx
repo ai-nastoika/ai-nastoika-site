@@ -28,7 +28,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
 7. Определи category из списка: sweet, bitter, herbal, spicy, citrus, coffee, honey
 8. Определи categoryLabel по-русски (например: "Сладкая", "Острая", "Травяная")
 9. difficulty: "Легко", "Средне" или "Сложно"
-10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки. Описывай: цвет напитка в стеклянной бутылке/графине, ингредиенты рядом, фон (деревянный стол, тёмный фон), освещение (тёплое, мягкое). Стиль: food photography, dark moody, rustic.
+10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки в АЛЬБОМНОЙ ориентации (landscape, horizontal, aspect ratio 16:9). Описывай: цвет напитка в стеклянной бутылке/графине, ингредиенты рядом, фон (деревянный стол, тёмный фон), освещение (тёплое, мягкое). Стиль: food photography, dark moody, rustic. ОБЯЗАТЕЛЬНО добавь в конец промпта: "horizontal composition, landscape orientation, 16:9 aspect ratio".
 
 Верни ТОЛЬКО JSON, без markdown, без объяснений:
 
@@ -56,7 +56,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
   "fruity": 90,
   "herbal": 5,
   "tips": ["Совет 1", "Совет 2", "Совет 3"],
-  "imagePrompt": "A beautiful glass bottle of deep ruby cherry infusion on a dark wooden table, fresh ripe cherries scattered around, warm soft lighting, food photography, dark moody rustic style",
+  "imagePrompt": "A beautiful glass bottle of deep ruby cherry infusion on a dark wooden table, fresh ripe cherries scattered around, warm soft lighting, food photography, dark moody rustic style, horizontal composition, landscape orientation, 16:9 aspect ratio",
   "authorName": "",
   "authorDate": "",
   "ingredients": [
@@ -172,6 +172,22 @@ export default function RecipeParserPage() {
     }
     if (file.size > 5 * 1024 * 1024) {
       alert("Максимальный размер — 5 МБ");
+      return;
+    }
+
+    // Проверка ориентации
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    const isLandscape = await new Promise<boolean>((resolve) => {
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img.width >= img.height);
+      };
+      img.src = url;
+    });
+
+    if (!isLandscape) {
+      alert("Используйте картинку в альбомной (горизонтальной) ориентации");
       return;
     }
 
