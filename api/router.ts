@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq } from "drizzle-orm";
+import { eq, and, avg, count } from "drizzle-orm";
+import { recipeRatings, comments } from "../db/schema";
 
 export const appRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, ts: Date.now() })),
@@ -88,16 +89,94 @@ export const appRouter = router({
       .mutation(async () => ({ success: true })),
   }),
 
+  rating: router({
+    // Получить оценку текущего пользователя для рецепта
+    myRating: authedProcedure
+      .input(z.object({ recipeId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const rows = await db.select().from(recipeRatings).where(
+          and(
+            eq(recipeRatings.recipeId, input.recipeId),
+            eq(recipeRatings.userId, ctx.userId)
+          )
+        );
+        return rows[0] || null;
+      }),
+
+    // Получить все оценки текущего пользователя
+    myRatings: authedProcedure.query(async ({ ctx }) => {
+      const rows = await db.select({
+        id: recipeRatings.id,
+        recipeId: recipeRatings.recipeId,
+        rating: recipeRatings.rating,
+        createdAt: recipeRatings.createdAt,
+      }).from(recipeRatings).where(eq(recipeRatings.userId, ctx.userId));
+      return rows;
+    }),
+
+    // Поставить или обновить оценку
+    set: authedProcedure
+      .input(z.object({ recipeId: z.number(), rating: z.number().min(1).max(5) }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.select().from(recipeRatings).where(
+          and(
+            eq(recipeRatings.recipeId, input.recipeId),
+            eq(recipeRatings.userId, ctx.userId)
+          )
+        );
+        if (existing.length > 0) {
+          await db.update(recipeRatings)
+            .set({ rating: input.rating })
+            .where(eq(recipeRatings.id, existing[0].id));
+        } else {
+          await db.insert(recipeRatings).values({
+            recipeId: input.recipeId,
+            userId: ctx.userId,
+            rating: input.rating,
+          });
+        }
+        // Пересчитать средний рейтинг рецепта
+        const result = await db.select({
+          avg: avg(recipeRatings.rating),
+          count: count(recipeRatings.id),
+        }).from(recipeRatings).where(eq(recipeRatings.recipeId, input.recipeId));
+        const newRating = Number(result[0].avg).toFixed(1);
+        const newCount = Number(result[0].count);
+        await db.update(recipes)
+          .set({ rating: newRating, reviews: newCount })
+          .where(eq(recipes.id, input.recipeId));
+        return { success: true, newRating, newCount };
+      }),
+  }),
+
+  comment: router({
+    list: publicProcedure
+      .input(z.object({ recipeId: z.number() }))
+      .query(async ({ input }) => {
+        return db.select().from(comments).where(eq(comments.recipeId, input.recipeId));
+      }),
+
+    myComments: authedProcedure.query(async ({ ctx }) => {
+      return db.select().from(comments).where(eq(comments.userId, ctx.userId));
+    }),
+
+    create: authedProcedure
+      .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await db.insert(comments).values({
+          recipeId: input.recipeId,
+          userId: ctx.userId,
+          text: input.text,
+        });
+        return { success: true };
+      }),
+  }),
+
   place: router({
     list: publicProcedure.query(() => []),
     bySlug: publicProcedure.input(z.object({ slug: z.string() })).query(() => null),
     delete: publicProcedure.input(z.object({ id: z.number() })).mutation(() => ({ success: true })),
     upsert: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-  }),
-
-  comment: router({
-    list: publicProcedure.input(z.object({ recipeId: z.number() })).query(() => []),
-    create: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
   }),
 
   recipeParser: router({
