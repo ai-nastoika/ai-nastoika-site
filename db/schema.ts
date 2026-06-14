@@ -133,4 +133,93 @@ export const recipeRatings = mysqlTable("recipe_ratings", {
   id: serial("id").primaryKey(),
   recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  rating:
+  rating:rating: int("rating").notNull(), // 1-5
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type RecipeRating = typeof recipeRatings.$inferSelect;
+
+// ─── Label Templates ────────────────────────────────────────
+export const labelTemplates = mysqlTable("label_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  image: varchar("image", { length: 255 }),
+  bg: varchar("bg", { length: 255 }),
+  border: varchar("border", { length: 255 }),
+  accent: varchar("accent", { length: 20 }).notNull().default("#8B4513"),
+  fontFamily: varchar("font_family", { length: 20 }).notNull().default("serif"),
+  sortOrder: int("sort_order").notNull().default(0),
+  isActive: int("is_active").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type LabelTemplate = typeof labelTemplates.$inferSelect;
+export type InsertLabelTemplate = typeof labelTemplates.$inferInsert;
+
+// ─── User Recipe Submissions ───────────────────────────────
+export const userRecipeSubmissions = mysqlTable("user_recipe_submissions", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
+  fingerprint: varchar("fingerprint", { length: 64 }),
+  authorName: varchar("author_name", { length: 100 }),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  rawTitle: varchar("raw_title", { length: 200 }).notNull(),
+  rawDescription: text("raw_description"),
+  rawIngredients: text("raw_ingredients"),
+  rawSteps: text("raw_steps"),
+  rawNotes: text("raw_notes"),
+  processedData: text("processed_data"),
+  slug: varchar("slug", { length: 100 }),
+  title: varchar("title", { length: 200 }),
+  subtitle: varchar("subtitle", { length: 255 }),
+  category: varchar("category", { length: 30 }),
+  categoryLabel: varchar("category_label", { length: 50 }),
+  abv: varchar("abv", { length: 20 }),
+  time: varchar("time", { length: 50 }),
+  difficulty: varchar("difficulty", { length: 20 }),
+  year: varchar("year", { length: 50 }),
+  origin: varchar("origin", { length: 100 }),
+  historyTitle: varchar("history_title", { length: 200 }),
+  historyText: text("history_text"),
+  tastingColor: varchar("tasting_color", { length: 100 }),
+  tastingDescription: text("tasting_description"),
+  tastingTemp: varchar("tasting_temp", { length: 50 }),
+  tastingGlass: varchar("tasting_glass", { length: 100 }),
+  sweet: int("sweet"),
+  sour: int("sour"),
+  bitter: int("bitter"),
+  spicy: int("spicy"),
+  fruity: int("fruity"),
+  herbal: int("herbal"),
+  authorDate: varchar("author_date", { length: 20 }),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type UserRecipeSubmission = typeof userRecipeSubmissions.$inferSelect;
+export type InsertUserRecipeSubmission = typeof userRecipeSubmissions.$inferInsert;
+
+// ─── Users ─────────────────────────────────────────────────
+export const users = mysqlTable("users", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  name: varchar("name", { length: 100 }),
+  avatar: varchar("avatar", { length: 255 }),
+  role: varchar("role", { length: 20 }).default("user").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+// ─── AI Usage Tracking ─────────────────────────────────────
+export const aiUsage = mysqlTable("ai_usage", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
+  fingerprint: varchar("fingerprint", { length: 64 }),
+  requestType: varchar("request_type", { length: 20 }).notNull(),
+  tokensUsed: int("tokens_used").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
