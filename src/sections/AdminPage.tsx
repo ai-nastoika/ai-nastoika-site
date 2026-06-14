@@ -1,7 +1,6 @@
 import { useState, useCallback, type ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { fallbackRecipes, fallbackPlaces } from "@/data/fallbackData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -190,8 +189,8 @@ function AdminPanel() {
     ...(apiRecipes ?? []),
     ...localRecipes.filter((lr) => !(apiRecipes ?? []).some((ar) => ar.slug === lr.slug)),
   ];
-  const displayRecipes = recipes.length > 0 ? recipes : fallbackRecipes;
-  const places = apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces;
+  const displayRecipes = recipes;
+  const places = apiPlaces ?? [];
 
   /* Mutations */
   const deleteRecipe = trpc.recipe.delete.useMutation({

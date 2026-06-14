@@ -1,11 +1,11 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { fallbackRecipes } from "@/data/fallbackData";
+
 import { Clock, Star, ArrowRight } from "lucide-react";
 
 export default function Recipes() {
   const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
-  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : fallbackRecipes;
+  const recipes = apiRecipes ?? [];
 
   if (isLoading) {
     return (

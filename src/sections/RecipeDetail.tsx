@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { fallbackRecipes } from "@/data/fallbackData";
+
 import CommentSection from "../components/CommentSection";
 import {
   ArrowLeft, Clock, Star, Wine, ChefHat, BookOpen, Lightbulb,
@@ -9,10 +9,6 @@ import {
   QrCode, Tag,
 } from "lucide-react";
 import QRCode from "qrcode";
-
-function findFallbackRecipe(slug: string) {
-  return fallbackRecipes.find((r) => r.slug === slug) ?? null;
-}
 
 function FlavorBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -34,7 +30,7 @@ export default function RecipeDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { data: apiRecipe, isLoading } = trpc.recipe.bySlug.useQuery({ slug: slug! }, { enabled: !!slug });
-  const recipe = apiRecipe ?? findFallbackRecipe(slug ?? "");
+  const recipe = apiRecipe ?? null;
 
   if (isLoading) {
     return (
