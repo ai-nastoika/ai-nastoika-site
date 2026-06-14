@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -256,8 +256,16 @@ function AdminPanel() {
     setRForm({ ...EMPTY_RECIPE });
     setPairingStr(""); setTipsStr(""); setEditRecipeId(undefined);
   }
-  function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
+  async function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
     setEditRecipeId(r.id);
+    // Загружаем полный рецепт с ингредиентами и шагами
+    const full = await utils.recipe.bySlug.fetch({ slug: r.slug });
+    const ings: IngredientInput[] = (full?.ingredients ?? []).map((i: any) => ({
+      name: i.name ?? "", amount: i.amount ?? "", note: i.note ?? "",
+    }));
+    const stps: StepInput[] = (full?.steps ?? []).map((s: any) => ({
+      stepNum: s.stepNum ?? 1, title: s.title ?? "", text: s.text ?? "",
+    }));
     setRForm({
       ...EMPTY_RECIPE,
       slug: r.slug, title: r.title, subtitle: r.subtitle ?? "",
@@ -273,7 +281,7 @@ function AdminPanel() {
       spicy: r.spicy ?? 0, fruity: r.fruity ?? 0, herbal: r.herbal ?? 0,
       tips: r.tips ?? [],
       authorName: r.authorName ?? "", authorDate: r.authorDate ?? "",
-      ingredients: [], steps: [],
+      ingredients: ings, steps: stps,
     });
     setPairingStr(arrStr(r.tastingPairing));
     setTipsStr(arrStr(r.tips));
@@ -675,6 +683,81 @@ function RecipeForm({
         <Field label="Имя автора" value={f.authorName} onChange={(v) => update({ authorName: v })} />
         <Field label="Дата" value={f.authorDate} onChange={(v) => update({ authorDate: v })} />
       </div>
+
+      {/* Ингредиенты */}
+      <div className="flex items-center justify-between mt-4">
+        <h3 className="font-semibold" style={{ color: "var(--accent)" }}>Ингредиенты ({f.ingredients.length})</h3>
+        <Button type="button" size="sm" variant="outline" onClick={() => update({ ingredients: [...f.ingredients, { name: "", amount: "", note: "" }] })}>
+          <Plus size={14} className="mr-1" /> Добавить
+        </Button>
+      </div>
+      {f.ingredients.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет ингредиентов</p>}
+      {f.ingredients.map((ing, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-5">
+            <Label className="text-xs">Название</Label>
+            <Input value={ing.name} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], name: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Количество</Label>
+            <Input value={ing.amount ?? ""} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], amount: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Примечание</Label>
+            <Input value={ing.note ?? ""} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], note: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-1">
+            <Button type="button" size="sm" variant="ghost" onClick={() => update({ ingredients: f.ingredients.filter((_, j) => j !== i) })}>
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {/* Шаги */}
+      <div className="flex items-center justify-between mt-4">
+        <h3 className="font-semibold" style={{ color: "var(--accent)" }}>Шаги ({f.steps.length})</h3>
+        <Button type="button" size="sm" variant="outline" onClick={() => {
+          const next = f.steps.length > 0 ? Math.max(...f.steps.map((s) => s.stepNum)) + 1 : 1;
+          update({ steps: [...f.steps, { stepNum: next, title: "", text: "" }] });
+        }}>
+          <Plus size={14} className="mr-1" /> Добавить
+        </Button>
+      </div>
+      {f.steps.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет шагов</p>}
+      {f.steps.map((s, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 items-start">
+          <div className="col-span-1">
+            <Label className="text-xs">№</Label>
+            <Input type="number" value={s.stepNum} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], stepNum: Number(e.target.value) }; update({ steps: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Заголовок</Label>
+            <Input value={s.title ?? ""} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], title: e.target.value }; update({ steps: arr });
+            }} />
+          </div>
+          <div className="col-span-7">
+            <Label className="text-xs">Описание</Label>
+            <Textarea value={s.text} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], text: e.target.value }; update({ steps: arr });
+            }} className="min-h-[60px]" />
+          </div>
+          <div className="col-span-1 pt-5">
+            <Button type="button" size="sm" variant="ghost" onClick={() => update({ steps: f.steps.filter((_, j) => j !== i) })}>
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
