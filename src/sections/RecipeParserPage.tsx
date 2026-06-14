@@ -135,7 +135,7 @@ export default function RecipeParserPage() {
     onSuccess: () => {
       utils.recipe.list.invalidate();
       setSaving(false);
-      alert("Рецепт сохранён!");
+      navigate("/recipes");
     },
     onError: (err) => {
       setSaving(false);
@@ -148,7 +148,7 @@ export default function RecipeParserPage() {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(fullPrompt);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => { setCopied(false); setTab("json"); }, 1500);
   };
 
   /* ── Copy image prompt ── */

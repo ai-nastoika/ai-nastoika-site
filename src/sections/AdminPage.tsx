@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2 } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -251,6 +251,8 @@ function AdminPanel() {
   const [rForm, setRForm] = useState({ ...EMPTY_RECIPE });
   const [pairingStr, setPairingStr] = useState("");
   const [tipsStr, setTipsStr] = useState("");
+  const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipeSort, setRecipeSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "id", dir: "desc" });
 
   function resetRecipe() {
     setRForm({ ...EMPTY_RECIPE });
@@ -405,56 +407,100 @@ function AdminPanel() {
                 </Dialog>
               </CardHeader>
               <CardContent>
+                {/* Поиск */}
+                <div className="mb-4 relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                  <Input
+                    value={recipeSearch}
+                    onChange={(e) => setRecipeSearch(e.target.value)}
+                    placeholder="Поиск по названию, slug, категории..."
+                    className="pl-9"
+                  />
+                </div>
                 {rLoading ? (
                   <p>Загрузка...</p>
                 ) : !displayRecipes?.length ? (
                   <p className="text-muted-foreground">Нет рецептов</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Название</TableHead>
-                        <TableHead>Slug</TableHead>
-                        <TableHead>Категория</TableHead>
-                        <TableHead className="text-right">Действия</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayRecipes.map((r) => {
-                        const isLocal = r.id < 0;
-                        return (
-                          <TableRow key={r.id} style={isLocal ? { background: "rgba(254, 243, 199, 0.3)" } : undefined}>
-                            <TableCell>
-                              {r.id}
-                              {isLocal && <span className="ml-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "#fde68a", color: "#92400e" }}>local</span>}
-                            </TableCell>
-                            <TableCell className="font-medium">{r.title}</TableCell>
-                            <TableCell className="text-muted-foreground">{r.slug}</TableCell>
-                            <TableCell>{r.categoryLabel || r.category}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                              <Button size="sm" variant="outline" onClick={() => startEditRecipe(r)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="destructive"
-                                onClick={() => {
-                                  if (!confirm("Удалить рецепт?")) return;
-                                  if (isLocal) {
-                                    deleteLocalRecipe(r.id);
-                                    setLocalRecipes(getLocalRecipes());
-                                  } else {
-                                    deleteRecipe.mutate({ id: r.id });
-                                  }
-                                }}>
-                                Удалить
-                              </Button>
-                            </TableCell>
+                ) : (() => {
+                  // Фильтрация
+                  const q = recipeSearch.toLowerCase();
+                  const filtered = displayRecipes.filter((r) =>
+                    !q || r.title.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q) || (r.categoryLabel || r.category || "").toLowerCase().includes(q)
+                  );
+                  // Сортировка
+                  const sorted = [...filtered].sort((a, b) => {
+                    const { key, dir } = recipeSort;
+                    const av = (a as any)[key] ?? "";
+                    const bv = (b as any)[key] ?? "";
+                    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+                    return dir === "asc" ? cmp : -cmp;
+                  });
+                  const toggleSort = (key: string) => {
+                    setRecipeSort((prev) => prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
+                  };
+                  const SortHead = ({ k, label }: { k: string; label: string }) => (
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleSort(k)}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        <ArrowUpDown size={12} style={{ opacity: recipeSort.key === k ? 1 : 0.3 }} />
+                      </span>
+                    </TableHead>
+                  );
+                  return (
+                    <>
+                      <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Показано: {sorted.length} из {displayRecipes.length}</p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <SortHead k="id" label="ID" />
+                            <SortHead k="title" label="Название" />
+                            <SortHead k="slug" label="Slug" />
+                            <SortHead k="category" label="Категория" />
+                            <TableHead className="text-right">Действия</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {sorted.map((r) => {
+                            const isLocal = r.id < 0;
+                            return (
+                              <TableRow key={r.id} style={isLocal ? { background: "rgba(254, 243, 199, 0.3)" } : undefined}>
+                                <TableCell>
+                                  {r.id}
+                                  {isLocal && <span className="ml-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "#fde68a", color: "#92400e" }}>local</span>}
+                                </TableCell>
+                                <TableCell className="font-medium">{r.title}</TableCell>
+                                <TableCell className="text-muted-foreground">{r.slug}</TableCell>
+                                <TableCell>{r.categoryLabel || r.category}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                  <Button size="sm" variant="outline" onClick={() => startEditRecipe(r)}>
+                                    Изменить
+                                  </Button>
+                                  <Button size="sm"
+                                    style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                                    onClick={() => {
+                                      if (!confirm("Удалить рецепт?")) return;
+                                      if (isLocal) {
+                                        deleteLocalRecipe(r.id);
+                                        setLocalRecipes(getLocalRecipes());
+                                      } else {
+                                        deleteRecipe.mutate({ id: r.id });
+                                      }
+                                    }}>
+                                    <Trash2 size={14} className="mr-1" />
+                                    Удалить
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
