@@ -1,13 +1,60 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
 import { eq, and, avg, count } from "drizzle-orm";
-import { recipeRatings, comments } from "../db/schema";
+import { recipeRatings, comments, recipeIngredients, recipeSteps } from "../db/schema";
 
 // ─── Admin procedure ───
 const adminProcedure = authedProcedure.use(async (opts) => {
   const { ctx } = opts;
   if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
   return opts.next({ ctx });
+});
+
+// ─── Editor procedure (admin или editor) ───
+const editorProcedure = authedProcedure.use(async (opts) => {
+  const { ctx } = opts;
+  if (ctx.user.role !== "admin" && ctx.user.role !== "editor") throw new Error("FORBIDDEN");
+  return opts.next({ ctx });
+});
+
+// ─── Zod-схема для upsert рецепта ───
+const recipeUpsertInput = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  subtitle: z.string().optional(),
+  category: z.string().min(1),
+  categoryLabel: z.string().optional(),
+  abv: z.string().optional(),
+  time: z.string().optional(),
+  difficulty: z.string().optional(),
+  year: z.string().optional(),
+  origin: z.string().optional(),
+  historyTitle: z.string().optional(),
+  historyText: z.string().optional(),
+  tastingColor: z.string().optional(),
+  tastingDescription: z.string().optional(),
+  tastingPairing: z.array(z.string()).optional(),
+  tastingTemp: z.string().optional(),
+  tastingGlass: z.string().optional(),
+  sweet: z.number().optional(),
+  sour: z.number().optional(),
+  bitter: z.number().optional(),
+  spicy: z.number().optional(),
+  fruity: z.number().optional(),
+  herbal: z.number().optional(),
+  tips: z.array(z.string()).optional(),
+  authorName: z.string().optional(),
+  authorDate: z.string().optional(),
+  ingredients: z.array(z.object({
+    name: z.string().min(1),
+    amount: z.string().optional(),
+    note: z.string().optional(),
+  })).optional(),
+  steps: z.array(z.object({
+    stepNum: z.number(),
+    title: z.string().optional(),
+    text: z.string().min(1),
+  })).optional(),
 });
 
 export const appRouter = router({
@@ -111,21 +158,88 @@ export const appRouter = router({
     list: publicProcedure.query(async () => {
       return db.select().from(recipes);
     }),
+
     bySlug: publicProcedure
       .input(z.object({ slug: z.string() }))
       .query(async ({ input }) => {
         const rows = await db.select().from(recipes).where(eq(recipes.slug, input.slug));
-        return rows[0] || null;
+        if (!rows[0]) return null;
+        const recipe = rows[0];
+
+        const ingredients = await db
+          .select()
+          .from(recipeIngredients)
+          .where(eq(recipeIngredients.recipeId, recipe.id));
+
+        const steps = await db
+          .select()
+          .from(recipeSteps)
+          .where(eq(recipeSteps.recipeId, recipe.id));
+
+        return { ...recipe, ingredients, steps };
       }),
-    upsert: publicProcedure
-      .input(z.any())
+
+    upsert: editorProcedure
+      .input(recipeUpsertInput)
       .mutation(async ({ input }) => {
-        await db.insert(recipes).values(input);
+        const { ingredients, steps, ...recipeData } = input;
+
+        // Проверяем — существует ли рецепт с таким slug
+        const existing = await db.select({ id: recipes.id }).from(recipes).where(eq(recipes.slug, input.slug));
+
+        let recipeId: number;
+
+        if (existing.length > 0) {
+          // UPDATE основной записи
+          recipeId = existing[0].id;
+          await db.update(recipes).set(recipeData).where(eq(recipes.id, recipeId));
+
+          // Удаляем старые ингредиенты и шаги перед вставкой новых
+          await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
+          await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
+        } else {
+          // INSERT нового рецепта
+          const result = await db.insert(recipes).values(recipeData);
+          recipeId = Number(result[0].insertId);
+        }
+
+        // Сохраняем ингредиенты
+        if (ingredients && ingredients.length > 0) {
+          await db.insert(recipeIngredients).values(
+            ingredients.map((ing, i) => ({
+              recipeId,
+              name: ing.name,
+              amount: ing.amount ?? null,
+              note: ing.note ?? null,
+              sortOrder: i,
+            }))
+          );
+        }
+
+        // Сохраняем шаги
+        if (steps && steps.length > 0) {
+          await db.insert(recipeSteps).values(
+            steps.map((s, i) => ({
+              recipeId,
+              stepNum: s.stepNum,
+              title: s.title ?? null,
+              text: s.text,
+              sortOrder: i,
+            }))
+          );
+        }
+
+        return { success: true, id: recipeId };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, input.id));
+        await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, input.id));
+        await db.delete(recipes).where(eq(recipes.id, input.id));
         return { success: true };
       }),
-    delete: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async () => ({ success: true })),
   }),
 
   rating: router({
