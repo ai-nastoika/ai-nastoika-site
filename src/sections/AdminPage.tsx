@@ -335,6 +335,7 @@ function AdminPanel() {
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="labelTemplates">Этикетки</TabsTrigger>
             <TabsTrigger value="moderation">Модерация</TabsTrigger>
+            <TabsTrigger value="users">Пользователи</TabsTrigger>
           </TabsList>
 
           {/* ─── Парсер из текста ─── */}
@@ -511,6 +512,9 @@ function AdminPanel() {
           {/* ─── Модерация заявок ─── */}
           <TabsContent value="moderation">
             <ModerationTab />
+          </TabsContent>
+          <TabsContent value="users">
+            <UsersTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -1618,6 +1622,86 @@ function Area({ label, value, onChange, placeholder }: { label: string; value: s
     <div>
       <Label className="text-xs">{label}</Label>
       <Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1 min-h-[60px]" />
+    </div>
+  );
+}
+function UsersTab() {
+  const { data: usersList, refetch } = trpc.user.list.useQuery();
+  const setRoleMutation = trpc.user.setRole.useMutation({ onSuccess: () => refetch() });
+  const deleteMutation = trpc.user.delete.useMutation({ onSuccess: () => refetch() });
+
+  const roleLabels: Record<string, string> = {
+    user: "Пользователь",
+    editor: "Редактор",
+    admin: "Админ",
+  };
+
+  const roleColors: Record<string, string> = {
+    user: "#6b7280",
+    editor: "#2563eb",
+    admin: "#dc2626",
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+        Пользователи ({usersList?.length ?? 0})
+      </h2>
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Имя</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Роль</TableHead>
+              <TableHead>Дата регистрации</TableHead>
+              <TableHead>Действия</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(usersList ?? []).map((u) => (
+              <TableRow key={u.id}>
+                <TableCell>{u.id}</TableCell>
+                <TableCell>{u.name ?? "—"}</TableCell>
+                <TableCell>{u.email}</TableCell>
+                <TableCell>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                    style={{ background: roleColors[u.role] ?? "#6b7280" }}
+                  >
+                    {roleLabels[u.role] ?? u.role}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <select
+                      value={u.role}
+                      onChange={(e) => setRoleMutation.mutate({ userId: Number(u.id), role: e.target.value as any })}
+                      className="text-sm rounded px-2 py-1"
+                      style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+                    >
+                      <option value="user">Пользователь</option>
+                      <option value="editor">Редактор</option>
+                      <option value="admin">Админ</option>
+                    </select>
+                    <button
+                      onClick={() => { if (confirm(`Удалить ${u.email}?`)) deleteMutation.mutate({ userId: Number(u.id) }); }}
+                      className="text-sm px-2 py-1 rounded transition-opacity hover:opacity-70"
+                      style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
