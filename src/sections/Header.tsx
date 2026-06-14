@@ -61,12 +61,12 @@ export default function Header() {
             {/* Парсер — для editor и admin */}
             {isEditor && (
               <Link
-                to="/recipe-parser"
+                to="/tools/parse-recipe"
                 className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
                 style={{
-                  color: isActive("/recipe-parser") ? "#fff" : "var(--accent)",
+                  color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
                   fontFamily: "var(--font-body)",
-                  background: isActive("/recipe-parser") ? "var(--accent)" : "var(--surface)",
+                  background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
                   border: "1px solid var(--accent)",
                 }}
               >
@@ -196,7 +196,7 @@ export default function Header() {
           {/* Парсер в мобильном меню */}
           {isEditor && (
             <Link
-              to="/recipe-parser"
+              to="/tools/parse-recipe"
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-2 py-2.5 text-base font-medium"
               style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
