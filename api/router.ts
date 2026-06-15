@@ -2,21 +2,11 @@ import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
 import { eq, and, avg, count } from "drizzle-orm";
 import { recipeRatings, comments, feedback } from "../db/schema";
+import { sendEmail } from "./lib/email";
 
-// ─── Telegram helper ───
-async function sendTelegram(message: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "HTML" }),
-    });
-  } catch (e) {
-    console.error("Telegram error:", e);
-  }
+// ─── Уведомление админу ───
+async function notifyAdmin(subject: string, html: string) {
+  await sendEmail({ to: "ai-nastoika@mail.ru", subject, html });
 }
 
 // ─── Admin procedure ───
@@ -44,7 +34,12 @@ export const appRouter = router({
         });
         const userId = Number(result[0].insertId);
         const token = await createToken(userId, input.email, "user");
-        await sendTelegram(`👤 <b>Новый пользователь!</b>\nИмя: ${input.name || input.email.split("@")[0]}\nEmail: ${input.email}`);
+        await notifyAdmin(
+          "👤 Новый пользователь — AI Настойка",
+          `<p><b>Новый пользователь зарегистрировался!</b></p>
+           <p>Имя: ${input.name || input.email.split("@")[0]}</p>
+           <p>Email: ${input.email}</p>`
+        );
         return { token, user: { id: userId, name: input.name || input.email.split("@")[0], email: input.email, role: "user" } };
       }),
 
@@ -234,11 +229,15 @@ export const appRouter = router({
           other: "Другое",
         };
 
-        await sendTelegram(
-          `📩 <b>Новое обращение!</b>\n` +
-          `👤 ${input.name} (${input.email})\n` +
-          `📌 Тема: ${topicLabels[input.topic] ?? input.topic}\n\n` +
-          `💬 ${input.message}`
+        await notifyAdmin(
+          `📩 Новое обращение — ${topicLabels[input.topic] ?? input.topic}`,
+          `<div style="font-family: sans-serif; max-width: 480px;">
+            <h2>📩 Новое обращение с сайта</h2>
+            <p><b>От:</b> ${input.name} (${input.email})</p>
+            <p><b>Тема:</b> ${topicLabels[input.topic] ?? input.topic}</p>
+            <hr/>
+            <p>${input.message.replace(/\n/g, "<br/>")}</p>
+          </div>`
         );
 
         return { success: true };
