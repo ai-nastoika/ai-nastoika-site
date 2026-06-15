@@ -1,15 +1,36 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Send, MessageSquare, Mail, User, CheckCircle } from "lucide-react";
+import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function FeedbackPage() {
-  const [form, setForm] = useState({ name: "", email: "", topic: "general", message: "" });
+  const { user } = useAuth();
+  const [form, setForm] = useState({
+    name: user?.name ?? "",
+    email: user?.email ?? "",
+    topic: "general",
+    message: "",
+  });
+  const [error, setError] = useState("");
+
+  const createMutation = trpc.feedback.create.useMutation({
+    onSuccess: () => setSubmitted(true),
+    onError: (err) => setError(err.message),
+  });
+
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Here would be the actual API call
-    setSubmitted(true);
+    setError("");
+    createMutation.mutate({
+      name: form.name,
+      email: form.email,
+      topic: form.topic,
+      message: form.message,
+      userId: user?.id,
+    });
   };
 
   const topics = [
@@ -55,7 +76,6 @@ export default function FeedbackPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        {/* Back */}
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-base font-medium mb-8 transition-opacity hover:opacity-70"
@@ -65,7 +85,6 @@ export default function FeedbackPage() {
           На главную
         </Link>
 
-        {/* Header */}
         <div className="mb-10">
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
@@ -89,9 +108,7 @@ export default function FeedbackPage() {
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -116,7 +133,6 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Email */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -141,7 +157,6 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Topic */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -170,7 +185,6 @@ export default function FeedbackPage() {
             </div>
           </div>
 
-          {/* Message */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -194,14 +208,20 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Submit */}
+          {error && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
+            disabled={createMutation.isPending}
             className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-transform hover:scale-[1.02]"
             style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
           >
             <Send size={22} />
-            Отправить сообщение
+            {createMutation.isPending ? "Отправка..." : "Отправить сообщение"}
           </button>
 
           <p
