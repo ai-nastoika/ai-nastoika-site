@@ -22,7 +22,14 @@ export default function LoginPage() {
   // Проверяем email verification из URL
   const hash = location.hash || window.location.hash;
   const fullPath = hash.replace("#", "");
-  const isVerifyEmail = fullPath.startsWith("/verify-email");
+  const isVerifyEmail = fullPath.startsWith("/verify-email") || fullPath.includes("verify=");
+
+  // Парсим токен из /#/login?verify=TOKEN или /#/verify-email?token=TOKEN
+  function getVerifyToken(): string | null {
+    const query = fullPath.split("?")[1] || "";
+    const params = new URLSearchParams(query);
+    return params.get("verify") || params.get("token");
+  }
 
   const verifyEmailMutation = trpc.auth.verifyEmail.useMutation({
     onSuccess: (data) => {
@@ -38,8 +45,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isVerifyEmail) {
-      const params = new URLSearchParams(fullPath.split("?")[1] || "");
-      const token = params.get("token");
+      const token = getVerifyToken();
       if (token) {
         verifyEmailMutation.mutate({ token });
       } else {

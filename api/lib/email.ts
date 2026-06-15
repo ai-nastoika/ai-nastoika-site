@@ -49,7 +49,7 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
 }
 
 export async function sendVerificationEmail(to: string, token: string): Promise<boolean> {
-  const link = `${SITE_URL}/#/verify-email?token=${token}`;
+  const link = `${SITE_URL}/#/login?verify=${token}`;
 
   return sendEmail({
     to,
