@@ -15,6 +15,13 @@
       "when": 1781421988902,
       "tag": "0001_wise_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1781547038053,
+      "tag": "0002_boring_whistler",
+      "breakpoints": true
     }
   ]
 }
