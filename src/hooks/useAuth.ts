@@ -6,6 +6,10 @@ export type AuthUser = {
   email: string;
   name: string | null;
   role: string;
+  emailVerified: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
+  twoFactorEnabled: boolean;
 };
 
 export function useAuth() {
@@ -27,6 +31,9 @@ export function useAuth() {
     isLoggedIn: !!user,
     isAdmin: user?.role === "admin",
     isEditor: user?.role === "editor" || user?.role === "admin",
+    emailVerified: !!user?.emailVerified,
+    phoneVerified: !!user?.phoneVerified,
+    twoFactorEnabled: !!user?.twoFactorEnabled,
     logout,
   };
 }

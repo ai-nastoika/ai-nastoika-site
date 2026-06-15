@@ -24,6 +24,13 @@ export const users = mysqlTable("users", {
   name: varchar("name", { length: 100 }),
   avatar: varchar("avatar", { length: 255 }),
   role: varchar("role", { length: 20 }).default("user").notNull(),
+  // ─── Email & Phone verification (NEW) ───
+  emailVerified: int("email_verified").default(0).notNull(),
+  emailVerifyToken: varchar("email_verify_token", { length: 255 }),
+  emailVerifyExpires: timestamp("email_verify_expires"),
+  phone: varchar("phone", { length: 20 }),
+  phoneVerified: int("phone_verified").default(0).notNull(),
+  twoFactorEnabled: int("two_factor_enabled").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -58,6 +65,19 @@ export const recipes = mysqlTable("recipes", {
   tips: json("tips").$type<string[]>(),
   authorName: varchar("author_name", { length: 100 }),
   authorDate: varchar("author_date", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── OTP Codes (NEW) ───
+export const otpCodes = mysqlTable("otp_codes", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  code: varchar("code", { length: 6 }).notNull(),
+  purpose: varchar("purpose", { length: 20 }).notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -113,6 +133,7 @@ export async function seedAdmin() {
         passwordHash: hash,
         name: "Администратор",
         role: "admin",
+        emailVerified: 1,
       });
       console.log("[seed] Admin: admin@ai-nastoika.ru / admin123");
     }

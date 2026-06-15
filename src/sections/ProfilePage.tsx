@@ -25,6 +25,10 @@ import {
   X,
   MessageCircle,
   ThumbsUp,
+  ShieldCheck,
+  Phone,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 function StatCard({ icon: Icon, value, label }: { icon: any; value: string; label: string }) {
@@ -50,13 +54,27 @@ export default function ProfilePage() {
   const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
 
-  const { user } = useAuth();
+  const { user, emailVerified, phoneVerified, twoFactorEnabled } = useAuth();
+  const utils = trpc.useUtils();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+
+  // Phone / 2FA state
+  const [phoneInput, setPhoneInput] = useState("");
+  const [smsCode, setSmsCode] = useState("");
+  const [phoneStep, setPhoneStep] = useState<"input" | "code" | "done">(phoneVerified ? "done" : "input");
+  const [phoneError, setPhoneError] = useState("");
+  const [phoneSuccess, setPhoneSuccess] = useState("");
+  const [disable2faPassword, setDisable2faPassword] = useState("");
+  const [twoFaError, setTwoFaError] = useState("");
+  const [twoFaSuccess, setTwoFaSuccess] = useState("");
+
+  // Email verification
+  const [emailResent, setEmailResent] = useState(false);
 
   const changePasswordMutation = trpc.auth.changePassword.useMutation({
     onSuccess: () => {
@@ -72,12 +90,55 @@ export default function ProfilePage() {
     },
   });
 
+  const resendEmailMutation = trpc.auth.resendEmailVerification.useMutation({
+    onSuccess: () => setEmailResent(true),
+    onError: (err) => console.error("Resend failed:", err.message),
+  });
+
+  const sendPhoneCodeMutation = trpc.auth.sendPhoneCode.useMutation({
+    onSuccess: () => {
+      setPhoneStep("code");
+      setPhoneError("");
+      setPhoneSuccess("Код отправлен!");
+    },
+    onError: (err) => setPhoneError(err.message),
+  });
+
+  const verifyPhoneCodeMutation = trpc.auth.verifyPhoneCode.useMutation({
+    onSuccess: () => {
+      setPhoneStep("done");
+      setPhoneError("");
+      setPhoneSuccess("Телефон подтверждён!");
+      setSmsCode("");
+      utils.auth.me.invalidate();
+    },
+    onError: (err) => setPhoneError(err.message),
+  });
+
+  const enableTwoFactorMutation = trpc.auth.enableTwoFactor.useMutation({
+    onSuccess: () => {
+      setTwoFaSuccess("Двухфакторная аутентификация включена");
+      setTwoFaError("");
+      utils.auth.me.invalidate();
+    },
+    onError: (err) => setTwoFaError(err.message),
+  });
+
+  const disableTwoFactorMutation = trpc.auth.disableTwoFactor.useMutation({
+    onSuccess: () => {
+      setTwoFaSuccess("Двухфакторная аутентификация отключена");
+      setTwoFaError("");
+      setDisable2faPassword("");
+      utils.auth.me.invalidate();
+    },
+    onError: (err) => setTwoFaError(err.message),
+  });
+
   // Реальные данные
   const { data: myRatingsData } = trpc.rating.myRatings.useQuery(undefined, { enabled: !!user });
   const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
   const { data: recipesData } = trpc.recipe.list.useQuery();
 
-  // Соединяем оценки с рецептами
   const myRatings = (myRatingsData || []).map((r) => ({
     recipe: (recipesData || []).find((rec) => rec.id === r.recipeId),
     rating: r.rating,
@@ -105,6 +166,32 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+
+      {/* ─── EMAIL VERIFICATION BANNER ─── */}
+      {user && !emailVerified && (
+        <div
+          className="px-4 py-3 flex items-center justify-center gap-3 text-sm"
+          style={{ background: "#fef3c7", borderBottom: "1px solid #fde68a" }}
+        >
+          <AlertTriangle size={18} style={{ color: "#92400e" }} className="shrink-0" />
+          <span style={{ color: "#92400e", fontFamily: "var(--font-body)" }}>
+            Подтвердите ваш email — проверьте почту {user.email}
+          </span>
+          {!emailResent ? (
+            <button
+              onClick={() => resendEmailMutation.mutate()}
+              disabled={resendEmailMutation.isPending}
+              className="underline font-medium shrink-0"
+              style={{ color: "#92400e" }}
+            >
+              {resendEmailMutation.isPending ? "Отправляем..." : "Отправить снова"}
+            </button>
+          ) : (
+            <span className="font-medium shrink-0" style={{ color: "#166534" }}>✓ Отправлено</span>
+          )}
+        </div>
+      )}
+
       {/* HERO */}
       <section className="relative overflow-hidden py-14" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(40%, -40%)" }} />
@@ -136,7 +223,16 @@ export default function ProfilePage() {
                 {userData.name}
               </h1>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                <span className="flex items-center gap-1"><Mail size={14} /> {userData.email}</span>
+                <span className="flex items-center gap-1">
+                  <Mail size={14} /> {userData.email}
+                  {emailVerified && <CheckCircle2 size={14} style={{ color: "#16a34a" }} />}
+                </span>
+                {user?.phone && phoneVerified && (
+                  <span className="flex items-center gap-1">
+                    <Phone size={14} /> +{user.phone}
+                    <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
+                  </span>
+                )}
               </div>
             </div>
             <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -222,7 +318,7 @@ export default function ProfilePage() {
               ))}
             </div>
 
-            {/* Мои оценки — реальные данные */}
+            {/* Мои оценки */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <Star size={22} style={{ color: "var(--accent)" }} /> Мои оценки
@@ -253,7 +349,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Мои комментарии — реальные данные */}
+            {/* Мои комментарии */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 <MessageCircle size={22} style={{ color: "var(--accent)" }} /> Мои комментарии
@@ -391,11 +487,171 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <label className="block text-base font-medium mb-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Email</label>
-                  <input type="email" defaultValue={userData.email} className="w-full rounded-lg px-4 py-2.5 text-base outline-none" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }} />
+                  <div className="flex items-center gap-2">
+                    <input type="email" defaultValue={userData.email} className="w-full rounded-lg px-4 py-2.5 text-base outline-none" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }} />
+                    {emailVerified ? (
+                      <span className="flex items-center gap-1 text-sm shrink-0 px-2 py-1 rounded" style={{ background: "#dcfce7", color: "#166534" }}>
+                        <CheckCircle2 size={14} /> Подтверждён
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-sm shrink-0 px-2 py-1 rounded" style={{ background: "#fef3c7", color: "#92400e" }}>
+                        <AlertTriangle size={14} /> Не подтверждён
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button className="rounded-lg px-5 py-2.5 text-base font-medium text-white transition-all hover:scale-105" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
                   Сохранить изменения
                 </button>
+              </div>
+            </div>
+
+            {/* ─── PHONE & 2FA SECTION (NEW) ─── */}
+            <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <ShieldCheck size={22} style={{ color: "var(--accent)" }} /> Телефон и 2FA
+              </h3>
+              <div className="space-y-5">
+                {/* Phone verification */}
+                <div>
+                  <label className="block text-base font-medium mb-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Номер телефона
+                  </label>
+
+                  {phoneStep === "done" || (user?.phone && phoneVerified) ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                        +{user?.phone}
+                      </span>
+                      <span className="flex items-center gap-1 text-sm px-2 py-1 rounded" style={{ background: "#dcfce7", color: "#166534" }}>
+                        <CheckCircle2 size={14} /> Подтверждён
+                      </span>
+                      <button
+                        className="text-sm underline ml-auto"
+                        style={{ color: "var(--text-muted)" }}
+                        onClick={() => { setPhoneStep("input"); setPhoneInput(""); setPhoneError(""); setPhoneSuccess(""); }}
+                      >
+                        Изменить
+                      </button>
+                    </div>
+                  ) : phoneStep === "input" ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="tel"
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        placeholder="+7 (900) 123-45-67"
+                        className="flex-1 rounded-lg px-4 py-2.5 text-base outline-none"
+                        style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                      />
+                      <button
+                        onClick={() => { setPhoneError(""); sendPhoneCodeMutation.mutate({ phone: phoneInput }); }}
+                        disabled={sendPhoneCodeMutation.isPending || !phoneInput}
+                        className="rounded-lg px-4 py-2.5 text-base font-medium text-white shrink-0"
+                        style={{ background: "var(--accent)", fontFamily: "var(--font-body)", opacity: !phoneInput ? 0.5 : 1 }}
+                      >
+                        {sendPhoneCodeMutation.isPending ? "..." : "Получить код"}
+                      </button>
+                    </div>
+                  ) : (
+                    /* phoneStep === "code" */
+                    <div className="space-y-3">
+                      <p className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                        Введите код из SMS, отправленного на ваш номер
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={smsCode}
+                          onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          placeholder="1234"
+                          maxLength={4}
+                          inputMode="numeric"
+                          autoFocus
+                          className="w-32 rounded-lg px-4 py-2.5 text-base text-center tracking-[0.3em] outline-none"
+                          style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                        />
+                        <button
+                          onClick={() => { setPhoneError(""); verifyPhoneCodeMutation.mutate({ code: smsCode }); }}
+                          disabled={verifyPhoneCodeMutation.isPending || smsCode.length < 4}
+                          className="rounded-lg px-4 py-2.5 text-base font-medium text-white"
+                          style={{ background: "var(--accent)", fontFamily: "var(--font-body)", opacity: smsCode.length < 4 ? 0.5 : 1 }}
+                        >
+                          {verifyPhoneCodeMutation.isPending ? "..." : "Подтвердить"}
+                        </button>
+                      </div>
+                      <button
+                        className="text-sm underline"
+                        style={{ color: "var(--text-muted)" }}
+                        onClick={() => { setPhoneStep("input"); setSmsCode(""); }}
+                      >
+                        Другой номер
+                      </button>
+                    </div>
+                  )}
+
+                  {phoneError && <div className="mt-2 p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>{phoneError}</div>}
+                  {phoneSuccess && <div className="mt-2 p-3 rounded-lg text-sm" style={{ background: "#dcfce7", color: "#166534" }}>{phoneSuccess}</div>}
+                </div>
+
+                {/* 2FA toggle */}
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "20px" }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                        Двухфакторная аутентификация (SMS)
+                      </div>
+                      <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        При входе потребуется код из SMS
+                      </div>
+                    </div>
+                    {twoFactorEnabled ? (
+                      <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: "#dcfce7", color: "#166534" }}>Включена</span>
+                    ) : (
+                      <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: "var(--surface)", color: "var(--text-muted)" }}>Выключена</span>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    {!twoFactorEnabled ? (
+                      <button
+                        onClick={() => { setTwoFaError(""); enableTwoFactorMutation.mutate(); }}
+                        disabled={enableTwoFactorMutation.isPending || !phoneVerified}
+                        className="rounded-lg px-5 py-2.5 text-base font-medium text-white transition-all hover:scale-105"
+                        style={{ background: "var(--accent)", fontFamily: "var(--font-body)", opacity: !phoneVerified ? 0.5 : 1 }}
+                      >
+                        {enableTwoFactorMutation.isPending ? "Включаем..." : "Включить 2FA"}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          value={disable2faPassword}
+                          onChange={(e) => setDisable2faPassword(e.target.value)}
+                          placeholder="Введите пароль для отключения"
+                          className="flex-1 rounded-lg px-4 py-2.5 text-base outline-none"
+                          style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                        />
+                        <button
+                          onClick={() => { setTwoFaError(""); disableTwoFactorMutation.mutate({ password: disable2faPassword }); }}
+                          disabled={disableTwoFactorMutation.isPending || !disable2faPassword}
+                          className="rounded-lg px-4 py-2.5 text-base font-medium shrink-0"
+                          style={{ background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)", fontFamily: "var(--font-body)" }}
+                        >
+                          {disableTwoFactorMutation.isPending ? "..." : "Отключить"}
+                        </button>
+                      </div>
+                    )}
+                    {!phoneVerified && !twoFactorEnabled && (
+                      <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        Сначала подтвердите номер телефона
+                      </p>
+                    )}
+                  </div>
+
+                  {twoFaError && <div className="mt-2 p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>{twoFaError}</div>}
+                  {twoFaSuccess && <div className="mt-2 p-3 rounded-lg text-sm" style={{ background: "#dcfce7", color: "#166534" }}>{twoFaSuccess}</div>}
+                </div>
               </div>
             </div>
 
