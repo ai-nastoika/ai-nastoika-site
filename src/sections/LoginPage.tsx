@@ -70,9 +70,17 @@ export default function LoginPage() {
   });
 
   const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: (data) => onAuthSuccess({ token: data.token }),
+    onSuccess: (data) => {
+      if (data.requiresEmailVerification) {
+        setShowCheckEmail(true);
+      } else if (data.token) {
+        onAuthSuccess({ token: data.token });
+      }
+    },
     onError: (err) => setError(err.message),
   });
+
+  const [showCheckEmail, setShowCheckEmail] = useState(false);
 
   const verify2FAMutation = trpc.auth.verifyLoginCode.useMutation({
     onSuccess: (data) => onAuthSuccess({ token: data.token }),
@@ -130,6 +138,30 @@ export default function LoginPage() {
               <Link to="/">
                 <Button className="w-full">На главную</Button>
               </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // Экран "проверьте почту" после регистрации
+  if (showCheckEmail) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--bg-primary)" }}>
+        <div className="w-full max-w-md">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <Mail size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
+              <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Проверьте почту
+              </h2>
+              <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                Мы отправили письмо на <strong>{email}</strong>. Перейдите по ссылке в письме, чтобы подтвердить email и войти.
+              </p>
+              <Button className="w-full" onClick={() => { setShowCheckEmail(false); setMode("login"); }}>
+                Перейти ко входу
+              </Button>
             </CardContent>
           </Card>
         </div>

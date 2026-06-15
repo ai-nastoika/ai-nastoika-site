@@ -101,24 +101,18 @@ export const appRouter = router({
         });
         const userId = Number(result[0].insertId);
 
-        // Отправляем email верификации (не блокируем регистрацию если не ушло)
+        // Отправляем email верификации
         sendVerificationEmail(input.email, verifyToken).catch((err) => {
           console.error("[register] Email send failed:", err);
         });
 
-        const token = await createToken(userId, input.email, "user");
+        // Не выдаём JWT — сначала подтвердить email
         return {
-          token,
-          user: {
-            id: userId,
-            name: input.name || input.email.split("@")[0],
-            email: input.email,
-            role: "user",
-            emailVerified: false,
-            phone: null,
-            phoneVerified: false,
-            twoFactorEnabled: false,
-          },
+          token: null,
+          requiresEmailVerification: true,
+          requires2FA: false,
+          tempToken: null,
+          user: null,
         };
       }),
 
@@ -130,6 +124,11 @@ export const appRouter = router({
         if (rows.length === 0) throw new Error("Неверный email или пароль");
         const user = rows[0];
         if (!bcrypt.compareSync(input.password, user.passwordHash)) throw new Error("Неверный email или пароль");
+
+        // Не пускаем без подтверждённого email
+        if (!user.emailVerified) {
+          throw new Error("Подтвердите email — проверьте почту");
+        }
 
         // Если включена 2FA — не выдаём токен сразу
         if (user.twoFactorEnabled && user.phone && user.phoneVerified) {
