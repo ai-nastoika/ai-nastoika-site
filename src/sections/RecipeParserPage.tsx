@@ -28,7 +28,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
 7. Определи category из списка: sweet, bitter, herbal, spicy, citrus, coffee, honey
 8. Определи categoryLabel по-русски (например: "Сладкая", "Острая", "Травяная")
 9. difficulty: "Легко", "Средне" или "Сложно"
-10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки в АЛЬБОМНОЙ ориентации (landscape, horizontal, aspect ratio 16:9). Описывай: цвет напитка в стеклянной бутылке/графине, ингредиенты рядом, фон (деревянный стол, тёмный фон), освещение (тёплое, мягкое). Стиль: food photography, dark moody, rustic. ОБЯЗАТЕЛЬНО добавь в конец промпта: "horizontal composition, landscape orientation, 16:9 aspect ratio".
+10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки в АЛЬБОМНОЙ ориентации (16:9). Промпт должен быть УНИКАЛЬНЫМ для каждого рецепта — варьируй: посуду (бутылка, графин, декантер, стакан со льдом, рюмка, глиняный кувшин), фон (тёмный мрамор, состаренное дерево, льняная ткань, каменная поверхность, осенние листья, зимний снег, летний сад), освещение (свечи, боковой свет, рассеянный дневной свет, золотой закатный свет), подачу (ингредиенты рядом, специи, травы, фрукты в разрезе, цветы). Стиль выбирай исходя из характера настойки: для ягодных — warm moody, для травяных — botanical editorial, для цитрусовых — bright mediterranean, для острых — dramatic dark, для кофейных — café aesthetic. ОБЯЗАТЕЛЬНО добавь в конец: "photorealistic, food photography, horizontal composition, landscape orientation, 16:9 aspect ratio".
 
 Верни ТОЛЬКО JSON, без markdown, без объяснений:
 
@@ -56,7 +56,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
   "fruity": 90,
   "herbal": 5,
   "tips": ["Совет 1", "Совет 2", "Совет 3"],
-  "imagePrompt": "A beautiful glass bottle of deep ruby cherry infusion on a dark wooden table, fresh ripe cherries scattered around, warm soft lighting, food photography, dark moody rustic style, horizontal composition, landscape orientation, 16:9 aspect ratio",
+  "imagePrompt": "Generate a UNIQUE scene matching the spirit of this specific infusion — vary vessel, background, lighting and props creatively. End with: photorealistic, food photography, horizontal composition, landscape orientation, 16:9 aspect ratio",  
   "authorName": "",
   "authorDate": "",
   "ingredients": [
