@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, Sparkles, Copy, Check,
   Plus, Trash2, Save, Bot, FileJson, Wand2,
+  Image as ImageIcon, Upload, X,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
@@ -27,6 +28,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
 7. Определи category из списка: sweet, bitter, herbal, spicy, citrus, coffee, honey
 8. Определи categoryLabel по-русски (например: "Сладкая", "Острая", "Травяная")
 9. difficulty: "Легко", "Средне" или "Сложно"
+10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки в АЛЬБОМНОЙ ориентации (landscape, horizontal, aspect ratio 16:9). Описывай: цвет напитка в стеклянной бутылке/графине, ингредиенты рядом, фон (деревянный стол, тёмный фон), освещение (тёплое, мягкое). Стиль: food photography, dark moody, rustic. ОБЯЗАТЕЛЬНО добавь в конец промпта: "horizontal composition, landscape orientation, 16:9 aspect ratio".
 
 Верни ТОЛЬКО JSON, без markdown, без объяснений:
 
@@ -54,6 +56,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
   "fruity": 90,
   "herbal": 5,
   "tips": ["Совет 1", "Совет 2", "Совет 3"],
+  "imagePrompt": "A beautiful glass bottle of deep ruby cherry infusion on a dark wooden table, fresh ripe cherries scattered around, warm soft lighting, food photography, dark moody rustic style, horizontal composition, landscape orientation, 16:9 aspect ratio",
   "authorName": "",
   "authorDate": "",
   "ingredients": [
@@ -75,6 +78,7 @@ type StepInput = { stepNum: number; title: string; text: string };
 interface RecipeForm {
   slug: string; title: string; subtitle: string;
   category: string; categoryLabel: string;
+  heroImage: string;
   abv: string; time: string; difficulty: string;
   year: string; origin: string;
   historyTitle: string; historyText: string;
@@ -84,17 +88,20 @@ interface RecipeForm {
   sweet: number; sour: number; bitter: number;
   spicy: number; fruity: number; herbal: number;
   tips: string[]; authorName: string; authorDate: string;
+  imagePrompt: string;
   ingredients: IngredientInput[]; steps: StepInput[];
 }
 
 function emptyForm(): RecipeForm {
   return {
     slug: "", title: "", subtitle: "", category: "sweet", categoryLabel: "Сладкая",
+    heroImage: "",
     abv: "", time: "", difficulty: "Легко", year: "", origin: "",
     historyTitle: "", historyText: "", tastingColor: "", tastingDescription: "",
     tastingTemp: "", tastingGlass: "", tastingPairing: [],
     sweet: 50, sour: 30, bitter: 20, spicy: 10, fruity: 60, herbal: 15,
     tips: [], authorName: "", authorDate: "",
+    imagePrompt: "",
     ingredients: [], steps: [],
   };
 }
@@ -117,18 +124,22 @@ export default function RecipeParserPage() {
   const [jsonInput, setJsonInput] = useState("");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [copied, setCopied] = useState(false);
+  const [copiedImagePrompt, setCopiedImagePrompt] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
   const upsertRecipe = trpc.recipe.upsert.useMutation({
     onSuccess: () => {
       utils.recipe.list.invalidate();
       setSaving(false);
-      alert("Рецепт сохранён!");
+      navigate("/recipes");
     },
-    onError: () => {
+    onError: (err) => {
       setSaving(false);
-      alert("Ошибка сохранения. Проверьте подключение к серверу.");
+      alert("Ошибка сохранения: " + err.message);
     },
   });
 
@@ -137,7 +148,82 @@ export default function RecipeParserPage() {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(fullPrompt);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => { setCopied(false); setTab("json"); }, 1500);
+  };
+
+  /* ── Copy image prompt ── */
+  const handleCopyImagePrompt = async () => {
+    if (!form.imagePrompt) return;
+    await navigator.clipboard.writeText(form.imagePrompt);
+    setCopiedImagePrompt(true);
+    setTimeout(() => setCopiedImagePrompt(false), 2000);
+  };
+
+  /* ── Upload image ── */
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Проверка на клиенте
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      alert("Допустимые форматы: JPG, PNG, WebP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Максимальный размер — 5 МБ");
+      return;
+    }
+
+    // Проверка ориентации
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    const isLandscape = await new Promise<boolean>((resolve) => {
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img.width >= img.height);
+      };
+      img.src = url;
+    });
+
+    if (!isLandscape) {
+      alert("Используйте картинку в альбомной (горизонтальной) ориентации");
+      return;
+    }
+
+    // Превью
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    // Загрузка на сервер
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.success && data.path) {
+        patch({ heroImage: data.path });
+      } else {
+        alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));
+      }
+    } catch {
+      alert("Ошибка загрузки файла");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    patch({ heroImage: "" });
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   /* ── Parse JSON from Kimi ── */
@@ -154,6 +240,7 @@ export default function RecipeParserPage() {
         subtitle: data.subtitle || "",
         category: data.category || "sweet",
         categoryLabel: data.categoryLabel || "",
+        heroImage: data.heroImage || "",
         abv: data.abv || "",
         time: data.time || "",
         difficulty: data.difficulty || "Легко",
@@ -175,6 +262,7 @@ export default function RecipeParserPage() {
         tips: Array.isArray(data.tips) ? data.tips : [],
         authorName: data.authorName || "",
         authorDate: data.authorDate || "",
+        imagePrompt: data.imagePrompt || "",
         ingredients: Array.isArray(data.ingredients) ? data.ingredients.map((ing: any) => ({
           name: ing.name || "", amount: ing.amount || "", note: ing.note || "",
         })) : [],
@@ -197,6 +285,7 @@ export default function RecipeParserPage() {
     upsertRecipe.mutate({
       slug: form.slug, title: form.title, subtitle: form.subtitle || undefined,
       category: form.category, categoryLabel: form.categoryLabel || undefined,
+      heroImage: form.heroImage || undefined,
       abv: form.abv || undefined, time: form.time || undefined, difficulty: form.difficulty || undefined,
       year: form.year || undefined, origin: form.origin || undefined,
       historyTitle: form.historyTitle || undefined, historyText: form.historyText || undefined,
@@ -283,7 +372,7 @@ export default function RecipeParserPage() {
                     <li>Нажмите кнопку «Скопировать промпт» ниже</li>
                     <li>Откройте <a href="https://kimi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">kimi.ai</a> в новой вкладке</li>
                     <li>Вставьте промпт в чат Kimi и отправьте</li>
-                    <li>Kimi вернёт заполненный JSON со всеми полями</li>
+                    <li>Kimi вернёт заполненный JSON со всеми полями + промпт для картинки</li>
                     <li>Скопируйте JSON и вернитесь на вкладку «Вставить JSON»</li>
                   </ol>
                 </div>
@@ -317,6 +406,7 @@ export default function RecipeParserPage() {
   "categoryLabel": "Сладкая",
   "abv": "25%",
   "time": "14 дней",
+  "imagePrompt": "A beautiful glass bottle of deep ruby cherry infusion...",
   ...
 }`}
                   className="min-h-[300px] font-mono text-sm"
@@ -343,8 +433,16 @@ export default function RecipeParserPage() {
                   <div><Label>Подзаголовок</Label><Input value={form.subtitle} onChange={(e) => patch({ subtitle: e.target.value })} /></div>
                   <div className="grid grid-cols-4 gap-4">
                     <div><Label>Категория</Label>
-                      <select className="w-full h-10 rounded-md border px-3" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.category} onChange={(e) => patch({ category: e.target.value })}>
-                        {["sweet","bitter","herbal","spicy","citrus","coffee","honey"].map((c) => <option key={c} value={c}>{c}</option>)}
+                      <select className="w-full h-10 rounded-md border px-3 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.category} onChange={(e) => patch({ category: e.target.value })}>
+                        {[
+                          { value: "sweet", label: "🍒 Сладкая" },
+                          { value: "bitter", label: "🌿 Горькая" },
+                          { value: "herbal", label: "🌱 Травяная" },
+                          { value: "spicy", label: "🌶️ Острая" },
+                          { value: "citrus", label: "🍋 Цитрусовая" },
+                          { value: "coffee", label: "☕ Кофейная" },
+                          { value: "honey", label: "🍯 Медовая" },
+                        ].map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </div>
                     <div><Label>Метка</Label><Input value={form.categoryLabel} onChange={(e) => patch({ categoryLabel: e.target.value })} /></div>
@@ -353,12 +451,117 @@ export default function RecipeParserPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div><Label>Сложность</Label>
-                      <select className="w-full h-10 rounded-md border px-3" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.difficulty} onChange={(e) => patch({ difficulty: e.target.value })}>
+                      <select className="w-full h-10 rounded-md border px-3 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.difficulty} onChange={(e) => patch({ difficulty: e.target.value })}>
                         {["Легко","Средне","Сложно"].map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
                     <div><Label>Период</Label><Input value={form.year} onChange={(e) => patch({ year: e.target.value })} /></div>
                     <div><Label>Происхождение</Label><Input value={form.origin} onChange={(e) => patch({ origin: e.target.value })} /></div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ═════ IMAGE ═════ */}
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon size={20} /> Картинка рецепта</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Image prompt from Kimi */}
+                  {form.imagePrompt && (
+                    <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-center justify-between">
+                        <Label className="font-semibold">Промпт для генерации картинки</Label>
+                        <Button size="sm" variant="outline" onClick={handleCopyImagePrompt}>
+                          {copiedImagePrompt ? <><Check size={14} className="mr-1" /> Скопировано</> : <><Copy size={14} className="mr-1" /> Скопировать</>}
+                        </Button>
+                      </div>
+                      <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>{form.imagePrompt}</p>
+                      <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
+                        <p>Вставьте этот промпт в генератор картинок:</p>
+                        <div className="flex flex-wrap gap-2">
+                          <a href="https://fusionbrain.ai" target="_blank" rel="noopener noreferrer" className="underline">Kandinsky</a>
+                          <span>·</span>
+                          <a href="https://ideogram.ai" target="_blank" rel="noopener noreferrer" className="underline">Ideogram</a>
+                          <span>·</span>
+                          <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer" className="underline">ChatGPT</a>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload area */}
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+
+                    {form.heroImage || imagePreview ? (
+                      <div className="relative rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                        <img
+                          src={imagePreview || form.heroImage}
+                          alt="Превью"
+                          className="w-full h-48 object-cover"
+                        />
+                        <div className="absolute top-2 right-2 flex gap-2">
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+                            style={{ background: "rgba(0,0,0,0.6)" }}
+                            title="Заменить"
+                          >
+                            <Upload size={14} />
+                          </button>
+                          <button
+                            onClick={handleRemoveImage}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+                            style={{ background: "rgba(220,38,38,0.8)" }}
+                            title="Удалить"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        {uploading && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+                            <div className="w-8 h-8 border-3 border-t-transparent border-white rounded-full animate-spin" />
+                          </div>
+                        )}
+                        {form.heroImage && (
+                          <div className="px-3 py-2 text-xs font-mono" style={{ color: "var(--text-muted)", background: "var(--surface)" }}>
+                            {form.heroImage}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="w-full h-40 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:opacity-70"
+                        style={{ border: "2px dashed var(--border)", color: "var(--text-muted)" }}
+                      >
+                        {uploading ? (
+                          <div className="w-8 h-8 border-3 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+                        ) : (
+                          <>
+                            <Upload size={32} />
+                            <span className="text-sm font-medium">Загрузить картинку</span>
+                            <span className="text-xs">JPG, PNG или WebP · до 5 МБ</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Manual URL input */}
+                  <div>
+                    <Label>Или вставьте URL картинки</Label>
+                    <Input
+                      value={form.heroImage}
+                      onChange={(e) => { patch({ heroImage: e.target.value }); setImagePreview(null); }}
+                      placeholder="https://... или /images/recipes/..."
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -452,7 +655,7 @@ export default function RecipeParserPage() {
               <div className="flex items-center justify-between pt-4 pb-12">
                 <Button variant="outline" onClick={() => setTab("json")}>← Назад к JSON</Button>
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setTab("prompt"); }}>Новый рецепт</Button>
+                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setImagePreview(null); setTab("prompt"); }}>Новый рецепт</Button>
                   <Button onClick={handleSave} disabled={saving} size="lg">
                     <Save size={18} className="mr-2" />
                     {saving ? "Сохранение..." : "Сохранить рецепт"}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { fallbackRecipes } from "@/data/fallbackData";
+
 import {
   Search, SlidersHorizontal, Star, Clock, Heart, Flame,
   Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown, ArrowLeft,
@@ -29,7 +29,7 @@ const sortOptions = [
 export default function RecipesPage() {
   const navigate = useNavigate();
   const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
-  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : fallbackRecipes;
+  const recipes = apiRecipes ?? [];
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("popular");

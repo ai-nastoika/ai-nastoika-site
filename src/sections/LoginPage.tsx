@@ -13,20 +13,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const utils = trpc.useUtils();
+
+  const onAuthSuccess = (data: { token: string }) => {
+    localStorage.setItem("auth-token", data.token);
+    utils.auth.me.invalidate().then(() => {
+      window.location.href = "/#/";
+    });
+  };
 
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      localStorage.setItem("auth-token", data.token);
-      window.location.href = "/#/";
-    },
+    onSuccess: onAuthSuccess,
     onError: (err) => setError(err.message),
   });
 
   const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: (data) => {
-      localStorage.setItem("auth-token", data.token);
-      window.location.href = "/#/";
-    },
+    onSuccess: onAuthSuccess,
     onError: (err) => setError(err.message),
   });
 

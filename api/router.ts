@@ -1,6 +1,62 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq } from "drizzle-orm";
+import { eq, and, avg, count } from "drizzle-orm";
+import { recipeRatings, comments, recipeIngredients, recipeSteps } from "../db/schema";
+
+// ─── Admin procedure ───
+const adminProcedure = authedProcedure.use(async (opts) => {
+  const { ctx } = opts;
+  if (ctx.user.role !== "admin") throw new Error("FORBIDDEN");
+  return opts.next({ ctx });
+});
+
+// ─── Editor procedure (admin или editor) ───
+const editorProcedure = authedProcedure.use(async (opts) => {
+  const { ctx } = opts;
+  if (ctx.user.role !== "admin" && ctx.user.role !== "editor") throw new Error("FORBIDDEN");
+  return opts.next({ ctx });
+});
+
+// ─── Zod-схема для upsert рецепта ───
+const recipeUpsertInput = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  subtitle: z.string().optional(),
+  category: z.string().min(1),
+  categoryLabel: z.string().optional(),
+  heroImage: z.string().optional(),
+  abv: z.string().optional(),
+  time: z.string().optional(),
+  difficulty: z.string().optional(),
+  year: z.string().optional(),
+  origin: z.string().optional(),
+  historyTitle: z.string().optional(),
+  historyText: z.string().optional(),
+  tastingColor: z.string().optional(),
+  tastingDescription: z.string().optional(),
+  tastingPairing: z.array(z.string()).optional(),
+  tastingTemp: z.string().optional(),
+  tastingGlass: z.string().optional(),
+  sweet: z.number().optional(),
+  sour: z.number().optional(),
+  bitter: z.number().optional(),
+  spicy: z.number().optional(),
+  fruity: z.number().optional(),
+  herbal: z.number().optional(),
+  tips: z.array(z.string()).optional(),
+  authorName: z.string().optional(),
+  authorDate: z.string().optional(),
+  ingredients: z.array(z.object({
+    name: z.string().min(1),
+    amount: z.string().optional(),
+    note: z.string().optional(),
+  })).optional(),
+  steps: z.array(z.object({
+    stepNum: z.number(),
+    title: z.string().optional(),
+    text: z.string().min(1),
+  })).optional(),
+});
 
 export const appRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, ts: Date.now() })),
@@ -44,27 +100,226 @@ export const appRouter = router({
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
+
+    changePassword: authedProcedure
+      .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+      .mutation(async ({ input, ctx }) => {
+        const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
+        if (rows.length === 0) throw new Error("User not found");
+        const user = rows[0];
+        if (!bcrypt.compareSync(input.currentPassword, user.passwordHash)) {
+          throw new Error("Неверный текущий пароль");
+        }
+        const passwordHash = bcrypt.hashSync(input.newPassword, 10);
+        await db.update(users).set({ passwordHash }).where(eq(users.id, ctx.userId));
+        return { success: true };
+      }),
+
+    updateProfile: authedProcedure
+      .input(z.object({ name: z.string().min(1).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.update(users).set({ name: input.name }).where(eq(users.id, ctx.userId));
+        return { success: true };
+      }),
+  }),
+
+  // ─── Управление пользователями (только для админа) ───
+  user: router({
+    list: adminProcedure.query(async () => {
+      return db.select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        createdAt: users.createdAt,
+      }).from(users);
+    }),
+
+    setRole: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        role: z.enum(["user", "editor", "admin"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.userId === ctx.userId) throw new Error("Нельзя изменить свою роль");
+        await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.userId === ctx.userId) throw new Error("Нельзя удалить себя");
+        await db.delete(users).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
   }),
 
   recipe: router({
     list: publicProcedure.query(async () => {
       return db.select().from(recipes);
     }),
+
     bySlug: publicProcedure
       .input(z.object({ slug: z.string() }))
       .query(async ({ input }) => {
         const rows = await db.select().from(recipes).where(eq(recipes.slug, input.slug));
-        return rows[0] || null;
+        if (!rows[0]) return null;
+        const recipe = rows[0];
+
+        const ingredients = await db
+          .select()
+          .from(recipeIngredients)
+          .where(eq(recipeIngredients.recipeId, recipe.id));
+
+        const steps = await db
+          .select()
+          .from(recipeSteps)
+          .where(eq(recipeSteps.recipeId, recipe.id));
+
+        return { ...recipe, ingredients, steps };
       }),
-    upsert: publicProcedure
-      .input(z.any())
+
+    upsert: editorProcedure
+      .input(recipeUpsertInput)
       .mutation(async ({ input }) => {
-        await db.insert(recipes).values(input);
+        const { ingredients, steps, ...recipeData } = input;
+
+        // Проверяем — существует ли рецепт с таким slug
+        const existing = await db.select({ id: recipes.id }).from(recipes).where(eq(recipes.slug, input.slug));
+
+        let recipeId: number;
+
+        if (existing.length > 0) {
+          // UPDATE основной записи
+          recipeId = existing[0].id;
+          await db.update(recipes).set(recipeData).where(eq(recipes.id, recipeId));
+
+          // Удаляем старые ингредиенты и шаги перед вставкой новых
+          await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
+          await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
+        } else {
+          // INSERT нового рецепта
+          const result = await db.insert(recipes).values(recipeData);
+          recipeId = Number(result[0].insertId);
+        }
+
+        // Сохраняем ингредиенты
+        if (ingredients && ingredients.length > 0) {
+          await db.insert(recipeIngredients).values(
+            ingredients.map((ing, i) => ({
+              recipeId,
+              name: ing.name,
+              amount: ing.amount ?? null,
+              note: ing.note ?? null,
+              sortOrder: i,
+            }))
+          );
+        }
+
+        // Сохраняем шаги
+        if (steps && steps.length > 0) {
+          await db.insert(recipeSteps).values(
+            steps.map((s, i) => ({
+              recipeId,
+              stepNum: s.stepNum,
+              title: s.title ?? null,
+              text: s.text,
+              sortOrder: i,
+            }))
+          );
+        }
+
+        return { success: true, id: recipeId };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, input.id));
+        await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, input.id));
+        await db.delete(recipes).where(eq(recipes.id, input.id));
         return { success: true };
       }),
-    delete: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async () => ({ success: true })),
+  }),
+
+  rating: router({
+    myRating: authedProcedure
+      .input(z.object({ recipeId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const rows = await db.select().from(recipeRatings).where(
+          and(
+            eq(recipeRatings.recipeId, input.recipeId),
+            eq(recipeRatings.userId, ctx.userId)
+          )
+        );
+        return rows[0] || null;
+      }),
+
+    myRatings: authedProcedure.query(async ({ ctx }) => {
+      const rows = await db.select({
+        id: recipeRatings.id,
+        recipeId: recipeRatings.recipeId,
+        rating: recipeRatings.rating,
+        createdAt: recipeRatings.createdAt,
+      }).from(recipeRatings).where(eq(recipeRatings.userId, ctx.userId));
+      return rows;
+    }),
+
+    set: authedProcedure
+      .input(z.object({ recipeId: z.number(), rating: z.number().min(1).max(5) }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.select().from(recipeRatings).where(
+          and(
+            eq(recipeRatings.recipeId, input.recipeId),
+            eq(recipeRatings.userId, ctx.userId)
+          )
+        );
+        if (existing.length > 0) {
+          await db.update(recipeRatings)
+            .set({ rating: input.rating })
+            .where(eq(recipeRatings.id, existing[0].id));
+        } else {
+          await db.insert(recipeRatings).values({
+            recipeId: input.recipeId,
+            userId: ctx.userId,
+            rating: input.rating,
+          });
+        }
+        const result = await db.select({
+          avg: avg(recipeRatings.rating),
+          count: count(recipeRatings.id),
+        }).from(recipeRatings).where(eq(recipeRatings.recipeId, input.recipeId));
+        const newRating = Number(result[0].avg).toFixed(1);
+        const newCount = Number(result[0].count);
+        await db.update(recipes)
+          .set({ rating: newRating, reviews: newCount })
+          .where(eq(recipes.id, input.recipeId));
+        return { success: true, newRating, newCount };
+      }),
+  }),
+
+  comment: router({
+    list: publicProcedure
+      .input(z.object({ recipeId: z.number() }))
+      .query(async ({ input }) => {
+        return db.select().from(comments).where(eq(comments.recipeId, input.recipeId));
+      }),
+
+    myComments: authedProcedure.query(async ({ ctx }) => {
+      return db.select().from(comments).where(eq(comments.userId, ctx.userId));
+    }),
+
+    create: authedProcedure
+      .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await db.insert(comments).values({
+          recipeId: input.recipeId,
+          userId: ctx.userId,
+          text: input.text,
+        });
+        return { success: true };
+      }),
   }),
 
   place: router({
@@ -72,11 +327,6 @@ export const appRouter = router({
     bySlug: publicProcedure.input(z.object({ slug: z.string() })).query(() => null),
     delete: publicProcedure.input(z.object({ id: z.number() })).mutation(() => ({ success: true })),
     upsert: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-  }),
-
-  comment: router({
-    list: publicProcedure.input(z.object({ recipeId: z.number() })).query(() => []),
-    create: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
   }),
 
   recipeParser: router({

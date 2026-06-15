@@ -1,7 +1,6 @@
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useRef, type ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { fallbackRecipes, fallbackPlaces } from "@/data/fallbackData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -47,6 +46,23 @@ const EMPTY_PLACE = {
   tags: [] as string[], description: "", infusionsHighlight: "", infusionsSignature: "",
   externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
 };
+
+const CATEGORIES = [
+  { value: "sweet", label: "🍒 Сладкая" },
+  { value: "bitter", label: "🌿 Горькая" },
+  { value: "herbal", label: "🌱 Травяная" },
+  { value: "spicy", label: "🌶️ Острая" },
+  { value: "citrus", label: "🍋 Цитрусовая" },
+  { value: "coffee", label: "☕ Кофейная" },
+  { value: "honey", label: "🍯 Медовая" },
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  sweet: "Сладкая", bitter: "Горькая", herbal: "Травяная",
+  spicy: "Острая", citrus: "Цитрусовая", coffee: "Кофейная", honey: "Медовая",
+};
+
+const DIFFICULTIES = ["Легко", "Средне", "Сложно"];
 
 /* ═══════════════════════════════════════
    localStorage helpers (fallback when API down)
@@ -173,8 +189,8 @@ function AdminPanel() {
     ...(apiRecipes ?? []),
     ...localRecipes.filter((lr) => !(apiRecipes ?? []).some((ar) => ar.slug === lr.slug)),
   ];
-  const displayRecipes = recipes.length > 0 ? recipes : fallbackRecipes;
-  const places = apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces;
+  const displayRecipes = recipes;
+  const places = apiPlaces ?? [];
 
   /* Mutations */
   const deleteRecipe = trpc.recipe.delete.useMutation({
@@ -235,13 +251,23 @@ function AdminPanel() {
   const [rForm, setRForm] = useState({ ...EMPTY_RECIPE });
   const [pairingStr, setPairingStr] = useState("");
   const [tipsStr, setTipsStr] = useState("");
+  const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipeSort, setRecipeSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "id", dir: "desc" });
 
   function resetRecipe() {
     setRForm({ ...EMPTY_RECIPE });
     setPairingStr(""); setTipsStr(""); setEditRecipeId(undefined);
   }
-  function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
+  async function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
     setEditRecipeId(r.id);
+    // Загружаем полный рецепт с ингредиентами и шагами
+    const full = await utils.recipe.bySlug.fetch({ slug: r.slug });
+    const ings: IngredientInput[] = (full?.ingredients ?? []).map((i: any) => ({
+      name: i.name ?? "", amount: i.amount ?? "", note: i.note ?? "",
+    }));
+    const stps: StepInput[] = (full?.steps ?? []).map((s: any) => ({
+      stepNum: s.stepNum ?? 1, title: s.title ?? "", text: s.text ?? "",
+    }));
     setRForm({
       ...EMPTY_RECIPE,
       slug: r.slug, title: r.title, subtitle: r.subtitle ?? "",
@@ -257,7 +283,7 @@ function AdminPanel() {
       spicy: r.spicy ?? 0, fruity: r.fruity ?? 0, herbal: r.herbal ?? 0,
       tips: r.tips ?? [],
       authorName: r.authorName ?? "", authorDate: r.authorDate ?? "",
-      ingredients: [], steps: [],
+      ingredients: ings, steps: stps,
     });
     setPairingStr(arrStr(r.tastingPairing));
     setTipsStr(arrStr(r.tips));
@@ -335,6 +361,7 @@ function AdminPanel() {
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="labelTemplates">Этикетки</TabsTrigger>
             <TabsTrigger value="moderation">Модерация</TabsTrigger>
+            <TabsTrigger value="users">Пользователи</TabsTrigger>
           </TabsList>
 
           {/* ─── Парсер из текста ─── */}
@@ -380,56 +407,100 @@ function AdminPanel() {
                 </Dialog>
               </CardHeader>
               <CardContent>
+                {/* Поиск */}
+                <div className="mb-4 relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                  <Input
+                    value={recipeSearch}
+                    onChange={(e) => setRecipeSearch(e.target.value)}
+                    placeholder="Поиск по названию, slug, категории..."
+                    className="pl-9"
+                  />
+                </div>
                 {rLoading ? (
                   <p>Загрузка...</p>
                 ) : !displayRecipes?.length ? (
                   <p className="text-muted-foreground">Нет рецептов</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Название</TableHead>
-                        <TableHead>Slug</TableHead>
-                        <TableHead>Категория</TableHead>
-                        <TableHead className="text-right">Действия</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayRecipes.map((r) => {
-                        const isLocal = r.id < 0;
-                        return (
-                          <TableRow key={r.id} style={isLocal ? { background: "rgba(254, 243, 199, 0.3)" } : undefined}>
-                            <TableCell>
-                              {r.id}
-                              {isLocal && <span className="ml-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "#fde68a", color: "#92400e" }}>local</span>}
-                            </TableCell>
-                            <TableCell className="font-medium">{r.title}</TableCell>
-                            <TableCell className="text-muted-foreground">{r.slug}</TableCell>
-                            <TableCell>{r.categoryLabel || r.category}</TableCell>
-                            <TableCell className="text-right space-x-2">
-                              <Button size="sm" variant="outline" onClick={() => startEditRecipe(r)}>
-                                Изменить
-                              </Button>
-                              <Button size="sm" variant="destructive"
-                                onClick={() => {
-                                  if (!confirm("Удалить рецепт?")) return;
-                                  if (isLocal) {
-                                    deleteLocalRecipe(r.id);
-                                    setLocalRecipes(getLocalRecipes());
-                                  } else {
-                                    deleteRecipe.mutate({ id: r.id });
-                                  }
-                                }}>
-                                Удалить
-                              </Button>
-                            </TableCell>
+                ) : (() => {
+                  // Фильтрация
+                  const q = recipeSearch.toLowerCase();
+                  const filtered = displayRecipes.filter((r) =>
+                    !q || r.title.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q) || (r.categoryLabel || r.category || "").toLowerCase().includes(q)
+                  );
+                  // Сортировка
+                  const sorted = [...filtered].sort((a, b) => {
+                    const { key, dir } = recipeSort;
+                    const av = (a as any)[key] ?? "";
+                    const bv = (b as any)[key] ?? "";
+                    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+                    return dir === "asc" ? cmp : -cmp;
+                  });
+                  const toggleSort = (key: string) => {
+                    setRecipeSort((prev) => prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
+                  };
+                  const SortHead = ({ k, label }: { k: string; label: string }) => (
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleSort(k)}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        <ArrowUpDown size={12} style={{ opacity: recipeSort.key === k ? 1 : 0.3 }} />
+                      </span>
+                    </TableHead>
+                  );
+                  return (
+                    <>
+                      <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Показано: {sorted.length} из {displayRecipes.length}</p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <SortHead k="id" label="ID" />
+                            <SortHead k="title" label="Название" />
+                            <SortHead k="slug" label="Slug" />
+                            <SortHead k="category" label="Категория" />
+                            <TableHead className="text-right">Действия</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {sorted.map((r) => {
+                            const isLocal = r.id < 0;
+                            return (
+                              <TableRow key={r.id} style={isLocal ? { background: "rgba(254, 243, 199, 0.3)" } : undefined}>
+                                <TableCell>
+                                  {r.id}
+                                  {isLocal && <span className="ml-1 text-xs px-1.5 py-0.5 rounded" style={{ background: "#fde68a", color: "#92400e" }}>local</span>}
+                                </TableCell>
+                                <TableCell className="font-medium">{r.title}</TableCell>
+                                <TableCell className="text-muted-foreground">{r.slug}</TableCell>
+                                <TableCell>{r.categoryLabel || r.category}</TableCell>
+                                <TableCell className="text-right space-x-2">
+                                  <Button size="sm" variant="outline" onClick={() => startEditRecipe(r)}>
+                                    Изменить
+                                  </Button>
+                                  <Button size="sm"
+                                    style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                                    onClick={() => {
+                                      if (!confirm("Удалить рецепт?")) return;
+                                      if (isLocal) {
+                                        deleteLocalRecipe(r.id);
+                                        setLocalRecipes(getLocalRecipes());
+                                      } else {
+                                        deleteRecipe.mutate({ id: r.id });
+                                      }
+                                    }}>
+                                    <Trash2 size={14} className="mr-1" />
+                                    Удалить
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
@@ -512,6 +583,9 @@ function AdminPanel() {
           <TabsContent value="moderation">
             <ModerationTab />
           </TabsContent>
+          <TabsContent value="users">
+            <UsersTab />
+          </TabsContent>
         </Tabs>
       </div>
     </main>
@@ -533,6 +607,37 @@ function RecipeForm({
   const f = form;
   const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const heroFileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) { alert("Допустимые форматы: JPG, PNG, WebP"); return; }
+    if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер — 5 МБ"); return; }
+    // Проверка ориентации
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    const isLandscape = await new Promise<boolean>((resolve) => {
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img.width >= img.height); };
+      img.src = url;
+    });
+    if (!isLandscape) { alert("Используйте картинку в альбомной (горизонтальной) ориентации"); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success && data.path) {
+        update({ heroImage: data.path });
+      } else {
+        alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));
+      }
+    } catch { alert("Ошибка загрузки файла"); }
+    finally { setUploading(false); if (heroFileRef.current) heroFileRef.current.value = ""; }
+  };
 
   return (
     <div className="space-y-4">
@@ -542,14 +647,37 @@ function RecipeForm({
       </div>
       <Field label="Подзаголовок" value={f.subtitle} onChange={(v) => update({ subtitle: v })} />
       <div className="grid grid-cols-3 gap-4">
-        <Field label="Категория*" value={f.category} onChange={(v) => update({ category: v })} placeholder="sweet / bitter / herbal ..." />
+        <div>
+          <Label className="text-xs">Категория*</Label>
+          <select className="w-full h-10 rounded-md border px-3 text-sm mt-1" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={f.category} onChange={(e) => update({ category: e.target.value, categoryLabel: CATEGORY_LABELS[e.target.value] || "" })}>
+            {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
         <Field label="Метка категории" value={f.categoryLabel} onChange={(v) => update({ categoryLabel: v })} />
-        <Field label="Изображение (hero)" value={f.heroImage} onChange={(v) => update({ heroImage: v })} placeholder="recipe-name.jpg" />
+        <div>
+          <Label className="text-xs">Изображение (hero)</Label>
+          <div className="flex gap-1 mt-1">
+            <Input value={f.heroImage} onChange={(e) => update({ heroImage: e.target.value })} placeholder="/uploads/recipes/..." className="flex-1" />
+            <input ref={heroFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleHeroUpload} />
+            <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => heroFileRef.current?.click()} className="shrink-0 h-10">
+              {uploading ? "..." : <Upload size={14} />}
+            </Button>
+          </div>
+          {f.heroImage && (
+            <img src={f.heroImage} alt="Превью" className="mt-2 h-20 rounded object-cover" />
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-4 gap-4">
         <Field label="Крепость (ABV)" value={f.abv} onChange={(v) => update({ abv: v })} />
         <Field label="Время" value={f.time} onChange={(v) => update({ time: v })} />
-        <Field label="Сложность" value={f.difficulty} onChange={(v) => update({ difficulty: v })} />
+        <div>
+          <Label className="text-xs">Сложность</Label>
+          <select className="w-full h-10 rounded-md border px-3 text-sm mt-1" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={f.difficulty} onChange={(e) => update({ difficulty: e.target.value })}>
+            <option value="">—</option>
+            {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
         <Field label="Год / Период" value={f.year} onChange={(v) => update({ year: v })} />
       </div>
       <div className="grid grid-cols-3 gap-4">
@@ -601,6 +729,81 @@ function RecipeForm({
         <Field label="Имя автора" value={f.authorName} onChange={(v) => update({ authorName: v })} />
         <Field label="Дата" value={f.authorDate} onChange={(v) => update({ authorDate: v })} />
       </div>
+
+      {/* Ингредиенты */}
+      <div className="flex items-center justify-between mt-4">
+        <h3 className="font-semibold" style={{ color: "var(--accent)" }}>Ингредиенты ({f.ingredients.length})</h3>
+        <Button type="button" size="sm" variant="outline" onClick={() => update({ ingredients: [...f.ingredients, { name: "", amount: "", note: "" }] })}>
+          <Plus size={14} className="mr-1" /> Добавить
+        </Button>
+      </div>
+      {f.ingredients.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет ингредиентов</p>}
+      {f.ingredients.map((ing, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 items-end">
+          <div className="col-span-5">
+            <Label className="text-xs">Название</Label>
+            <Input value={ing.name} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], name: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Количество</Label>
+            <Input value={ing.amount ?? ""} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], amount: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Примечание</Label>
+            <Input value={ing.note ?? ""} onChange={(e) => {
+              const arr = [...f.ingredients]; arr[i] = { ...arr[i], note: e.target.value }; update({ ingredients: arr });
+            }} />
+          </div>
+          <div className="col-span-1">
+            <Button type="button" size="sm" variant="ghost" onClick={() => update({ ingredients: f.ingredients.filter((_, j) => j !== i) })}>
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {/* Шаги */}
+      <div className="flex items-center justify-between mt-4">
+        <h3 className="font-semibold" style={{ color: "var(--accent)" }}>Шаги ({f.steps.length})</h3>
+        <Button type="button" size="sm" variant="outline" onClick={() => {
+          const next = f.steps.length > 0 ? Math.max(...f.steps.map((s) => s.stepNum)) + 1 : 1;
+          update({ steps: [...f.steps, { stepNum: next, title: "", text: "" }] });
+        }}>
+          <Plus size={14} className="mr-1" /> Добавить
+        </Button>
+      </div>
+      {f.steps.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет шагов</p>}
+      {f.steps.map((s, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 items-start">
+          <div className="col-span-1">
+            <Label className="text-xs">№</Label>
+            <Input type="number" value={s.stepNum} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], stepNum: Number(e.target.value) }; update({ steps: arr });
+            }} />
+          </div>
+          <div className="col-span-3">
+            <Label className="text-xs">Заголовок</Label>
+            <Input value={s.title ?? ""} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], title: e.target.value }; update({ steps: arr });
+            }} />
+          </div>
+          <div className="col-span-7">
+            <Label className="text-xs">Описание</Label>
+            <Textarea value={s.text} onChange={(e) => {
+              const arr = [...f.steps]; arr[i] = { ...arr[i], text: e.target.value }; update({ steps: arr });
+            }} className="min-h-[60px]" />
+          </div>
+          <div className="col-span-1 pt-5">
+            <Button type="button" size="sm" variant="ghost" onClick={() => update({ steps: f.steps.filter((_, j) => j !== i) })}>
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1618,6 +1821,86 @@ function Area({ label, value, onChange, placeholder }: { label: string; value: s
     <div>
       <Label className="text-xs">{label}</Label>
       <Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1 min-h-[60px]" />
+    </div>
+  );
+}
+function UsersTab() {
+  const { data: usersList, refetch } = trpc.user.list.useQuery();
+  const setRoleMutation = trpc.user.setRole.useMutation({ onSuccess: () => refetch() });
+  const deleteMutation = trpc.user.delete.useMutation({ onSuccess: () => refetch() });
+
+  const roleLabels: Record<string, string> = {
+    user: "Пользователь",
+    editor: "Редактор",
+    admin: "Админ",
+  };
+
+  const roleColors: Record<string, string> = {
+    user: "#6b7280",
+    editor: "#2563eb",
+    admin: "#dc2626",
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+        Пользователи ({usersList?.length ?? 0})
+      </h2>
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Имя</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Роль</TableHead>
+              <TableHead>Дата регистрации</TableHead>
+              <TableHead>Действия</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(usersList ?? []).map((u) => (
+              <TableRow key={u.id}>
+                <TableCell>{u.id}</TableCell>
+                <TableCell>{u.name ?? "—"}</TableCell>
+                <TableCell>{u.email}</TableCell>
+                <TableCell>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                    style={{ background: roleColors[u.role] ?? "#6b7280" }}
+                  >
+                    {roleLabels[u.role] ?? u.role}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <select
+                      value={u.role}
+                      onChange={(e) => setRoleMutation.mutate({ userId: Number(u.id), role: e.target.value as any })}
+                      className="text-sm rounded px-2 py-1"
+                      style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+                    >
+                      <option value="user">Пользователь</option>
+                      <option value="editor">Редактор</option>
+                      <option value="admin">Админ</option>
+                    </select>
+                    <button
+                      onClick={() => { if (confirm(`Удалить ${u.email}?`)) deleteMutation.mutate({ userId: Number(u.id) }); }}
+                      className="text-sm px-2 py-1 rounded transition-opacity hover:opacity-70"
+                      style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

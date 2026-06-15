@@ -9,7 +9,7 @@ type App = Hono<{ Bindings: HttpBindings }>;
 export function serveStaticFiles(app: App) {
   const distPath = path.resolve(import.meta.dirname, "../dist");
 
-  app.use("*", serveStatic({ root: "./dist" }));
+  app.use("*", serveStatic({ root: distPath }));
 
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";

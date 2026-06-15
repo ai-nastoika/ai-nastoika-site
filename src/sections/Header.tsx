@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Menu, X, User, LogOut, Shield } from "lucide-react";
+import { Menu, X, User, LogOut, Shield, Bot } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
 
@@ -15,7 +15,7 @@ const navItems = [
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { user, isLoggedIn, isAdmin, logout } = useAuth();
+  const { user, isLoggedIn, isAdmin, isEditor, logout } = useAuth();
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
@@ -57,6 +57,25 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
+
+            {/* Парсер — для editor и admin */}
+            {isEditor && (
+              <Link
+                to="/tools/parse-recipe"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Bot size={12} />
+                Парсер
+              </Link>
+            )}
+
+            {/* Админка — только для admin */}
             {isAdmin && (
               <Link
                 to="/admin"
@@ -173,6 +192,33 @@ export default function Header() {
               {item.label}
             </Link>
           ))}
+
+          {/* Парсер в мобильном меню */}
+          {isEditor && (
+            <Link
+              to="/tools/parse-recipe"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 py-2.5 text-base font-medium"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              <Bot size={18} />
+              Парсер рецептов
+            </Link>
+          )}
+
+          {/* Админка в мобильном меню */}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 py-2.5 text-base font-medium"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              <Shield size={18} />
+              Админ-панель
+            </Link>
+          )}
+
           <div style={{ borderBottom: "1px solid var(--border)", margin: "4px 0" }} />
           <a
             href="https://boosty.to/ainastoika"
