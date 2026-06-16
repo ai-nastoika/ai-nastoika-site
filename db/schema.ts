@@ -133,11 +133,26 @@ export const recipeRatings = mysqlTable("recipe_ratings", {
   id: serial("id").primaryKey(),
   recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  rating: int("rating").notNull(), // 1-5
+  rating: int("rating").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type RecipeRating = typeof recipeRatings.$inferSelect;
+
+// ─── Feedback ──────────────────────────────────────────────
+export const feedback = mysqlTable("feedback", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  topic: varchar("topic", { length: 50 }).notNull(),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("new"), // new | read | replied
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Feedback = typeof feedback.$inferSelect;
+export type InsertFeedback = typeof feedback.$inferInsert;
 
 // ─── Label Templates ────────────────────────────────────────
 export const labelTemplates = mysqlTable("label_templates", {
@@ -208,7 +223,6 @@ export const users = mysqlTable("users", {
   name: varchar("name", { length: 100 }),
   avatar: varchar("avatar", { length: 255 }),
   role: varchar("role", { length: 20 }).default("user").notNull(),
-  // ─── Email & Phone verification (NEW) ───
   emailVerified: int("email_verified").default(0).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
   emailVerifyExpires: timestamp("email_verify_expires"),
@@ -221,13 +235,13 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// ─── OTP Codes (SMS codes for phone verification & 2FA) ───
+// ─── OTP Codes ─────────────────────────────────────────────
 export const otpCodes = mysqlTable("otp_codes", {
   id: serial("id").primaryKey(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
   phone: varchar("phone", { length: 20 }).notNull(),
   code: varchar("code", { length: 6 }).notNull(),
-  purpose: varchar("purpose", { length: 20 }).notNull(), // "verify_phone" | "two_factor"
+  purpose: varchar("purpose", { length: 20 }).notNull(),
   attempts: int("attempts").default(0).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),

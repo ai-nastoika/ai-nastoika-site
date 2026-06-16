@@ -1,15 +1,35 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ArrowLeft, Send, MessageSquare, Mail, User, CheckCircle } from "lucide-react";
+import { ArrowLeft, Send, MessageSquare, Phone, User, CheckCircle, LogIn } from "lucide-react";
+import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function FeedbackPage() {
-  const [form, setForm] = useState({ name: "", email: "", topic: "general", message: "" });
+  const { user, isLoggedIn } = useAuth();
+  const [form, setForm] = useState({
+    name: user?.name ?? "",
+    phone: "",
+    topic: "general",
+    message: "",
+  });
+  const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  const createMutation = trpc.feedback.create.useMutation({
+    onSuccess: () => setSubmitted(true),
+    onError: (err) => setError(err.message),
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Here would be the actual API call
-    setSubmitted(true);
+    setError("");
+    createMutation.mutate({
+      name: form.name,
+      email: user!.email,
+      topic: form.topic,
+      message: form.message + (form.phone ? `\n\nТелефон: ${form.phone}` : ""),
+      userId: user!.id,
+    });
   };
 
   const topics = [
@@ -20,6 +40,48 @@ export default function FeedbackPage() {
     { id: "place", label: "Добавить заведение" },
     { id: "other", label: "Другое" },
   ];
+
+  // Незарегистрированный пользователь
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--bg-primary)" }}>
+        <div className="text-center max-w-md">
+          <MessageSquare size={64} style={{ color: "var(--accent)" }} className="mx-auto mb-6" />
+          <h1
+            className="text-2xl sm:text-3xl font-bold mb-4"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
+          >
+            Войдите, чтобы написать нам
+          </h1>
+          <p
+            className="text-lg mb-8"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
+          >
+            Обратная связь доступна только для зарегистрированных пользователей.
+            Это помогает нам отвечать вам и не допускать спам.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-medium transition-transform hover:scale-105"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              <LogIn size={20} />
+              Войти
+            </Link>
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-medium transition-transform hover:scale-105"
+              style={{ background: "var(--bg-card)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+            >
+              <ArrowLeft size={20} />
+              На главную
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -36,7 +98,7 @@ export default function FeedbackPage() {
             className="text-lg mb-8"
             style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
           >
-            Мы получили ваше письмо и ответим в ближайшее время.
+            Мы получили ваше письмо и ответим на {user?.email} в ближайшее время.
             Обычно это занимает 1–2 рабочих дня.
           </p>
           <Link
@@ -55,7 +117,6 @@ export default function FeedbackPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        {/* Back */}
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-base font-medium mb-8 transition-opacity hover:opacity-70"
@@ -65,7 +126,6 @@ export default function FeedbackPage() {
           На главную
         </Link>
 
-        {/* Header */}
         <div className="mb-10">
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
@@ -89,9 +149,8 @@ export default function FeedbackPage() {
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
+          {/* Имя */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -116,21 +175,44 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Email */}
+          {/* Email из профиля — только показываем */}
           <div>
             <label
               className="block text-base font-medium mb-2"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
             >
-              <Mail size={18} className="inline mr-1.5" style={{ color: "var(--accent)" }} />
-              Email
+              Email для ответа
+            </label>
+            <div
+              className="w-full rounded-xl px-4 py-3 text-base"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              {user?.email}
+            </div>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Ответ придёт на email вашего аккаунта
+            </p>
+          </div>
+
+          {/* Телефон (опционально) */}
+          <div>
+            <label
+              className="block text-base font-medium mb-2"
+              style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            >
+              <Phone size={18} className="inline mr-1.5" style={{ color: "var(--accent)" }} />
+              Телефон <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(необязательно)</span>
             </label>
             <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="your@email.com"
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="+7 (999) 000-00-00"
               className="w-full rounded-xl px-4 py-3 text-base outline-none transition-all"
               style={{
                 background: "var(--bg-card)",
@@ -141,7 +223,7 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Topic */}
+          {/* Тема */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -170,7 +252,7 @@ export default function FeedbackPage() {
             </div>
           </div>
 
-          {/* Message */}
+          {/* Сообщение */}
           <div>
             <label
               className="block text-base font-medium mb-2"
@@ -194,14 +276,20 @@ export default function FeedbackPage() {
             />
           </div>
 
-          {/* Submit */}
+          {error && (
+            <div className="p-3 rounded-lg text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
+            disabled={createMutation.isPending}
             className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-transform hover:scale-[1.02]"
             style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
           >
             <Send size={22} />
-            Отправить сообщение
+            {createMutation.isPending ? "Отправка..." : "Отправить сообщение"}
           </button>
 
           <p
