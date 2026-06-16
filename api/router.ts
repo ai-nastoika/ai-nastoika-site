@@ -1,11 +1,13 @@
 import { z } from "zod";
-import crypto from "crypto";
-import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt, otpCodes } from "./trpc";
-import { eq, and, avg, count, desc, gte, isNull } from "drizzle-orm";
-import { recipeRatings, comments, recipeIngredients, recipeSteps } from "../db/schema";
-import { isRussianEmail, getEmailValidationError } from "./lib/emailDomains";
-import { sendVerificationEmail } from "./lib/email";
-import { sendOtpSms, normalizePhone } from "./lib/sms";
+import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
+import { eq, and, avg, count } from "drizzle-orm";
+import { recipeRatings, comments, feedback, recipeIngredients, recipeSteps } from "../db/schema";
+import { sendEmail } from "./lib/email";
+
+// ─── Уведомление админу ───
+async function notifyAdmin(subject: string, html: string) {
+  await sendEmail({ to: "ai-nastoika@mail.ru", subject, html });
+}
 
 // ─── Admin procedure ───
 const adminProcedure = authedProcedure.use(async (opts) => {
@@ -20,15 +22,6 @@ const editorProcedure = authedProcedure.use(async (opts) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "editor") throw new Error("FORBIDDEN");
   return opts.next({ ctx });
 });
-
-// ─── Helpers ───
-function generateOtp(): string {
-  return String(Math.floor(1000 + Math.random() * 9000)); // 4-значный код
-}
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
 
 // ─── Zod-схема для upsert рецепта ───
 const recipeUpsertInput = z.object({
@@ -75,196 +68,51 @@ export const appRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, ts: Date.now() })),
 
   auth: router({
-    // ─── Регистрация (с проверкой .ru домена) ───
     register: publicProcedure
       .input(z.object({ email: z.string(), password: z.string(), name: z.string().optional() }))
       .mutation(async ({ input }) => {
-        // Проверка российского email
-        const emailError = getEmailValidationError(input.email);
-        if (emailError) throw new Error(emailError);
-
         const existing = await db.select().from(users).where(eq(users.email, input.email));
-        if (existing.length > 0) throw new Error("Email уже зарегистрирован");
-
+        if (existing.length > 0) throw new Error("Email already registered");
         const passwordHash = bcrypt.hashSync(input.password, 10);
-        const verifyToken = generateToken();
-        const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
-
         const result = await db.insert(users).values({
           email: input.email,
           passwordHash,
           name: input.name || input.email.split("@")[0],
           role: "user",
-          emailVerified: 0,
-          emailVerifyToken: verifyToken,
-          emailVerifyExpires: verifyExpires,
         });
         const userId = Number(result[0].insertId);
-
-        // Отправляем email верификации
-        sendVerificationEmail(input.email, verifyToken).catch((err) => {
-          console.error("[register] Email send failed:", err);
-        });
-
-        // Не выдаём JWT — сначала подтвердить email
-        return {
-          token: null,
-          requiresEmailVerification: true,
-          requires2FA: false,
-          tempToken: null,
-          user: null,
-        };
+        const token = await createToken(userId, input.email, "user");
+        await notifyAdmin(
+          "👤 Новый пользователь — AI Настойка",
+          `<p><b>Новый пользователь зарегистрировался!</b></p>
+           <p>Имя: ${input.name || input.email.split("@")[0]}</p>
+           <p>Email: ${input.email}</p>`
+        );
+        return { token, user: { id: userId, name: input.name || input.email.split("@")[0], email: input.email, role: "user" } };
       }),
 
-    // ─── Логин (с 2FA если включена) ───
     login: publicProcedure
       .input(z.object({ email: z.string(), password: z.string() }))
       .mutation(async ({ input }) => {
         const rows = await db.select().from(users).where(eq(users.email, input.email));
-        if (rows.length === 0) throw new Error("Неверный email или пароль");
+        if (rows.length === 0) throw new Error("Invalid credentials");
         const user = rows[0];
-        if (!bcrypt.compareSync(input.password, user.passwordHash)) throw new Error("Неверный email или пароль");
-
-        // Не пускаем без подтверждённого email
-        if (!user.emailVerified) {
-          throw new Error("Подтвердите email — проверьте почту");
-        }
-
-        // Если включена 2FA — не выдаём токен сразу
-        if (user.twoFactorEnabled && user.phone && user.phoneVerified) {
-          const code = generateOtp();
-          const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 минут
-
-          await db.insert(otpCodes).values({
-            userId: user.id,
-            phone: user.phone,
-            code,
-            purpose: "two_factor",
-            expiresAt,
-          });
-
-          // Отправляем SMS
-          sendOtpSms(user.phone, code).catch((err) => {
-            console.error("[login] SMS send failed:", err);
-          });
-
-          // Возвращаем временный токен (не JWT, а одноразовый)
-          const tempToken = generateToken();
-          // Храним tempToken как emailVerifyToken (используем поле повторно для простоты)
-          // Лучше: отдельная таблица login_sessions, но для MVP достаточно
-          await db.update(users)
-            .set({ emailVerifyToken: `2fa:${tempToken}`, emailVerifyExpires: expiresAt })
-            .where(eq(users.id, user.id));
-
-          return {
-            requires2FA: true,
-            tempToken,
-            user: null,
-            token: null,
-          };
-        }
-
+        if (!bcrypt.compareSync(input.password, user.passwordHash)) throw new Error("Invalid credentials");
         const token = await createToken(user.id, user.email, user.role);
-        return {
-          requires2FA: false,
-          tempToken: null,
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            emailVerified: !!user.emailVerified,
-            phone: user.phone,
-            phoneVerified: !!user.phoneVerified,
-            twoFactorEnabled: !!user.twoFactorEnabled,
-          },
-        };
+        return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
       }),
 
-    // ─── Подтверждение 2FA при входе ───
-    verifyLoginCode: publicProcedure
-      .input(z.object({ tempToken: z.string(), code: z.string() }))
-      .mutation(async ({ input }) => {
-        // Находим пользователя по tempToken
-        const rows = await db.select().from(users)
-          .where(eq(users.emailVerifyToken, `2fa:${input.tempToken}`));
-        if (rows.length === 0) throw new Error("Сессия истекла, войдите заново");
-
-        const user = rows[0];
-        if (user.emailVerifyExpires && user.emailVerifyExpires < new Date()) {
-          throw new Error("Код истёк, войдите заново");
-        }
-
-        // Проверяем OTP
-        const otpRows = await db.select().from(otpCodes)
-          .where(and(
-            eq(otpCodes.userId, user.id),
-            eq(otpCodes.purpose, "two_factor"),
-            isNull(otpCodes.usedAt),
-            gte(otpCodes.expiresAt, new Date()),
-          ));
-
-        const validOtp = otpRows.find((o) => o.code === input.code);
-        if (!validOtp) {
-          // Инкрементим attempts у последнего кода
-          if (otpRows.length > 0) {
-            const last = otpRows[otpRows.length - 1];
-            await db.update(otpCodes)
-              .set({ attempts: last.attempts + 1 })
-              .where(eq(otpCodes.id, last.id));
-            if (last.attempts >= 4) {
-              throw new Error("Слишком много попыток. Войдите заново");
-            }
-          }
-          throw new Error("Неверный код");
-        }
-
-        // Помечаем код как использованный
-        await db.update(otpCodes).set({ usedAt: new Date() }).where(eq(otpCodes.id, validOtp.id));
-        // Очищаем tempToken
-        await db.update(users)
-          .set({ emailVerifyToken: null, emailVerifyExpires: null })
-          .where(eq(users.id, user.id));
-
-        const token = await createToken(user.id, user.email, user.role);
-        return {
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            emailVerified: !!user.emailVerified,
-            phone: user.phone,
-            phoneVerified: !!user.phoneVerified,
-            twoFactorEnabled: !!user.twoFactorEnabled,
-          },
-        };
-      }),
-
-    // ─── Текущий пользователь ───
     me: publicProcedure.query(async ({ ctx }) => {
       const token = (ctx as any).token;
       if (!token) return null;
       const { getAuthUser } = await import("./trpc");
       const user = await getAuthUser(token);
       if (!user) return null;
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        emailVerified: !!user.emailVerified,
-        phone: user.phone,
-        phoneVerified: !!user.phoneVerified,
-        twoFactorEnabled: !!user.twoFactorEnabled,
-      };
+      return { id: user.id, name: user.name, email: user.email, role: user.role };
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
 
-    // ─── Смена пароля ───
     changePassword: authedProcedure
       .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
       .mutation(async ({ input, ctx }) => {
@@ -285,147 +133,9 @@ export const appRouter = router({
         await db.update(users).set({ name: input.name }).where(eq(users.id, ctx.userId));
         return { success: true };
       }),
-
-    // ─── Email verification ───
-    verifyEmail: publicProcedure
-      .input(z.object({ token: z.string() }))
-      .mutation(async ({ input }) => {
-        const rows = await db.select().from(users)
-          .where(eq(users.emailVerifyToken, input.token));
-        if (rows.length === 0) throw new Error("Недействительная ссылка");
-        const user = rows[0];
-
-        if (user.emailVerifyExpires && user.emailVerifyExpires < new Date()) {
-          throw new Error("Ссылка истекла. Запросите новое письмо");
-        }
-
-        await db.update(users).set({
-          emailVerified: 1,
-          emailVerifyToken: null,
-          emailVerifyExpires: null,
-        }).where(eq(users.id, user.id));
-
-        return { success: true, email: user.email };
-      }),
-
-    resendEmailVerification: authedProcedure.mutation(async ({ ctx }) => {
-      const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
-      if (rows.length === 0) throw new Error("User not found");
-      const user = rows[0];
-
-      if (user.emailVerified) throw new Error("Email уже подтверждён");
-
-      const verifyToken = generateToken();
-      const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-      await db.update(users).set({
-        emailVerifyToken: verifyToken,
-        emailVerifyExpires: verifyExpires,
-      }).where(eq(users.id, user.id));
-
-      const sent = await sendVerificationEmail(user.email, verifyToken);
-      if (!sent) throw new Error("Не удалось отправить письмо. Попробуйте позже");
-
-      return { success: true };
-    }),
-
-    // ─── Phone / SMS ───
-    sendPhoneCode: authedProcedure
-      .input(z.object({ phone: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        const normalized = normalizePhone(input.phone);
-        if (!normalized) throw new Error("Неверный формат номера. Используйте: +7 (900) 123-45-67");
-
-        // Rate limit: не больше 3 SMS за 10 минут
-        const recent = await db.select({ count: count() }).from(otpCodes)
-          .where(and(
-            eq(otpCodes.userId, ctx.userId),
-            eq(otpCodes.purpose, "verify_phone"),
-            gte(otpCodes.createdAt, new Date(Date.now() - 10 * 60 * 1000)),
-          ));
-        if ((recent[0]?.count ?? 0) >= 3) {
-          throw new Error("Слишком много попыток. Подождите 10 минут");
-        }
-
-        const code = generateOtp();
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-        await db.insert(otpCodes).values({
-          userId: ctx.userId,
-          phone: normalized,
-          code,
-          purpose: "verify_phone",
-          expiresAt,
-        });
-
-        // Сохраняем номер у пользователя (пока не подтверждён)
-        await db.update(users)
-          .set({ phone: normalized, phoneVerified: 0 })
-          .where(eq(users.id, ctx.userId));
-
-        const sent = await sendOtpSms(normalized, code);
-        if (!sent) throw new Error("Не удалось отправить SMS. Попробуйте позже");
-
-        return { success: true, phone: normalized };
-      }),
-
-    verifyPhoneCode: authedProcedure
-      .input(z.object({ code: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        const otpRows = await db.select().from(otpCodes)
-          .where(and(
-            eq(otpCodes.userId, ctx.userId),
-            eq(otpCodes.purpose, "verify_phone"),
-            isNull(otpCodes.usedAt),
-            gte(otpCodes.expiresAt, new Date()),
-          ));
-
-        const validOtp = otpRows.find((o) => o.code === input.code);
-        if (!validOtp) {
-          if (otpRows.length > 0) {
-            const last = otpRows[otpRows.length - 1];
-            await db.update(otpCodes)
-              .set({ attempts: last.attempts + 1 })
-              .where(eq(otpCodes.id, last.id));
-            if (last.attempts >= 4) throw new Error("Слишком много попыток. Запросите новый код");
-          }
-          throw new Error("Неверный код");
-        }
-
-        await db.update(otpCodes).set({ usedAt: new Date() }).where(eq(otpCodes.id, validOtp.id));
-        await db.update(users).set({ phoneVerified: 1 }).where(eq(users.id, ctx.userId));
-
-        return { success: true };
-      }),
-
-    // ─── 2FA (включение / отключение) ───
-    enableTwoFactor: authedProcedure.mutation(async ({ ctx }) => {
-      const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
-      if (rows.length === 0) throw new Error("User not found");
-      const user = rows[0];
-
-      if (!user.phone || !user.phoneVerified) {
-        throw new Error("Сначала подтвердите номер телефона");
-      }
-
-      await db.update(users).set({ twoFactorEnabled: 1 }).where(eq(users.id, ctx.userId));
-      return { success: true };
-    }),
-
-    disableTwoFactor: authedProcedure
-      .input(z.object({ password: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
-        if (rows.length === 0) throw new Error("User not found");
-        if (!bcrypt.compareSync(input.password, rows[0].passwordHash)) {
-          throw new Error("Неверный пароль");
-        }
-        await db.update(users).set({ twoFactorEnabled: 0 }).where(eq(users.id, ctx.userId));
-        return { success: true };
-      }),
   }),
 
-  // ─── Управление пользователями (только для админа) ───
+  // ─── Управление пользователями ───
   user: router({
     list: adminProcedure.query(async () => {
       return db.select({
@@ -433,19 +143,12 @@ export const appRouter = router({
         email: users.email,
         name: users.name,
         role: users.role,
-        emailVerified: users.emailVerified,
-        phone: users.phone,
-        phoneVerified: users.phoneVerified,
-        twoFactorEnabled: users.twoFactorEnabled,
         createdAt: users.createdAt,
       }).from(users);
     }),
 
     setRole: adminProcedure
-      .input(z.object({
-        userId: z.number(),
-        role: z.enum(["user", "editor", "admin"]),
-      }))
+      .input(z.object({ userId: z.number(), role: z.enum(["user", "editor", "admin"]) }))
       .mutation(async ({ input, ctx }) => {
         if (input.userId === ctx.userId) throw new Error("Нельзя изменить свою роль");
         await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
@@ -461,6 +164,7 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Рецепты ───
   recipe: router({
     list: publicProcedure.query(async () => {
       return db.select().from(recipes);
@@ -542,48 +246,36 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Оценки ───
   rating: router({
     myRating: authedProcedure
       .input(z.object({ recipeId: z.number() }))
       .query(async ({ input, ctx }) => {
         const rows = await db.select().from(recipeRatings).where(
-          and(
-            eq(recipeRatings.recipeId, input.recipeId),
-            eq(recipeRatings.userId, ctx.userId)
-          )
+          and(eq(recipeRatings.recipeId, input.recipeId), eq(recipeRatings.userId, ctx.userId))
         );
         return rows[0] || null;
       }),
 
     myRatings: authedProcedure.query(async ({ ctx }) => {
-      const rows = await db.select({
+      return db.select({
         id: recipeRatings.id,
         recipeId: recipeRatings.recipeId,
         rating: recipeRatings.rating,
         createdAt: recipeRatings.createdAt,
       }).from(recipeRatings).where(eq(recipeRatings.userId, ctx.userId));
-      return rows;
     }),
 
     set: authedProcedure
       .input(z.object({ recipeId: z.number(), rating: z.number().min(1).max(5) }))
       .mutation(async ({ input, ctx }) => {
         const existing = await db.select().from(recipeRatings).where(
-          and(
-            eq(recipeRatings.recipeId, input.recipeId),
-            eq(recipeRatings.userId, ctx.userId)
-          )
+          and(eq(recipeRatings.recipeId, input.recipeId), eq(recipeRatings.userId, ctx.userId))
         );
         if (existing.length > 0) {
-          await db.update(recipeRatings)
-            .set({ rating: input.rating })
-            .where(eq(recipeRatings.id, existing[0].id));
+          await db.update(recipeRatings).set({ rating: input.rating }).where(eq(recipeRatings.id, existing[0].id));
         } else {
-          await db.insert(recipeRatings).values({
-            recipeId: input.recipeId,
-            userId: ctx.userId,
-            rating: input.rating,
-          });
+          await db.insert(recipeRatings).values({ recipeId: input.recipeId, userId: ctx.userId, rating: input.rating });
         }
         const result = await db.select({
           avg: avg(recipeRatings.rating),
@@ -591,13 +283,12 @@ export const appRouter = router({
         }).from(recipeRatings).where(eq(recipeRatings.recipeId, input.recipeId));
         const newRating = Number(result[0].avg).toFixed(1);
         const newCount = Number(result[0].count);
-        await db.update(recipes)
-          .set({ rating: newRating, reviews: newCount })
-          .where(eq(recipes.id, input.recipeId));
+        await db.update(recipes).set({ rating: newRating, reviews: newCount }).where(eq(recipes.id, input.recipeId));
         return { success: true, newRating, newCount };
       }),
   }),
 
+  // ─── Комментарии ───
   comment: router({
     list: publicProcedure
       .input(z.object({ recipeId: z.number() }))
@@ -612,15 +303,67 @@ export const appRouter = router({
     create: authedProcedure
       .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
       .mutation(async ({ input, ctx }) => {
-        await db.insert(comments).values({
-          recipeId: input.recipeId,
-          userId: ctx.userId,
-          text: input.text,
-        });
+        await db.insert(comments).values({ recipeId: input.recipeId, userId: ctx.userId, text: input.text });
         return { success: true };
       }),
   }),
 
+  // ─── Обратная связь ───
+  feedback: router({
+    create: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        topic: z.string(),
+        message: z.string().min(1),
+        userId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.insert(feedback).values({
+          name: input.name,
+          email: input.email,
+          topic: input.topic,
+          message: input.message,
+          userId: input.userId,
+          status: "new",
+        });
+
+        const topicLabels: Record<string, string> = {
+          general: "Общий вопрос",
+          recipe: "Рецепт / Ошибка",
+          bug: "Баг на сайте",
+          feature: "Предложение",
+          place: "Добавить заведение",
+          other: "Другое",
+        };
+
+        await notifyAdmin(
+          `📩 Новое обращение — ${topicLabels[input.topic] ?? input.topic}`,
+          `<div style="font-family: sans-serif; max-width: 480px;">
+            <h2>📩 Новое обращение с сайта</h2>
+            <p><b>От:</b> ${input.name} (${input.email})</p>
+            <p><b>Тема:</b> ${topicLabels[input.topic] ?? input.topic}</p>
+            <hr/>
+            <p>${input.message.replace(/\n/g, "<br/>")}</p>
+          </div>`
+        );
+
+        return { success: true };
+      }),
+
+    list: adminProcedure.query(async () => {
+      return db.select().from(feedback).orderBy(feedback.createdAt);
+    }),
+
+    setStatus: adminProcedure
+      .input(z.object({ id: z.number(), status: z.enum(["new", "read", "replied"]) }))
+      .mutation(async ({ input }) => {
+        await db.update(feedback).set({ status: input.status }).where(eq(feedback.id, input.id));
+        return { success: true };
+      }),
+  }),
+
+  // ─── Места ───
   place: router({
     list: publicProcedure.query(() => []),
     bySlug: publicProcedure.input(z.object({ slug: z.string() })).query(() => null),
