@@ -303,7 +303,17 @@ export const appRouter = router({
     create: authedProcedure
       .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
       .mutation(async ({ input, ctx }) => {
-        await db.insert(comments).values({ recipeId: input.recipeId, userId: ctx.userId, text: input.text });
+        // Получаем имя пользователя
+        const userRows = await db.select({ name: users.name }).from(users).where(eq(users.id, ctx.userId));
+        const authorName = userRows[0]?.name || "Аноним";
+        const authorAvatar = authorName.charAt(0).toUpperCase();
+        await db.insert(comments).values({
+          recipeId: input.recipeId,
+          userId: ctx.userId,
+          authorName,
+          authorAvatar,
+          text: input.text,
+        });
         return { success: true };
       }),
   }),
