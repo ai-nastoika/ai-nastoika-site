@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
 import { eq, and, avg, count } from "drizzle-orm";
-import { recipeRatings, comments, feedback, recipeIngredients, recipeSteps } from "../db/schema";
+import { recipeRatings, comments, feedback } from "../db/schema";
 import { sendEmail } from "./lib/email";
+import crypto from "crypto";
 
-// ─── Уведомление админу ───
+// ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
   await sendEmail({ to: "ai-nastoika@mail.ru", subject, html });
 }
@@ -16,79 +17,108 @@ const adminProcedure = authedProcedure.use(async (opts) => {
   return opts.next({ ctx });
 });
 
-// ─── Editor procedure (admin или editor) ───
-const editorProcedure = authedProcedure.use(async (opts) => {
-  const { ctx } = opts;
-  if (ctx.user.role !== "admin" && ctx.user.role !== "editor") throw new Error("FORBIDDEN");
-  return opts.next({ ctx });
-});
-
-// ─── Zod-схема для upsert рецепта ───
-const recipeUpsertInput = z.object({
-  slug: z.string().min(1),
-  title: z.string().min(1),
-  subtitle: z.string().optional(),
-  category: z.string().min(1),
-  categoryLabel: z.string().optional(),
-  heroImage: z.string().optional(),
-  abv: z.string().optional(),
-  time: z.string().optional(),
-  difficulty: z.string().optional(),
-  year: z.string().optional(),
-  origin: z.string().optional(),
-  historyTitle: z.string().optional(),
-  historyText: z.string().optional(),
-  tastingColor: z.string().optional(),
-  tastingDescription: z.string().optional(),
-  tastingPairing: z.array(z.string()).optional(),
-  tastingTemp: z.string().optional(),
-  tastingGlass: z.string().optional(),
-  sweet: z.number().optional(),
-  sour: z.number().optional(),
-  bitter: z.number().optional(),
-  spicy: z.number().optional(),
-  fruity: z.number().optional(),
-  herbal: z.number().optional(),
-  tips: z.array(z.string()).optional(),
-  authorName: z.string().optional(),
-  authorDate: z.string().optional(),
-  ingredients: z.array(z.object({
-    name: z.string().min(1),
-    amount: z.string().optional(),
-    note: z.string().optional(),
-  })).optional(),
-  steps: z.array(z.object({
-    stepNum: z.number(),
-    title: z.string().optional(),
-    text: z.string().min(1),
-  })).optional(),
-});
-
 export const appRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, ts: Date.now() })),
 
   auth: router({
     register: publicProcedure
-      .input(z.object({ email: z.string(), password: z.string(), name: z.string().optional() }))
+      .input(z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().optional() }))
       .mutation(async ({ input }) => {
         const existing = await db.select().from(users).where(eq(users.email, input.email));
         if (existing.length > 0) throw new Error("Email already registered");
         const passwordHash = bcrypt.hashSync(input.password, 10);
+        const verifyToken = crypto.randomBytes(32).toString("hex");
+        const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 часа
         const result = await db.insert(users).values({
           email: input.email,
           passwordHash,
           name: input.name || input.email.split("@")[0],
           role: "user",
+          emailVerified: 0,
+          emailVerifyToken: verifyToken,
+          emailVerifyExpires: verifyExpires,
         });
         const userId = Number(result[0].insertId);
-        const token = await createToken(userId, input.email, "user");
+        const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
+        await sendEmail({
+          to: input.email,
+          subject: "Подтвердите email — Ай, настойка!",
+          html: `
+            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+              <h1 style="font-size: 24px; color: #1a1a1a;">🍹 Ай, настойка!</h1>
+              <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                Здравствуйте, ${input.name || input.email.split("@")[0]}!<br/>
+                Подтвердите вашу электронную почту чтобы начать пользоваться сайтом.
+              </p>
+              <a href="${siteUrl}/#/login?verify=${verifyToken}"
+                style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                Подтвердить email
+              </a>
+              <p style="font-size: 13px; color: #aaa; margin-top: 32px;">
+                Ссылка действительна 24 часа. Если вы не регистрировались — просто проигнорируйте это письмо.
+              </p>
+            </div>
+          `,
+        });
         await notifyAdmin(
           "👤 Новый пользователь — AI Настойка",
           `<p><b>Новый пользователь зарегистрировался!</b></p>
            <p>Имя: ${input.name || input.email.split("@")[0]}</p>
            <p>Email: ${input.email}</p>`
         );
-        return { token, user: { id: userId, name: input.name || input.email.split("@")[0], email: input.email, role: "user" } };
+        return { success: true, message: "Письмо с подтверждением отправлено на " + input.email };
+      }),
+
+    verifyEmail: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .mutation(async ({ input }) => {
+        const rows = await db.select().from(users).where(eq(users.emailVerifyToken, input.token));
+        if (rows.length === 0) throw new Error("Неверная или устаревшая ссылка подтверждения");
+        const user = rows[0];
+        if (user.emailVerified) return { success: true, message: "Email уже подтверждён" };
+        if (user.emailVerifyExpires && user.emailVerifyExpires < new Date()) {
+          throw new Error("Ссылка подтверждения истекла. Запросите новую.");
+        }
+        await db.update(users).set({
+          emailVerified: 1,
+          emailVerifyToken: null,
+          emailVerifyExpires: null,
+        }).where(eq(users.id, user.id));
+        const token = await createToken(user.id, user.email, user.role);
+        return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
+      }),
+
+    resendVerification: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const rows = await db.select().from(users).where(eq(users.email, input.email));
+        if (rows.length === 0) throw new Error("Email не найден");
+        const user = rows[0];
+        if (user.emailVerified) throw new Error("Email уже подтверждён");
+        const verifyToken = crypto.randomBytes(32).toString("hex");
+        const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.update(users).set({ emailVerifyToken: verifyToken, emailVerifyExpires: verifyExpires }).where(eq(users.id, user.id));
+        const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
+        await sendEmail({
+          to: input.email,
+          subject: "Подтвердите email — Ай, настойка!",
+          html: `
+            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+              <h1 style="font-size: 24px; color: #1a1a1a;">🍹 Ай, настойка!</h1>
+              <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                Подтвердите вашу электронную почту:
+              </p>
+              <a href="${siteUrl}/#/login?verify=${verifyToken}"
+                style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                Подтвердить email
+              </a>
+              <p style="font-size: 13px; color: #aaa; margin-top: 32px;">
+                Ссылка действительна 24 часа.
+              </p>
+            </div>
+          `,
+        });
+        return { success: true, message: "Письмо отправлено повторно" };
       }),
 
     login: publicProcedure
@@ -98,6 +128,9 @@ export const appRouter = router({
         if (rows.length === 0) throw new Error("Invalid credentials");
         const user = rows[0];
         if (!bcrypt.compareSync(input.password, user.passwordHash)) throw new Error("Invalid credentials");
+        if (!user.emailVerified) {
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
         const token = await createToken(user.id, user.email, user.role);
         return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
       }),
@@ -169,81 +202,21 @@ export const appRouter = router({
     list: publicProcedure.query(async () => {
       return db.select().from(recipes);
     }),
-
     bySlug: publicProcedure
       .input(z.object({ slug: z.string() }))
       .query(async ({ input }) => {
         const rows = await db.select().from(recipes).where(eq(recipes.slug, input.slug));
-        if (!rows[0]) return null;
-        const recipe = rows[0];
-
-        const ingredients = await db
-          .select()
-          .from(recipeIngredients)
-          .where(eq(recipeIngredients.recipeId, recipe.id));
-
-        const steps = await db
-          .select()
-          .from(recipeSteps)
-          .where(eq(recipeSteps.recipeId, recipe.id));
-
-        return { ...recipe, ingredients, steps };
+        return rows[0] || null;
       }),
-
-    upsert: editorProcedure
-      .input(recipeUpsertInput)
+    upsert: publicProcedure
+      .input(z.any())
       .mutation(async ({ input }) => {
-        const { ingredients, steps, ...recipeData } = input;
-
-        const existing = await db.select({ id: recipes.id }).from(recipes).where(eq(recipes.slug, input.slug));
-
-        let recipeId: number;
-
-        if (existing.length > 0) {
-          recipeId = existing[0].id;
-          await db.update(recipes).set(recipeData).where(eq(recipes.id, recipeId));
-          await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
-          await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, recipeId));
-        } else {
-          const result = await db.insert(recipes).values(recipeData);
-          recipeId = Number(result[0].insertId);
-        }
-
-        if (ingredients && ingredients.length > 0) {
-          await db.insert(recipeIngredients).values(
-            ingredients.map((ing, i) => ({
-              recipeId,
-              name: ing.name,
-              amount: ing.amount ?? null,
-              note: ing.note ?? null,
-              sortOrder: i,
-            }))
-          );
-        }
-
-        if (steps && steps.length > 0) {
-          await db.insert(recipeSteps).values(
-            steps.map((s, i) => ({
-              recipeId,
-              stepNum: s.stepNum,
-              title: s.title ?? null,
-              text: s.text,
-              sortOrder: i,
-            }))
-          );
-        }
-
-        return { success: true, id: recipeId };
-      }),
-
-    delete: adminProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, input.id));
-        await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, input.id));
-        await db.delete(recipes).where(eq(recipes.id, input.id));
+        await db.insert(recipes).values(input);
         return { success: true };
       }),
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async () => ({ success: true })),
   }),
 
   // ─── Оценки ───
@@ -303,17 +276,7 @@ export const appRouter = router({
     create: authedProcedure
       .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
       .mutation(async ({ input, ctx }) => {
-        // Получаем имя пользователя
-        const userRows = await db.select({ name: users.name }).from(users).where(eq(users.id, ctx.userId));
-        const authorName = userRows[0]?.name || "Аноним";
-        const authorAvatar = authorName.charAt(0).toUpperCase();
-        await db.insert(comments).values({
-          recipeId: input.recipeId,
-          userId: ctx.userId,
-          authorName,
-          authorAvatar,
-          text: input.text,
-        });
+        await db.insert(comments).values({ recipeId: input.recipeId, userId: ctx.userId, text: input.text });
         return { success: true };
       }),
   }),
@@ -337,7 +300,6 @@ export const appRouter = router({
           userId: input.userId,
           status: "new",
         });
-
         const topicLabels: Record<string, string> = {
           general: "Общий вопрос",
           recipe: "Рецепт / Ошибка",
@@ -346,7 +308,6 @@ export const appRouter = router({
           place: "Добавить заведение",
           other: "Другое",
         };
-
         await notifyAdmin(
           `📩 Новое обращение — ${topicLabels[input.topic] ?? input.topic}`,
           `<div style="font-family: sans-serif; max-width: 480px;">
@@ -357,7 +318,6 @@ export const appRouter = router({
             <p>${input.message.replace(/\n/g, "<br/>")}</p>
           </div>`
         );
-
         return { success: true };
       }),
 
