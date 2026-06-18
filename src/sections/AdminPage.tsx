@@ -1640,6 +1640,12 @@ function LabelTemplatesAdmin() {
   const [border, setBorder] = useState("");
   const [accent, setAccent] = useState("#8B4513");
   const [fontFamily, setFontFamily] = useState("serif");
+  const [zones, setZones] = useState(`[
+  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
+  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
+  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
+]`);
+  const [zonesError, setZonesError] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
   const [isActive, setIsActive] = useState(1);
 
@@ -1647,6 +1653,12 @@ function LabelTemplatesAdmin() {
     setEditId(null);
     setName(""); setImage(""); setBg(""); setBorder("");
     setAccent("#8B4513"); setFontFamily("serif");
+    setZones(`[
+  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
+  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
+  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
+]`);
+    setZonesError("");
     setSortOrder(0); setIsActive(1);
   }
 
@@ -1654,14 +1666,25 @@ function LabelTemplatesAdmin() {
     setEditId(t.id);
     setName(t.name); setImage(t.image ?? ""); setBg(t.bg ?? "");
     setBorder(t.border ?? ""); setAccent(t.accent); setFontFamily(t.fontFamily);
+    setZones(t.zones ? JSON.stringify(t.zones, null, 2) : "[]");
+    setZonesError("");
     setSortOrder(t.sortOrder); setIsActive(t.isActive);
   }
 
   function handleSave() {
+    let parsedZones: unknown = null;
+    try {
+      parsedZones = zones.trim() ? JSON.parse(zones) : null;
+      setZonesError("");
+    } catch {
+      setZonesError("Ошибка в JSON — проверьте синтаксис");
+      return;
+    }
     upsert.mutate({
       id: editId ?? undefined,
       name, image: image || undefined, bg: bg || undefined,
       border: border || undefined, accent, fontFamily,
+      zones: parsedZones,
       sortOrder, isActive,
     });
   }
@@ -1725,6 +1748,26 @@ function LabelTemplatesAdmin() {
                 <span style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>Активен</span>
               </label>
             </div>
+          </div>
+
+          {/* Zones JSON */}
+          <div>
+            <Label className="text-xs">
+              Зоны текста (JSON) — координаты полей «Название», «Дата», «Крепость»
+            </Label>
+            <Textarea
+              value={zones}
+              onChange={(e) => { setZones(e.target.value); setZonesError(""); }}
+              className="mt-1 font-mono text-xs"
+              rows={8}
+              placeholder='[{"id":"title","x":450,"y":820,"w":620,"h":60,"fontSize":28,"align":"center"},...]'
+            />
+            {zonesError && (
+              <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{zonesError}</p>
+            )}
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              x/y — центр зоны (пиксели PNG), w — ширина, fontSize — размер шрифта, align — left/center/right. id: title = название, date = дата, strength = крепость
+            </p>
           </div>
 
           {/* Mini preview */}
