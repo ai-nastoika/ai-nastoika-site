@@ -141,7 +141,7 @@ export const appRouter = router({
       const { getAuthUser } = await import("./trpc");
       const user = await getAuthUser(token);
       if (!user) return null;
-      return { id: user.id, name: user.name, email: user.email, role: user.role };
+      return { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified };
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
