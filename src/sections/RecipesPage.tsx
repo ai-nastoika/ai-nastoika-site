@@ -11,24 +11,24 @@ import AddRecipeForm from "@/sections/AddRecipeForm";
 
 // Первые 5 — в полоске, остальные — в «Другие»
 const MAIN_CATEGORIES = [
-  { id: "all",     label: "Все",          icon: null    },
-  { id: "berry",   label: "Ягодные",      icon: Grape   },
-  { id: "fruit",   label: "Фруктовые",    icon: null    },
-  { id: "citrus",  label: "Цитрусовые",   icon: Citrus  },
-  { id: "herbal",  label: "Травяные",     icon: Leaf    },
-  { id: "spiced",  label: "Пряные",       icon: Flame   },
+  { id: "all",    label: "Все",        emoji: null  },
+  { id: "berry",  label: "Ягодные",    emoji: "🫐"  },
+  { id: "fruit",  label: "Фруктовые",  emoji: "🍎"  },
+  { id: "citrus", label: "Цитрусовые", emoji: "🍋"  },
+  { id: "herbal", label: "Травяные",   emoji: "🌿"  },
+  { id: "spiced", label: "Пряные",     emoji: "🌶️"  },
 ];
 
 const OTHER_CATEGORIES = [
-  { id: "bitter",    label: "Горькие"      },
-  { id: "sweet",     label: "Сладкие"      },
-  { id: "honey",     label: "Медовые"      },
-  { id: "coffee",    label: "Кофейные"     },
-  { id: "floral",    label: "Цветочные"    },
-  { id: "nut",       label: "Ореховые"     },
-  { id: "root",      label: "Корневые"     },
-  { id: "chocolate", label: "Шоколадные"   },
-  { id: "vegetable", label: "Овощные"      },
+  { id: "bitter",    label: "Горькие",     emoji: "🌱"  },
+  { id: "sweet",     label: "Сладкие",     emoji: "🍒"  },
+  { id: "honey",     label: "Медовые",     emoji: "🍯"  },
+  { id: "coffee",    label: "Кофейные",    emoji: "☕"  },
+  { id: "floral",    label: "Цветочные",   emoji: "🌸"  },
+  { id: "nut",       label: "Ореховые",    emoji: "🌰"  },
+  { id: "root",      label: "Корневые",    emoji: "🫚"  },
+  { id: "chocolate", label: "Шоколадные",  emoji: "🍫"  },
+  { id: "vegetable", label: "Овощные",     emoji: "🥬"  },
 ];
 
 const categories = [...MAIN_CATEGORIES, ...OTHER_CATEGORIES];
@@ -152,20 +152,23 @@ export default function RecipesPage() {
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
               {MAIN_CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: activeCategory === cat.id ? "var(--accent)" : "var(--bg-card)", color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)", border: activeCategory === cat.id ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                  {cat.icon && <cat.icon size={22} />}
+                  {cat.emoji && <span style={{ fontSize: 18 }}>{cat.emoji}</span>}
                   {cat.label}
                 </button>
               ))}
-              {/* Другие — выпадающий список */}
-              <div className="relative">
+              {/* Другие — выпадающий список вверх */}
+              <div className="relative flex-shrink-0">
                 <button onClick={() => setShowOther(!showOther)} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "var(--accent)" : "var(--bg-card)", color: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "#fff" : "var(--text-secondary)", border: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                  {OTHER_CATEGORIES.find(c => c.id === activeCategory)?.label ?? "Другие"}
-                  <ChevronDown size={16} className={showOther ? "rotate-180 transition-transform" : "transition-transform"} />
+                  {OTHER_CATEGORIES.find(c => c.id === activeCategory)
+                    ? <><span style={{ fontSize: 18 }}>{OTHER_CATEGORIES.find(c => c.id === activeCategory)?.emoji}</span> {OTHER_CATEGORIES.find(c => c.id === activeCategory)?.label}</>
+                    : "Другие"}
+                  <ChevronDown size={16} style={{ transition: "transform 0.2s", transform: showOther ? "rotate(180deg)" : "rotate(0deg)" }} />
                 </button>
                 {showOther && (
-                  <div className="absolute left-0 top-full mt-2 w-44 rounded-xl overflow-hidden shadow-xl z-20" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <div className="absolute right-0 bottom-full mb-2 w-48 rounded-xl overflow-hidden shadow-xl z-50" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                     {OTHER_CATEGORIES.map((cat) => (
-                      <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="block w-full text-left px-4 py-2.5 text-sm transition-colors hover:opacity-70" style={{ color: activeCategory === cat.id ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-body)", fontWeight: activeCategory === cat.id ? 600 : 400 }}>
+                      <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm transition-colors hover:opacity-70" style={{ color: activeCategory === cat.id ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-body)", fontWeight: activeCategory === cat.id ? 600 : 400 }}>
+                        <span style={{ fontSize: 16 }}>{cat.emoji}</span>
                         {cat.label}
                       </button>
                     ))}
