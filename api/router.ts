@@ -5,6 +5,7 @@ import { recipeRatings, comments, feedback } from "../db/schema";
 import { sendEmail } from "./lib/email";
 import crypto from "crypto";
 import { labelTemplateRouter } from "./labelTemplateRouter";
+import { recipeRouter } from "./recipeRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -199,26 +200,7 @@ export const appRouter = router({
   }),
 
   // ─── Рецепты ───
-  recipe: router({
-    list: publicProcedure.query(async () => {
-      return db.select().from(recipes);
-    }),
-    bySlug: publicProcedure
-      .input(z.object({ slug: z.string() }))
-      .query(async ({ input }) => {
-        const rows = await db.select().from(recipes).where(eq(recipes.slug, input.slug));
-        return rows[0] || null;
-      }),
-    upsert: publicProcedure
-      .input(z.any())
-      .mutation(async ({ input }) => {
-        await db.insert(recipes).values(input);
-        return { success: true };
-      }),
-    delete: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async () => ({ success: true })),
-  }),
+  recipe: recipeRouter,
 
   // ─── Оценки ───
   rating: router({
