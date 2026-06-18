@@ -4,6 +4,7 @@ import { eq, and, avg, count } from "drizzle-orm";
 import { recipeRatings, comments, feedback } from "../db/schema";
 import { sendEmail } from "./lib/email";
 import crypto from "crypto";
+import { labelTemplateRouter } from "./labelTemplateRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -345,12 +346,7 @@ export const appRouter = router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),
   }),
 
-  labelTemplate: router({
-    list: publicProcedure.query(() => []),
-    upsert: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-    delete: publicProcedure.input(z.object({ id: z.number() })).mutation(() => ({ success: true })),
-    toggleActive: publicProcedure.input(z.object({ id: z.number(), isActive: z.number() })).mutation(() => ({ success: true })),
-  }),
+  labelTemplate: labelTemplateRouter,
 
   submission: router({
     create: publicProcedure.input(z.any()).mutation(() => ({ id: Date.now() })),
