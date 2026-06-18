@@ -1624,7 +1624,7 @@ function LabelTemplatesAdmin() {
   const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
 
   const upsert = trpc.labelTemplate.upsert.useMutation({
-    onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); },
+    onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); setView("list"); },
   });
   const del = trpc.labelTemplate.delete.useMutation({
     onSuccess: () => utils.labelTemplate.list.invalidate(),
@@ -1634,6 +1634,7 @@ function LabelTemplatesAdmin() {
   });
 
   const [editId, setEditId] = useState<number | null>(null);
+  const [view, setView] = useState<"list" | "form">("list");
   const [name, setName] = useState("");
   const [image, setImage] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
@@ -1688,6 +1689,7 @@ function LabelTemplatesAdmin() {
     setZones(t.zones ? JSON.stringify(t.zones, null, 2) : "[]");
     setZonesError("");
     setSortOrder(t.sortOrder); setIsActive(t.isActive);
+    setView("form");
   }
 
   function handleSave() {
@@ -1711,13 +1713,24 @@ function LabelTemplatesAdmin() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Шаблоны этикеток ({templates?.length ?? 0})</CardTitle>
-        <Button size="sm" onClick={() => { resetForm(); }}>
-          + Добавить шаблон
-        </Button>
+        <CardTitle>
+          {view === "list"
+            ? `Шаблоны этикеток (${templates?.length ?? 0})`
+            : editId ? "Редактировать шаблон" : "Новый шаблон"}
+        </CardTitle>
+        {view === "list" ? (
+          <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>
+            + Добавить шаблон
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>
+            ← Назад к списку
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Edit form */}
+        {view === "form" && (
         <div className="p-4 rounded-xl space-y-3" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
           <h4 className="text-sm font-bold" style={{ color: "var(--accent)" }}>
             {editId ? "Редактировать шаблон" : "Новый шаблон"}
@@ -1813,13 +1826,14 @@ function LabelTemplatesAdmin() {
               {upsert.isPending ? "Сохраняю..." : "Сохранить"}
             </Button>
             {editId && (
-              <Button size="sm" variant="outline" onClick={resetForm}>Отмена</Button>
+              <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>Отмена</Button>
             )}
           </div>
         </div>
+        )}
 
         {/* Table */}
-        {isLoading ? <p>Загрузка...</p> : !templates?.length ? (
+        {view === "list" && (isLoading ? <p>Загрузка...</p> : !templates?.length ? (
           <p className="text-muted-foreground">Нет шаблонов</p>
         ) : (
           <Table>
@@ -1870,7 +1884,7 @@ function LabelTemplatesAdmin() {
               ))}
             </TableBody>
           </Table>
-        )}
+        ))}
       </CardContent>
     </Card>
   );
