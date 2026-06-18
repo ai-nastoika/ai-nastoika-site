@@ -48,18 +48,28 @@ const EMPTY_PLACE = {
 };
 
 const CATEGORIES = [
-  { value: "sweet", label: "🍒 Сладкая" },
-  { value: "bitter", label: "🌿 Горькая" },
-  { value: "herbal", label: "🌱 Травяная" },
-  { value: "spicy", label: "🌶️ Острая" },
-  { value: "citrus", label: "🍋 Цитрусовая" },
-  { value: "coffee", label: "☕ Кофейная" },
-  { value: "honey", label: "🍯 Медовая" },
+  { value: "berry",     label: "🫐 Ягодная"      },
+  { value: "fruit",     label: "🍎 Фруктовая"    },
+  { value: "citrus",    label: "🍋 Цитрусовая"   },
+  { value: "herbal",    label: "🌿 Травяная"     },
+  { value: "spiced",    label: "🌶️ Пряная"       },
+  { value: "bitter",    label: "🌱 Горькая"      },
+  { value: "sweet",     label: "🍒 Сладкая"      },
+  { value: "honey",     label: "🍯 Медовая"      },
+  { value: "coffee",    label: "☕ Кофейная"     },
+  { value: "floral",    label: "🌸 Цветочная"    },
+  { value: "nut",       label: "🌰 Ореховая"     },
+  { value: "root",      label: "🫚 Корневая"     },
+  { value: "chocolate", label: "🍫 Шоколадная"   },
+  { value: "vegetable", label: "🥬 Овощная"      },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  sweet: "Сладкая", bitter: "Горькая", herbal: "Травяная",
-  spicy: "Острая", citrus: "Цитрусовая", coffee: "Кофейная", honey: "Медовая",
+  berry: "Ягодная", fruit: "Фруктовая", citrus: "Цитрусовая",
+  herbal: "Травяная", spiced: "Пряная", bitter: "Горькая",
+  sweet: "Сладкая", honey: "Медовая", coffee: "Кофейная",
+  floral: "Цветочная", nut: "Ореховая", root: "Корневая",
+  chocolate: "Шоколадная", vegetable: "Овощная",
 };
 
 const DIFFICULTIES = ["Легко", "Средне", "Сложно"];

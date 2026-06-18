@@ -9,15 +9,29 @@ import {
 } from "lucide-react";
 import AddRecipeForm from "@/sections/AddRecipeForm";
 
-const categories = [
-  { id: "all", label: "Все", icon: null },
-  { id: "berry", label: "Ягодные", icon: Grape },
-  { id: "citrus", label: "Цитрусовые", icon: Citrus },
-  { id: "herbal", label: "Травяные", icon: Leaf },
-  { id: "spiced", label: "Пряные", icon: Flame },
-  { id: "coffee", label: "Кофейные", icon: Coffee },
-  { id: "honey", label: "Медовые", icon: Droplets },
+// Первые 5 — в полоске, остальные — в «Другие»
+const MAIN_CATEGORIES = [
+  { id: "all",     label: "Все",          icon: null    },
+  { id: "berry",   label: "Ягодные",      icon: Grape   },
+  { id: "fruit",   label: "Фруктовые",    icon: null    },
+  { id: "citrus",  label: "Цитрусовые",   icon: Citrus  },
+  { id: "herbal",  label: "Травяные",     icon: Leaf    },
+  { id: "spiced",  label: "Пряные",       icon: Flame   },
 ];
+
+const OTHER_CATEGORIES = [
+  { id: "bitter",    label: "Горькие"      },
+  { id: "sweet",     label: "Сладкие"      },
+  { id: "honey",     label: "Медовые"      },
+  { id: "coffee",    label: "Кофейные"     },
+  { id: "floral",    label: "Цветочные"    },
+  { id: "nut",       label: "Ореховые"     },
+  { id: "root",      label: "Корневые"     },
+  { id: "chocolate", label: "Шоколадные"   },
+  { id: "vegetable", label: "Овощные"      },
+];
+
+const categories = [...MAIN_CATEGORIES, ...OTHER_CATEGORIES];
 
 const sortOptions = [
   { id: "popular", label: "По популярности" },
@@ -35,6 +49,7 @@ export default function RecipesPage() {
   const [sortBy, setSortBy] = useState("popular");
   const [likedIds, setLikedIds] = useState<number[]>([2, 5]);
   const [showSort, setShowSort] = useState(false);
+  const [showOther, setShowOther] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const toggleLike = (id: number) => {
@@ -134,13 +149,29 @@ export default function RecipesPage() {
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {categories.map((cat) => (
-                <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: activeCategory === cat.id ? "var(--accent)" : "var(--bg-card)", color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)", border: activeCategory === cat.id ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
+              {MAIN_CATEGORIES.map((cat) => (
+                <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: activeCategory === cat.id ? "var(--accent)" : "var(--bg-card)", color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)", border: activeCategory === cat.id ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                   {cat.icon && <cat.icon size={22} />}
                   {cat.label}
                 </button>
               ))}
+              {/* Другие — выпадающий список */}
+              <div className="relative">
+                <button onClick={() => setShowOther(!showOther)} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "var(--accent)" : "var(--bg-card)", color: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "#fff" : "var(--text-secondary)", border: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                  {OTHER_CATEGORIES.find(c => c.id === activeCategory)?.label ?? "Другие"}
+                  <ChevronDown size={16} className={showOther ? "rotate-180 transition-transform" : "transition-transform"} />
+                </button>
+                {showOther && (
+                  <div className="absolute left-0 top-full mt-2 w-44 rounded-xl overflow-hidden shadow-xl z-20" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    {OTHER_CATEGORIES.map((cat) => (
+                      <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="block w-full text-left px-4 py-2.5 text-sm transition-colors hover:opacity-70" style={{ color: activeCategory === cat.id ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-body)", fontWeight: activeCategory === cat.id ? 600 : 400 }}>
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="relative">
