@@ -149,14 +149,17 @@ export default function RecipesPage() {
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
-              {MAIN_CATEGORIES.map((cat) => (
-                <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: activeCategory === cat.id ? "var(--accent)" : "var(--bg-card)", color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)", border: activeCategory === cat.id ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                  {cat.emoji && <span style={{ fontSize: 18 }}>{cat.emoji}</span>}
-                  {cat.label}
-                </button>
-              ))}
-              {/* Другие — выпадающий список вверх */}
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Прокручиваемые основные категории */}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {MAIN_CATEGORIES.map((cat) => (
+                  <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: activeCategory === cat.id ? "var(--accent)" : "var(--bg-card)", color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)", border: activeCategory === cat.id ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                    {cat.emoji && <span style={{ fontSize: 18 }}>{cat.emoji}</span>}
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+              {/* Другие — вынесено из overflow контейнера */}
               <div className="relative flex-shrink-0">
                 <button onClick={() => setShowOther(!showOther)} className="flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-medium whitespace-nowrap transition-all" style={{ background: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "var(--accent)" : "var(--bg-card)", color: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "#fff" : "var(--text-secondary)", border: OTHER_CATEGORIES.some(c => c.id === activeCategory) ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                   {OTHER_CATEGORIES.find(c => c.id === activeCategory)
@@ -165,7 +168,7 @@ export default function RecipesPage() {
                   <ChevronDown size={16} style={{ transition: "transform 0.2s", transform: showOther ? "rotate(180deg)" : "rotate(0deg)" }} />
                 </button>
                 {showOther && (
-                  <div className="absolute right-0 bottom-full mb-2 w-48 rounded-xl overflow-hidden shadow-xl z-50" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <div className="absolute left-0 bottom-full mb-2 w-48 rounded-xl shadow-xl z-50" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                     {OTHER_CATEGORIES.map((cat) => (
                       <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setShowOther(false); }} className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm transition-colors hover:opacity-70" style={{ color: activeCategory === cat.id ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-body)", fontWeight: activeCategory === cat.id ? 600 : 400 }}>
                         <span style={{ fontSize: 16 }}>{cat.emoji}</span>
