@@ -1636,6 +1636,8 @@ function LabelTemplatesAdmin() {
   const [editId, setEditId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [image, setImage] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const labelFileRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState("");
   const [border, setBorder] = useState("");
   const [accent, setAccent] = useState("#8B4513");
@@ -1648,6 +1650,23 @@ function LabelTemplatesAdmin() {
   const [zonesError, setZonesError] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
   const [isActive, setIsActive] = useState(1);
+
+  async function handleLabelUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-label", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.path) setImage(data.path);
+    } catch {
+      alert("Ошибка загрузки файла");
+    } finally {
+      setImageUploading(false);
+    }
+  }
 
   function resetForm() {
     setEditId(null);
@@ -1709,8 +1728,14 @@ function LabelTemplatesAdmin() {
               <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs">Изображение (путь)</Label>
-              <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="/labels/template-01.jpg" className="mt-1" />
+              <Label className="text-xs">Изображение шаблона</Label>
+              <div className="flex gap-2 mt-1">
+                <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="/labels/template-01.jpg" className="flex-1" />
+                <input ref={labelFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLabelUpload} />
+                <Button size="sm" variant="outline" onClick={() => labelFileRef.current?.click()} disabled={imageUploading} type="button">
+                  {imageUploading ? "..." : "📁 Загрузить"}
+                </Button>
+              </div>
             </div>
             <div>
               <Label className="text-xs">CSS фон (bg)</Label>
