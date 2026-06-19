@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
@@ -456,100 +456,20 @@ function LabelConstructor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Canvas render function
-  const drawLabel = useCallback((canvas: HTMLCanvasElement, scale: number) => {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const W = Math.round(1086 * scale);
-    const H = Math.round(1448 * scale);
-    canvas.width = W;
-    canvas.height = H;
-    ctx.clearRect(0, 0, W, H);
-
-    if (tpl.image) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, W, H);
-        renderZones(ctx, scale, W, H);
-      };
-      img.src = tpl.image;
-    } else {
-      ctx.fillStyle = tpl.bg || "#faf6f0";
-      ctx.fillRect(0, 0, W, H);
-      renderZones(ctx, scale, W, H);
-    }
-  }, [tpl, labelText, subtitle]);
-
-  function renderZones(ctx: CanvasRenderingContext2D, scale: number, W: number, H: number) {
-    const zones = (tpl as any).zones as Array<{id: string, x: number, y: number, w: number, h: number, fontSize: number, align: string}> | null;
-    if (zones && zones.length > 0) {
-      // Рендер по зонам из JSON
-      zones.forEach(zone => {
-        const x = Math.round(zone.x * scale);
-        const y = Math.round(zone.y * scale);
-        const w = Math.round(zone.w * scale);
-        const h = Math.round(zone.h * scale);
-        const fs = Math.round(zone.fontSize * scale);
-        ctx.font = `bold ${fs}px serif`;
-        ctx.fillStyle = tpl.accent || "#8B4513";
-        ctx.textAlign = (zone.align as CanvasTextAlign) || "center";
-        ctx.textBaseline = "middle";
-        const text = zone.id === "title" ? (labelText || "")
-          : zone.id === "date" ? subtitle?.split("·")[0]?.trim() || ""
-          : zone.id === "strength" ? subtitle?.split("·")[1]?.trim() || ""
-          : "";
-        if (text) {
-          const tx = zone.align === "center" ? x + w / 2 : zone.align === "right" ? x + w : x;
-          // Word wrap
-          const words = text.split(" ");
-          let line = "";
-          let lineY = y + h / 2;
-          const lines: string[] = [];
-          words.forEach(word => {
-            const test = line + word + " ";
-            if (ctx.measureText(test).width > w && line) {
-              lines.push(line.trim());
-              line = word + " ";
-            } else {
-              line = test;
-            }
-          });
-          lines.push(line.trim());
-          const totalH = lines.length * fs * 1.3;
-          lineY = y + (h - totalH) / 2 + fs * 0.7;
-          lines.forEach(l => {
-            ctx.fillText(l, tx, lineY, w);
-            lineY += fs * 1.3;
-          });
-        }
-      });
-    } else {
-      // Fallback — центр
-      ctx.font = `bold ${Math.round(48 * scale)}px serif`;
-      ctx.fillStyle = tpl.accent || "#8B4513";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(labelText || "", W / 2, H * 0.45, W * 0.8);
-      if (subtitle) {
-        ctx.font = `${Math.round(28 * scale)}px sans-serif`;
-        ctx.fillText(subtitle, W / 2, H * 0.55, W * 0.8);
-      }
-    }
-  }
-
   // Draw on canvas when data changes
   useEffect(() => {
-    if (canvasRef.current && step === 2) {
-      drawLabel(canvasRef.current, 0.3);
-    }
-  }, [drawLabel, step, labelText, subtitle, tpl]);
+    const canvas = canvasRef.current;
+    if (!canvas || step !== 2) return;
+    paintCanvas(canvas, 0.3);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, labelText, subtitle, templateId, sizeIdx]);
 
   useEffect(() => {
-    if (modalCanvasRef.current && showPreviewModal) {
-      drawLabel(modalCanvasRef.current, 0.65);
-    }
-  }, [drawLabel, showPreviewModal]);
+    const canvas = modalCanvasRef.current;
+    if (!canvas || !showPreviewModal) return;
+    paintCanvas(canvas, 0.65);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPreviewModal, labelText, subtitle, templateId]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -594,6 +514,73 @@ function LabelConstructor() {
   const scale = Math.min(1, 340 / Math.max(sz.w, sz.h));
   const prevW = Math.round(sz.w * scale);
   const prevH = Math.round(sz.h * scale);
+
+  function paintCanvas(canvas: HTMLCanvasElement, sc: number) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const CW = Math.round(1086 * sc);
+    const CH = Math.round(1448 * sc);
+    canvas.width = CW;
+    canvas.height = CH;
+    ctx.clearRect(0, 0, CW, CH);
+
+    function drawZones() {
+      const zones = (tpl as any).zones as Array<{id: string, x: number, y: number, w: number, h: number, fontSize: number, align: string}> | null;
+      if (zones && zones.length > 0) {
+        zones.forEach(zone => {
+          const zx = Math.round(zone.x * sc);
+          const zy = Math.round(zone.y * sc);
+          const zw = Math.round(zone.w * sc);
+          const fs = Math.round(zone.fontSize * sc);
+          const zh = Math.round(zone.h * sc);
+          ctx.font = "bold " + fs + "px serif";
+          ctx.fillStyle = tpl.accent || "#8B4513";
+          ctx.textAlign = (zone.align as CanvasTextAlign) || "center";
+          ctx.textBaseline = "middle";
+          const text = zone.id === "title" ? (labelText || "")
+            : zone.id === "date" ? (subtitle?.split("·")[0]?.trim() || "")
+            : zone.id === "strength" ? (subtitle?.split("·")[1]?.trim() || "")
+            : "";
+          if (text) {
+            const tx = zone.align === "center" ? zx + zw / 2 : zone.align === "right" ? zx + zw : zx;
+            const words = text.split(" ");
+            let line = "";
+            const lines: string[] = [];
+            words.forEach(word => {
+              const test = line + word + " ";
+              if (ctx.measureText(test).width > zw && line) { lines.push(line.trim()); line = word + " "; }
+              else { line = test; }
+            });
+            lines.push(line.trim());
+            let lineY = zy + (zh - lines.length * fs * 1.3) / 2 + fs * 0.7;
+            lines.forEach(l => { ctx.fillText(l, tx, lineY, zw); lineY += fs * 1.3; });
+          }
+        });
+      } else {
+        ctx.font = "bold " + Math.round(48 * sc) + "px serif";
+        ctx.fillStyle = tpl.accent || "#8B4513";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labelText || "", CW / 2, CH * 0.45, CW * 0.8);
+        if (subtitle) {
+          ctx.font = Math.round(28 * sc) + "px sans-serif";
+          ctx.fillText(subtitle, CW / 2, CH * 0.55, CW * 0.8);
+        }
+      }
+    }
+
+    if (tpl.image) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => { ctx.drawImage(img, 0, 0, CW, CH); drawZones(); };
+      img.onerror = () => { ctx.fillStyle = tpl.bg || "#faf6f0"; ctx.fillRect(0, 0, CW, CH); drawZones(); };
+      img.src = tpl.image;
+    } else {
+      ctx.fillStyle = tpl.bg || "#faf6f0";
+      ctx.fillRect(0, 0, CW, CH);
+      drawZones();
+    }
+  }
 
   function handlePrint() {
     setQuantity(1);
