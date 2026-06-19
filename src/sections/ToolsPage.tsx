@@ -645,7 +645,7 @@ function LabelConstructor() {
           Назад к шаблонам
         </button>
 
-        <div className="grid sm:grid-cols-2 gap-6">
+        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 2fr" }}>
           {/* Controls */}
           <div className="space-y-4">
             <div>
@@ -715,7 +715,7 @@ function LabelConstructor() {
           </div>
 
           {/* Preview */}
-          <div className="flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 16 }}>
+          <div className="flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 24, minHeight: 400 }}>
             <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               Нажмите на этикетку для увеличения
             </p>
@@ -723,13 +723,13 @@ function LabelConstructor() {
               className="relative flex flex-col items-center justify-center text-center transition-all cursor-zoom-in hover:scale-[1.02]"
               onClick={() => setShowPreviewModal(true)}
               style={{
-                width: prevW,
-                height: prevH,
+                width: sz.round ? Math.min(prevW * 2.2, 320) : Math.min(prevW * 2.2, 380),
+                height: sz.round ? Math.min(prevH * 2.2, 320) : Math.min(prevH * 2.2, 480),
                 background: tpl.image ? "#000" : tpl.bg,
                 border: tpl.border,
-                borderRadius: sz.round ? "50%" : 4,
-                boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
-                padding: 8,
+                borderRadius: sz.round ? "50%" : 8,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                padding: 16,
                 overflow: "hidden",
               }}
             >
@@ -747,7 +747,7 @@ function LabelConstructor() {
                   style={{
                     color: tpl.image ? "#fff" : tpl.accent,
                     fontFamily: getFontFamily(tpl.family),
-                    fontSize: Math.max(10, Math.round(prevH * 0.15)),
+                    fontSize: Math.max(14, Math.round(prevH * 2.2 * 0.12)),
                     wordBreak: "break-word",
                   }}
                 >
@@ -759,7 +759,7 @@ function LabelConstructor() {
                     style={{
                       color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
                       fontFamily: "var(--font-body)",
-                      fontSize: Math.max(7, Math.round(prevH * 0.08)),
+                      fontSize: Math.max(10, Math.round(prevH * 2.2 * 0.07)),
                       opacity: 0.85,
                       wordBreak: "break-word",
                       textShadow: tpl.image ? "0 1px 3px rgba(0,0,0,0.7)" : "none",
