@@ -23,8 +23,8 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
   "slug": "krasnaya-smorodinovka",
   "title": "Красная смородиновка",
   "subtitle": "Классическая ягодная настойка с богатым вкусом",
-  "category": "sweet",
-  "categoryLabel": "Сладкая",
+  "category": "berry",
+  "categoryLabel": "Ягодная",
   "abv": "25%",
   "time": "21-30 дней",
   "difficulty": "Средняя",
@@ -59,8 +59,8 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
 
 Правила:
 - slug: латиница через дефис, маленькие буквы
-- category: sweet | bitter | herbal | spicy | fruity | citrus | coffee | berry
-- categoryLabel: русское название категории
+- category: выбери одно из: berry (ягодная), fruit (фруктовая), citrus (цитрусовая), herbal (травяная), spiced (пряная), bitter (горькая), sweet (сладкая), honey (медовая), coffee (кофейная), floral (цветочная), nut (ореховая), root (корневая), chocolate (шоколадная), vegetable (овощная)
+- categoryLabel: русское название выбранной категории (Ягодная / Фруктовая / Цитрусовая / Травяная / Пряная / Горькая / Сладкая / Медовая / Кофейная / Цветочная / Ореховая / Корневая / Шоколадная / Овощная)
 - difficulty: Простая | Средняя | Сложная
 - sweet/sour/bitter/spicy/fruity/herbal: число от 0 до 100
 - tastingPairing: массив строк (закуски/сочетания)
