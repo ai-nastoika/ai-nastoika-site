@@ -494,7 +494,7 @@ function LabelConstructor() {
   const tpl = allTemplates.find((t) => t.id === templateId) ?? allTemplates[0];
   const sz = LABEL_SIZES[sizeIdx];
 
-  const scale = Math.min(1, 200 / sz.w);
+  const scale = Math.min(1, 340 / Math.max(sz.w, sz.h));
   const prevW = Math.round(sz.w * scale);
   const prevH = Math.round(sz.h * scale);
 
