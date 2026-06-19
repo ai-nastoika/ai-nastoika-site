@@ -452,6 +452,7 @@ function LabelConstructor() {
   const [sizeIdx, setSizeIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -559,12 +560,91 @@ function LabelConstructor() {
   if (step === 2) {
     return (
       <div>
+        {/* Full-screen preview modal */}
+        {showPreviewModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.85)" }}
+            onClick={() => setShowPreviewModal(false)}
+          >
+            <div className="relative" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="absolute -top-10 right-0 text-white text-sm opacity-70 hover:opacity-100"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                ✕ Закрыть
+              </button>
+              <div
+                className="relative flex flex-col items-center justify-center text-center"
+                style={{
+                  width: Math.round(prevW * 2.5),
+                  height: Math.round(prevH * 2.5),
+                  maxWidth: "90vw",
+                  maxHeight: "85vh",
+                  background: tpl.image ? "#000" : tpl.bg,
+                  border: tpl.border,
+                  borderRadius: sz.round ? "50%" : 8,
+                  boxShadow: "0 8px 48px rgba(0,0,0,0.5)",
+                  padding: 16,
+                  overflow: "hidden",
+                }}
+              >
+                {tpl.image && (
+                  <img src={tpl.image} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
+                )}
+                <div className="relative" style={{ zIndex: 1, textShadow: tpl.image ? "0 1px 4px rgba(0,0,0,0.7)" : "none" }}>
+                  <div
+                    className="font-bold leading-tight"
+                    style={{
+                      color: tpl.image ? "#fff" : tpl.accent,
+                      fontFamily: getFontFamily(tpl.family),
+                      fontSize: Math.max(20, Math.round(prevH * 2.5 * 0.12)),
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {labelText || "Название"}
+                  </div>
+                  {subtitle && (
+                    <div
+                      className="mt-2"
+                      style={{
+                        color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
+                        fontFamily: "var(--font-body)",
+                        fontSize: Math.max(12, Math.round(prevH * 2.5 * 0.07)),
+                        opacity: 0.85,
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {subtitle}
+                    </div>
+                  )}
+                </div>
+                {qrDataUrl && (
+                  <img
+                    src={qrDataUrl}
+                    alt="QR"
+                    className="absolute rounded"
+                    style={{
+                      width: Math.round(prevH * 2.5 * 0.22),
+                      height: Math.round(prevH * 2.5 * 0.22),
+                      bottom: 12,
+                      right: 12,
+                      zIndex: 2,
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={() => setStep(1)}
-          className="text-sm mb-4 transition-opacity hover:opacity-70"
-          style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+          className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
+          style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
         >
-          ← Назад к шаблонам
+          <ArrowLeft size={16} />
+          Назад к шаблонам
         </button>
 
         <div className="grid sm:grid-cols-2 gap-6">
@@ -637,16 +717,20 @@ function LabelConstructor() {
           </div>
 
           {/* Preview */}
-          <div className="flex items-center justify-center" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 16 }}>
+          <div className="flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 16 }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Нажмите на этикетку для увеличения
+            </p>
             <div
-              className="relative flex flex-col items-center justify-center text-center transition-all"
+              className="relative flex flex-col items-center justify-center text-center transition-all cursor-zoom-in hover:scale-[1.02]"
+              onClick={() => setShowPreviewModal(true)}
               style={{
                 width: prevW,
                 height: prevH,
                 background: tpl.image ? "#000" : tpl.bg,
                 border: tpl.border,
                 borderRadius: sz.round ? "50%" : 4,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
                 padding: 8,
                 overflow: "hidden",
               }}
