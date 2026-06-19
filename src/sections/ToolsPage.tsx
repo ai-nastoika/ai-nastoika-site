@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
@@ -453,6 +453,103 @@ function LabelConstructor() {
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const modalCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Canvas render function
+  const drawLabel = useCallback((canvas: HTMLCanvasElement, scale: number) => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const W = Math.round(1086 * scale);
+    const H = Math.round(1448 * scale);
+    canvas.width = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    if (tpl.image) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, W, H);
+        renderZones(ctx, scale, W, H);
+      };
+      img.src = tpl.image;
+    } else {
+      ctx.fillStyle = tpl.bg || "#faf6f0";
+      ctx.fillRect(0, 0, W, H);
+      renderZones(ctx, scale, W, H);
+    }
+  }, [tpl, labelText, subtitle]);
+
+  function renderZones(ctx: CanvasRenderingContext2D, scale: number, W: number, H: number) {
+    const zones = (tpl as any).zones as Array<{id: string, x: number, y: number, w: number, h: number, fontSize: number, align: string}> | null;
+    if (zones && zones.length > 0) {
+      // Рендер по зонам из JSON
+      zones.forEach(zone => {
+        const x = Math.round(zone.x * scale);
+        const y = Math.round(zone.y * scale);
+        const w = Math.round(zone.w * scale);
+        const h = Math.round(zone.h * scale);
+        const fs = Math.round(zone.fontSize * scale);
+        ctx.font = `bold ${fs}px serif`;
+        ctx.fillStyle = tpl.accent || "#8B4513";
+        ctx.textAlign = (zone.align as CanvasTextAlign) || "center";
+        ctx.textBaseline = "middle";
+        const text = zone.id === "title" ? (labelText || "")
+          : zone.id === "date" ? subtitle?.split("·")[0]?.trim() || ""
+          : zone.id === "strength" ? subtitle?.split("·")[1]?.trim() || ""
+          : "";
+        if (text) {
+          const tx = zone.align === "center" ? x + w / 2 : zone.align === "right" ? x + w : x;
+          // Word wrap
+          const words = text.split(" ");
+          let line = "";
+          let lineY = y + h / 2;
+          const lines: string[] = [];
+          words.forEach(word => {
+            const test = line + word + " ";
+            if (ctx.measureText(test).width > w && line) {
+              lines.push(line.trim());
+              line = word + " ";
+            } else {
+              line = test;
+            }
+          });
+          lines.push(line.trim());
+          const totalH = lines.length * fs * 1.3;
+          lineY = y + (h - totalH) / 2 + fs * 0.7;
+          lines.forEach(l => {
+            ctx.fillText(l, tx, lineY, w);
+            lineY += fs * 1.3;
+          });
+        }
+      });
+    } else {
+      // Fallback — центр
+      ctx.font = `bold ${Math.round(48 * scale)}px serif`;
+      ctx.fillStyle = tpl.accent || "#8B4513";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(labelText || "", W / 2, H * 0.45, W * 0.8);
+      if (subtitle) {
+        ctx.font = `${Math.round(28 * scale)}px sans-serif`;
+        ctx.fillText(subtitle, W / 2, H * 0.55, W * 0.8);
+      }
+    }
+  }
+
+  // Draw on canvas when data changes
+  useEffect(() => {
+    if (canvasRef.current && step === 2) {
+      drawLabel(canvasRef.current, 0.3);
+    }
+  }, [drawLabel, step, labelText, subtitle, tpl]);
+
+  useEffect(() => {
+    if (modalCanvasRef.current && showPreviewModal) {
+      drawLabel(modalCanvasRef.current, 0.65);
+    }
+  }, [drawLabel, showPreviewModal]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -575,64 +672,15 @@ function LabelConstructor() {
               >
                 ✕ Закрыть
               </button>
-              <div
-                className="relative flex flex-col items-center justify-center text-center"
+              <canvas
+                ref={modalCanvasRef}
+                className="rounded-xl"
                 style={{
-                  width: sz.round ? "70vmin" : "min(70vw, 70vh * 0.75)",
-                  height: sz.round ? "70vmin" : "min(70vh, 70vw * 1.33)",
-                  background: tpl.image ? "#000" : tpl.bg,
-                  border: tpl.border,
-                  borderRadius: sz.round ? "50%" : 8,
+                  maxWidth: "70vw",
+                  maxHeight: "70vh",
                   boxShadow: "0 8px 48px rgba(0,0,0,0.5)",
-                  padding: "5%",
-                  overflow: "hidden",
                 }}
-              >
-                {tpl.image && (
-                  <img src={tpl.image} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
-                )}
-                <div className="relative" style={{ zIndex: 1, textShadow: tpl.image ? "0 1px 4px rgba(0,0,0,0.7)" : "none" }}>
-                  <div
-                    className="font-bold leading-tight"
-                    style={{
-                      color: tpl.image ? "#fff" : tpl.accent,
-                      fontFamily: getFontFamily(tpl.family),
-                      fontSize: "clamp(20px, 5vh, 48px)",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {labelText || "Название"}
-                  </div>
-                  {subtitle && (
-                    <div
-                      className="mt-2"
-                      style={{
-                        color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
-                        fontFamily: "var(--font-body)",
-                        fontSize: "clamp(12px, 3vh, 28px)",
-                        opacity: 0.85,
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {subtitle}
-                    </div>
-                  )}
-                </div>
-                {qrDataUrl && (
-                  <img
-                    src={qrDataUrl}
-                    alt="QR"
-                    className="absolute rounded"
-                    style={{
-                      width: Math.round(prevH * 2.5 * 0.22),
-                      height: Math.round(prevH * 2.5 * 0.22),
-                      bottom: 12,
-                      right: 12,
-                      zIndex: 2,
-                    }}
-                  />
-                )}
-              </div>
+              />
             </div>
           </div>
         )}
@@ -719,75 +767,17 @@ function LabelConstructor() {
             <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               Нажмите на этикетку для увеличения
             </p>
-            <div
-              className="relative flex flex-col items-center justify-center text-center transition-all cursor-zoom-in hover:scale-[1.02]"
+            <canvas
+              ref={canvasRef}
               onClick={() => setShowPreviewModal(true)}
+              className="cursor-zoom-in hover:scale-[1.02] transition-transform rounded-lg"
               style={{
-                width: sz.round ? Math.min(prevW * 2.2, 320) : Math.min(prevW * 2.2, 380),
-                height: sz.round ? Math.min(prevH * 2.2, 320) : Math.min(prevH * 2.2, 480),
-                background: tpl.image ? "#000" : tpl.bg,
-                border: tpl.border,
-                borderRadius: sz.round ? "50%" : 8,
                 boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-                padding: 16,
-                overflow: "hidden",
+                maxWidth: "100%",
+                maxHeight: 480,
+                objectFit: "contain",
               }}
-            >
-              {tpl.image && (
-                <img
-                  src={tpl.image}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ zIndex: 0 }}
-                />
-              )}
-              <div className="relative" style={{ zIndex: 1, textShadow: tpl.image ? "0 1px 4px rgba(0,0,0,0.7)" : "none" }}>
-                <div
-                  className="font-bold leading-tight"
-                  style={{
-                    color: tpl.image ? "#fff" : tpl.accent,
-                    fontFamily: getFontFamily(tpl.family),
-                    fontSize: Math.max(14, Math.round(prevH * 2.2 * 0.12)),
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {labelText || "Название"}
-                </div>
-                {subtitle && (
-                  <div
-                    className="mt-1"
-                    style={{
-                      color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
-                      fontFamily: "var(--font-body)",
-                      fontSize: Math.max(10, Math.round(prevH * 2.2 * 0.07)),
-                      opacity: 0.85,
-                      wordBreak: "break-word",
-                      textShadow: tpl.image ? "0 1px 3px rgba(0,0,0,0.7)" : "none",
-                    }}
-                  >
-                    {subtitle}
-                  </div>
-                )}
-              </div>
-
-              {/* QR code on label */}
-              {qrDataUrl && (
-                <img
-                  src={qrDataUrl}
-                  alt="QR"
-                  className="absolute rounded"
-                  style={{
-                    width: Math.max(20, Math.round(prevH * 0.22)),
-                    height: Math.max(20, Math.round(prevH * 0.22)),
-                    bottom: 4,
-                    right: 4,
-                    zIndex: 2,
-                    border: "1px solid rgba(255,255,255,0.5)",
-                    background: "#fff",
-                  }}
-                />
-              )}
-            </div>
+            />
           </div>
         </div>
       </div>
