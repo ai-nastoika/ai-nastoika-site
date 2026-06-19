@@ -578,15 +578,13 @@ function LabelConstructor() {
               <div
                 className="relative flex flex-col items-center justify-center text-center"
                 style={{
-                  width: Math.round(prevW * 2.5),
-                  height: Math.round(prevH * 2.5),
-                  maxWidth: "90vw",
-                  maxHeight: "85vh",
+                  width: sz.round ? "70vmin" : "min(70vw, 70vh * 0.75)",
+                  height: sz.round ? "70vmin" : "min(70vh, 70vw * 1.33)",
                   background: tpl.image ? "#000" : tpl.bg,
                   border: tpl.border,
                   borderRadius: sz.round ? "50%" : 8,
                   boxShadow: "0 8px 48px rgba(0,0,0,0.5)",
-                  padding: 16,
+                  padding: "5%",
                   overflow: "hidden",
                 }}
               >
@@ -599,7 +597,7 @@ function LabelConstructor() {
                     style={{
                       color: tpl.image ? "#fff" : tpl.accent,
                       fontFamily: getFontFamily(tpl.family),
-                      fontSize: Math.max(20, Math.round(prevH * 2.5 * 0.12)),
+                      fontSize: "clamp(20px, 5vh, 48px)",
                       wordBreak: "break-word",
                     }}
                   >
@@ -611,7 +609,7 @@ function LabelConstructor() {
                       style={{
                         color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
                         fontFamily: "var(--font-body)",
-                        fontSize: Math.max(12, Math.round(prevH * 2.5 * 0.07)),
+                        fontSize: "clamp(12px, 3vh, 28px)",
                         opacity: 0.85,
                         wordBreak: "break-word",
                       }}
