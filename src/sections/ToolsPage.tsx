@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
 import {
@@ -470,7 +471,27 @@ function LabelConstructor() {
     } catch { /* ignore */ }
   }, []);
 
-  const tpl = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  // Шаблоны из БД (добавляются к захардкоженным)
+  const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
+  const allTemplates = [
+    ...TEMPLATES,
+    ...(dbTemplates ?? [])
+      .filter(t => t.isActive === 1)
+      .filter(t => !TEMPLATES.some(st => st.id === t.id)) // не дублировать
+      .map(t => ({
+        id: t.id + 1000, // смещаем чтобы не конфликтовать с захардкоженными
+        name: t.name,
+        family: t.fontFamily ?? "serif",
+        border: t.border ?? "2px solid #8B4513",
+        bg: t.bg ?? "var(--bg-card)",
+        decor: "none",
+        accent: t.accent ?? "#8B4513",
+        image: t.image ?? null,
+        zones: t.zones ?? null,
+      })),
+  ];
+
+  const tpl = allTemplates.find((t) => t.id === templateId) ?? allTemplates[0];
   const sz = LABEL_SIZES[sizeIdx];
 
   const scale = Math.min(1, 200 / sz.w);
@@ -490,7 +511,7 @@ function LabelConstructor() {
           Выберите шаблон из коллекции. Затем вы сможете вписать своё название и подпись.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-          {TEMPLATES.map((t) => (
+          {allTemplates.map((t) => (
             <button
               key={t.id}
               onClick={() => { setTemplateId(t.id); setStep(2); }}
