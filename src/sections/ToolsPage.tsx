@@ -477,13 +477,12 @@ function LabelConstructor() {
     ...TEMPLATES,
     ...(dbTemplates ?? [])
       .filter(t => t.isActive === 1)
-      .filter(t => !TEMPLATES.some(st => st.id === t.id)) // не дублировать
       .map(t => ({
-        id: t.id + 1000, // смещаем чтобы не конфликтовать с захардкоженными
+        id: t.id + 1000,
         name: t.name,
         family: t.fontFamily ?? "serif",
         border: t.border ?? "2px solid #8B4513",
-        bg: t.bg ?? "var(--bg-card)",
+        bg: t.bg ?? "linear-gradient(135deg,#faf6f0,#f5efe6)",
         decor: "none",
         accent: t.accent ?? "#8B4513",
         image: t.image ?? null,
