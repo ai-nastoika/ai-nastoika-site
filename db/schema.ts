@@ -163,6 +163,7 @@ export const labelTemplates = mysqlTable("label_templates", {
   border: varchar("border", { length: 255 }),
   accent: varchar("accent", { length: 20 }).notNull().default("#8B4513"),
   fontFamily: varchar("font_family", { length: 20 }).notNull().default("serif"),
+  zones: json("zones"),
   sortOrder: int("sort_order").notNull().default(0),
   isActive: int("is_active").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -48,18 +48,28 @@ const EMPTY_PLACE = {
 };
 
 const CATEGORIES = [
-  { value: "sweet", label: "🍒 Сладкая" },
-  { value: "bitter", label: "🌿 Горькая" },
-  { value: "herbal", label: "🌱 Травяная" },
-  { value: "spicy", label: "🌶️ Острая" },
-  { value: "citrus", label: "🍋 Цитрусовая" },
-  { value: "coffee", label: "☕ Кофейная" },
-  { value: "honey", label: "🍯 Медовая" },
+  { value: "berry",     label: "🫐 Ягодная"      },
+  { value: "fruit",     label: "🍎 Фруктовая"    },
+  { value: "citrus",    label: "🍋 Цитрусовая"   },
+  { value: "herbal",    label: "🌿 Травяная"     },
+  { value: "spiced",    label: "🌶️ Пряная"       },
+  { value: "bitter",    label: "🌱 Горькая"      },
+  { value: "sweet",     label: "🍒 Сладкая"      },
+  { value: "honey",     label: "🍯 Медовая"      },
+  { value: "coffee",    label: "☕ Кофейная"     },
+  { value: "floral",    label: "🌸 Цветочная"    },
+  { value: "nut",       label: "🌰 Ореховая"     },
+  { value: "root",      label: "🫚 Корневая"     },
+  { value: "chocolate", label: "🍫 Шоколадная"   },
+  { value: "vegetable", label: "🥬 Овощная"      },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  sweet: "Сладкая", bitter: "Горькая", herbal: "Травяная",
-  spicy: "Острая", citrus: "Цитрусовая", coffee: "Кофейная", honey: "Медовая",
+  berry: "Ягодная", fruit: "Фруктовая", citrus: "Цитрусовая",
+  herbal: "Травяная", spiced: "Пряная", bitter: "Горькая",
+  sweet: "Сладкая", honey: "Медовая", coffee: "Кофейная",
+  floral: "Цветочная", nut: "Ореховая", root: "Корневая",
+  chocolate: "Шоколадная", vegetable: "Овощная",
 };
 
 const DIFFICULTIES = ["Легко", "Средне", "Сложно"];
@@ -1624,7 +1634,7 @@ function LabelTemplatesAdmin() {
   const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
 
   const upsert = trpc.labelTemplate.upsert.useMutation({
-    onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); },
+    onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); setView("list"); },
   });
   const del = trpc.labelTemplate.delete.useMutation({
     onSuccess: () => utils.labelTemplate.list.invalidate(),
@@ -1634,19 +1644,51 @@ function LabelTemplatesAdmin() {
   });
 
   const [editId, setEditId] = useState<number | null>(null);
+  const [view, setView] = useState<"list" | "form">("list");
   const [name, setName] = useState("");
   const [image, setImage] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const labelFileRef = useRef<HTMLInputElement>(null);
   const [bg, setBg] = useState("");
   const [border, setBorder] = useState("");
   const [accent, setAccent] = useState("#8B4513");
   const [fontFamily, setFontFamily] = useState("serif");
+  const [zones, setZones] = useState(`[
+  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
+  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
+  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
+]`);
+  const [zonesError, setZonesError] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
   const [isActive, setIsActive] = useState(1);
+
+  async function handleLabelUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-label", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.path) setImage(data.path);
+    } catch {
+      alert("Ошибка загрузки файла");
+    } finally {
+      setImageUploading(false);
+    }
+  }
 
   function resetForm() {
     setEditId(null);
     setName(""); setImage(""); setBg(""); setBorder("");
     setAccent("#8B4513"); setFontFamily("serif");
+    setZones(`[
+  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
+  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
+  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
+]`);
+    setZonesError("");
     setSortOrder(0); setIsActive(1);
   }
 
@@ -1654,14 +1696,26 @@ function LabelTemplatesAdmin() {
     setEditId(t.id);
     setName(t.name); setImage(t.image ?? ""); setBg(t.bg ?? "");
     setBorder(t.border ?? ""); setAccent(t.accent); setFontFamily(t.fontFamily);
+    setZones(t.zones ? JSON.stringify(t.zones, null, 2) : "[]");
+    setZonesError("");
     setSortOrder(t.sortOrder); setIsActive(t.isActive);
+    setView("form");
   }
 
   function handleSave() {
+    let parsedZones: unknown = null;
+    try {
+      parsedZones = zones.trim() ? JSON.parse(zones) : null;
+      setZonesError("");
+    } catch {
+      setZonesError("Ошибка в JSON — проверьте синтаксис");
+      return;
+    }
     upsert.mutate({
       id: editId ?? undefined,
       name, image: image || undefined, bg: bg || undefined,
       border: border || undefined, accent, fontFamily,
+      zones: parsedZones,
       sortOrder, isActive,
     });
   }
@@ -1669,13 +1723,24 @@ function LabelTemplatesAdmin() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Шаблоны этикеток ({templates?.length ?? 0})</CardTitle>
-        <Button size="sm" onClick={() => { resetForm(); }}>
-          + Добавить шаблон
-        </Button>
+        <CardTitle>
+          {view === "list"
+            ? `Шаблоны этикеток (${templates?.length ?? 0})`
+            : editId ? "Редактировать шаблон" : "Новый шаблон"}
+        </CardTitle>
+        {view === "list" ? (
+          <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>
+            + Добавить шаблон
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>
+            ← Назад к списку
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Edit form */}
+        {view === "form" && (
         <div className="p-4 rounded-xl space-y-3" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
           <h4 className="text-sm font-bold" style={{ color: "var(--accent)" }}>
             {editId ? "Редактировать шаблон" : "Новый шаблон"}
@@ -1686,8 +1751,14 @@ function LabelTemplatesAdmin() {
               <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs">Изображение (путь)</Label>
-              <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="/labels/template-01.jpg" className="mt-1" />
+              <Label className="text-xs">Изображение шаблона</Label>
+              <div className="flex gap-2 mt-1">
+                <Input value={image} onChange={(e) => setImage(e.target.value)} placeholder="/labels/template-01.jpg" className="flex-1" />
+                <input ref={labelFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLabelUpload} />
+                <Button size="sm" variant="outline" onClick={() => labelFileRef.current?.click()} disabled={imageUploading} type="button">
+                  {imageUploading ? "..." : "📁 Загрузить"}
+                </Button>
+              </div>
             </div>
             <div>
               <Label className="text-xs">CSS фон (bg)</Label>
@@ -1727,6 +1798,26 @@ function LabelTemplatesAdmin() {
             </div>
           </div>
 
+          {/* Zones JSON */}
+          <div>
+            <Label className="text-xs">
+              Зоны текста (JSON) — координаты полей «Название», «Дата», «Крепость»
+            </Label>
+            <Textarea
+              value={zones}
+              onChange={(e) => { setZones(e.target.value); setZonesError(""); }}
+              className="mt-1 font-mono text-xs"
+              rows={8}
+              placeholder='[{"id":"title","x":450,"y":820,"w":620,"h":60,"fontSize":28,"align":"center"},...]'
+            />
+            {zonesError && (
+              <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{zonesError}</p>
+            )}
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              x/y — центр зоны (пиксели PNG), w — ширина, fontSize — размер шрифта, align — left/center/right. id: title = название, date = дата, strength = крепость
+            </p>
+          </div>
+
           {/* Mini preview */}
           {(image || bg) && (
             <div className="flex items-center gap-3">
@@ -1745,13 +1836,14 @@ function LabelTemplatesAdmin() {
               {upsert.isPending ? "Сохраняю..." : "Сохранить"}
             </Button>
             {editId && (
-              <Button size="sm" variant="outline" onClick={resetForm}>Отмена</Button>
+              <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>Отмена</Button>
             )}
           </div>
         </div>
+        )}
 
         {/* Table */}
-        {isLoading ? <p>Загрузка...</p> : !templates?.length ? (
+        {view === "list" && (isLoading ? <p>Загрузка...</p> : !templates?.length ? (
           <p className="text-muted-foreground">Нет шаблонов</p>
         ) : (
           <Table>
@@ -1802,7 +1894,7 @@ function LabelTemplatesAdmin() {
               ))}
             </TableBody>
           </Table>
-        )}
+        ))}
       </CardContent>
     </Card>
   );

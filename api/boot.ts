@@ -17,6 +17,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Папка для шаблонов этикеток
+const labelsDir = path.resolve(__dirname, "..", "uploads", "labels");
+if (!fs.existsSync(labelsDir)) {
+  fs.mkdirSync(labelsDir, { recursive: true });
+}
+
 const app = new Hono();
 
 app.use(cors({
@@ -61,6 +67,36 @@ app.post("/api/upload-image", async (c) => {
     return c.json({ success: true, path: publicPath });
   } catch (err) {
     console.error("Upload error:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── Label template upload endpoint ───
+app.post("/api/upload-label", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "Only jpg, png, webp allowed" }, 400);
+    }
+    const maxSize = 10 * 1024 * 1024; // 10MB для этикеток
+    if (file.size > maxSize) {
+      return c.json({ error: "File too large (max 10MB)" }, 400);
+    }
+    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+    const hash = crypto.randomBytes(8).toString("hex");
+    const fileName = `label-${hash}${ext}`;
+    const filePath = path.join(labelsDir, fileName);
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const publicPath = `/uploads/labels/${fileName}`;
+    return c.json({ success: true, path: publicPath });
+  } catch (err) {
+    console.error("Label upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
   }
 });
