@@ -455,6 +455,7 @@ function LabelConstructor() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
+  const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -495,14 +496,14 @@ function LabelConstructor() {
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -605,6 +606,27 @@ function LabelConstructor() {
   // Find image zone dimensions
   const imgZone = ((tpl as any).zones as any[] | null)?.find((z: any) => z.id === "image");
 
+  function applyShapeClip(zx: number, zy: number, zw: number, zh: number) {
+    ctx.beginPath();
+    if (imageShape === "circle") {
+      const r = Math.min(zw, zh) / 2;
+      ctx.arc(zx + zw / 2, zy + zh / 2, r, 0, Math.PI * 2);
+    } else if (imageShape === "oval") {
+      ctx.ellipse(zx + zw / 2, zy + zh / 2, zw / 2, zh / 2, 0, 0, Math.PI * 2);
+    } else if (imageShape === "rounded") {
+      const r = Math.min(zw, zh) * 0.12;
+      ctx.moveTo(zx + r, zy);
+      ctx.arcTo(zx + zw, zy, zx + zw, zy + zh, r);
+      ctx.arcTo(zx + zw, zy + zh, zx, zy + zh, r);
+      ctx.arcTo(zx, zy + zh, zx, zy, r);
+      ctx.arcTo(zx, zy, zx + zw, zy, r);
+      ctx.closePath();
+    } else {
+      ctx.rect(zx, zy, zw, zh);
+    }
+    ctx.clip();
+  }
+
   function drawUserImage(preloaded: HTMLImageElement | null) {
     if (!imgZone) return;
     const zx = Math.round(imgZone.x * sc);
@@ -612,12 +634,15 @@ function LabelConstructor() {
     const zw = Math.round(imgZone.w * sc);
     const zh = Math.round(imgZone.h * sc);
     if (preloaded) {
+      ctx.save();
+      applyShapeClip(zx, zy, zw, zh);
       const ratio = Math.min(zw / preloaded.width, zh / preloaded.height);
       const dw = Math.round(preloaded.width * ratio);
       const dh = Math.round(preloaded.height * ratio);
       const dx = zx + Math.round((zw - dw) / 2);
       const dy = zy + Math.round((zh - dh) / 2);
       ctx.drawImage(preloaded, dx, dy, dw, dh);
+      ctx.restore();
     } else {
       ctx.save();
       ctx.strokeStyle = tpl.accent || "#8B4513";
@@ -823,6 +848,21 @@ function LabelConstructor() {
                       ✕
                     </button>
                   )}
+                </div>
+                {/* Shape selector */}
+                <div className="flex gap-2 mt-2">
+                  {([
+                    { id: "rect",    label: "⬛ Квадрат"  },
+                    { id: "rounded", label: "▢ Скруглён"  },
+                    { id: "oval",    label: "⬭ Овал"      },
+                    { id: "circle",  label: "⬤ Круг"      },
+                  ] as const).map(s => (
+                    <button key={s.id} onClick={() => setImageShape(s.id)}
+                      className="flex-1 text-xs py-1.5 rounded-lg transition-all"
+                      style={{ background: imageShape === s.id ? "var(--accent)" : "var(--bg-secondary)", color: imageShape === s.id ? "#fff" : "var(--text-secondary)", fontFamily: "var(--font-body)", border: "none" }}>
+                      {s.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
