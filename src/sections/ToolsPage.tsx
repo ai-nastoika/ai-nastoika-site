@@ -454,8 +454,40 @@ function LabelConstructor() {
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [userImage, setUserImage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Paste image from clipboard
+  useEffect(() => {
+    if (step !== 2) return;
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = (ev) => setUserImage(ev.target?.result as string);
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    }
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [step]);
+
+  // Load image from file input
+  function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setUserImage(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
 
   // Draw on canvas when data changes
   useEffect(() => {
@@ -463,14 +495,14 @@ function LabelConstructor() {
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -726,6 +758,30 @@ function LabelConstructor() {
                 />
               </div>
             </div>
+
+            {/* Image upload */}
+            {(tpl as any).zones?.some((z: any) => z.id === "image") && (
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Фото / иллюстрация
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+                  <button
+                    onClick={() => imageInputRef.current?.click()}
+                    className="flex-1 rounded-lg px-4 py-2.5 text-sm text-left transition-all"
+                    style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+                  >
+                    {userImage ? "✓ Фото загружено" : "📁 Выбрать файл или Ctrl+V"}
+                  </button>
+                  {userImage && (
+                    <button onClick={() => setUserImage(null)} className="text-sm px-3 py-2 rounded-lg" style={{ color: "var(--text-muted)", background: "var(--bg-secondary)" }}>
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Size selector */}
             <div>
