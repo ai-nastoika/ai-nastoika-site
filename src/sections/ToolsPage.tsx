@@ -448,7 +448,8 @@ function LabelConstructor() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
   const [labelText, setLabelText] = useState("");
-  const [subtitle, setSubtitle] = useState("");
+  const [labelDate, setLabelDate] = useState("");
+  const [labelStrength, setLabelStrength] = useState("");
   const [sizeIdx, setSizeIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -462,14 +463,14 @@ function LabelConstructor() {
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, subtitle, templateId, sizeIdx]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, subtitle, templateId]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -478,7 +479,7 @@ function LabelConstructor() {
       if (raw) {
         const data = JSON.parse(raw) as { title: string; slug: string };
         setLabelText(data.title);
-        setSubtitle("Сканируй для рецепта");
+        setLabelDate(""); setLabelStrength("");
         QRCode.toDataURL(`${window.location.origin}/#/recipe/${data.slug}`, {
           width: 120,
           margin: 1,
@@ -538,8 +539,8 @@ function LabelConstructor() {
           ctx.textAlign = (zone.align as CanvasTextAlign) || "center";
           ctx.textBaseline = "middle";
           const text = zone.id === "title" ? (labelText || "")
-            : zone.id === "date" ? (subtitle?.split("·")[0]?.trim() || "")
-            : zone.id === "strength" ? (subtitle?.split("·")[1]?.trim() || "")
+            : zone.id === "date" ? labelDate
+            : zone.id === "strength" ? labelStrength
             : "";
           if (text) {
             const tx = zone.align === "center" ? zx + zw / 2 : zone.align === "right" ? zx + zw : zx;
@@ -562,9 +563,9 @@ function LabelConstructor() {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(labelText || "", CW / 2, CH * 0.45, CW * 0.8);
-        if (subtitle) {
+        if (labelDate || labelStrength) {
           ctx.font = Math.round(28 * sc) + "px sans-serif";
-          ctx.fillText(subtitle, CW / 2, CH * 0.55, CW * 0.8);
+          ctx.fillText([labelDate, labelStrength].filter(Boolean).join(" · "), CW / 2, CH * 0.55, CW * 0.8);
         }
       }
     }
@@ -697,18 +698,33 @@ function LabelConstructor() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Подпись / описание
-              </label>
-              <input
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                placeholder="Например: Домашний рецепт · 2025 · 25%"
-                className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
-                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Дата
+                </label>
+                <input
+                  type="text"
+                  value={labelDate}
+                  onChange={(e) => setLabelDate(e.target.value)}
+                  placeholder="Например: 2025"
+                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Крепость
+                </label>
+                <input
+                  type="text"
+                  value={labelStrength}
+                  onChange={(e) => setLabelStrength(e.target.value)}
+                  placeholder="Например: 40"
+                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                />
+              </div>
             </div>
 
             {/* Size selector */}
