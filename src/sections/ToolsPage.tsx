@@ -602,17 +602,61 @@ function LabelConstructor() {
       }
     }
 
+  // Find image zone dimensions
+  const imgZone = ((tpl as any).zones as any[] | null)?.find((z: any) => z.id === "image");
+
+  function drawUserImage(preloaded: HTMLImageElement | null) {
+    if (!imgZone) return;
+    const zx = Math.round(imgZone.x * sc);
+    const zy = Math.round(imgZone.y * sc);
+    const zw = Math.round(imgZone.w * sc);
+    const zh = Math.round(imgZone.h * sc);
+    if (preloaded) {
+      const ratio = Math.min(zw / preloaded.width, zh / preloaded.height);
+      const dw = Math.round(preloaded.width * ratio);
+      const dh = Math.round(preloaded.height * ratio);
+      const dx = zx + Math.round((zw - dw) / 2);
+      const dy = zy + Math.round((zh - dh) / 2);
+      ctx.drawImage(preloaded, dx, dy, dw, dh);
+    } else {
+      ctx.save();
+      ctx.strokeStyle = tpl.accent || "#8B4513";
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(zx + 2, zy + 2, zw - 4, zh - 4);
+      ctx.restore();
+      ctx.font = Math.round(20 * sc) + "px sans-serif";
+      ctx.fillStyle = tpl.accent || "#8B4513";
+      ctx.globalAlpha = 0.35;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Вставьте фото (Ctrl+V)", zx + zw / 2, zy + zh / 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function doRender(preloadedUser: HTMLImageElement | null) {
     if (tpl.image) {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => { ctx.drawImage(img, 0, 0, CW, CH); drawZones(); };
-      img.onerror = () => { ctx.fillStyle = tpl.bg || "#faf6f0"; ctx.fillRect(0, 0, CW, CH); drawZones(); };
+      img.onload = () => { ctx.drawImage(img, 0, 0, CW, CH); drawUserImage(preloadedUser); drawZones(); };
+      img.onerror = () => { ctx.fillStyle = tpl.bg || "#faf6f0"; ctx.fillRect(0, 0, CW, CH); drawUserImage(preloadedUser); drawZones(); };
       img.src = tpl.image;
     } else {
       ctx.fillStyle = tpl.bg || "#faf6f0";
       ctx.fillRect(0, 0, CW, CH);
+      drawUserImage(preloadedUser);
       drawZones();
     }
+  }
+
+  if (userImage) {
+    const uImg = new Image();
+    uImg.onload = () => doRender(uImg);
+    uImg.src = userImage;
+  } else {
+    doRender(null);
+  }
   }
 
   function handlePrint() {
