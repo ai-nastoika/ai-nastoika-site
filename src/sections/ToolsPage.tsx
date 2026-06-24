@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { trpc } from "@/providers/trpc";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
 import {
@@ -447,10 +448,29 @@ function LabelConstructor() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
   const [labelText, setLabelText] = useState("");
-  const [subtitle, setSubtitle] = useState("");
+  const [labelDate, setLabelDate] = useState("");
+  const [labelStrength, setLabelStrength] = useState("");
   const [sizeIdx, setSizeIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const modalCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Draw on canvas when data changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || step !== 2) return;
+    paintCanvas(canvas, 0.3);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx]);
+
+  useEffect(() => {
+    const canvas = modalCanvasRef.current;
+    if (!canvas || !showPreviewModal) return;
+    paintCanvas(canvas, 0.65);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -459,7 +479,7 @@ function LabelConstructor() {
       if (raw) {
         const data = JSON.parse(raw) as { title: string; slug: string };
         setLabelText(data.title);
-        setSubtitle("Сканируй для рецепта");
+        setLabelDate(""); setLabelStrength("");
         QRCode.toDataURL(`${window.location.origin}/#/recipe/${data.slug}`, {
           width: 120,
           margin: 1,
@@ -470,12 +490,98 @@ function LabelConstructor() {
     } catch { /* ignore */ }
   }, []);
 
-  const tpl = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  // Шаблоны из БД (добавляются к захардкоженным)
+  const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
+  const allTemplates = [
+    ...TEMPLATES,
+    ...(dbTemplates ?? [])
+      .filter(t => t.isActive === 1)
+      .map(t => ({
+        id: t.id + 1000,
+        name: t.name,
+        family: t.fontFamily ?? "serif",
+        border: t.border ?? "2px solid #8B4513",
+        bg: t.bg ?? "linear-gradient(135deg,#faf6f0,#f5efe6)",
+        decor: "none",
+        accent: t.accent ?? "#8B4513",
+        image: t.image ?? null,
+        zones: t.zones ?? null,
+      })),
+  ];
+
+  const tpl = allTemplates.find((t) => t.id === templateId) ?? allTemplates[0];
   const sz = LABEL_SIZES[sizeIdx];
 
-  const scale = Math.min(1, 200 / sz.w);
+  const scale = Math.min(1, 340 / Math.max(sz.w, sz.h));
   const prevW = Math.round(sz.w * scale);
   const prevH = Math.round(sz.h * scale);
+
+  function paintCanvas(canvas: HTMLCanvasElement, sc: number) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const CW = Math.round(1086 * sc);
+    const CH = Math.round(1448 * sc);
+    canvas.width = CW;
+    canvas.height = CH;
+    ctx.clearRect(0, 0, CW, CH);
+
+    function drawZones() {
+      const zones = (tpl as any).zones as Array<{id: string, x: number, y: number, w: number, h: number, fontSize: number, align: string}> | null;
+      if (zones && zones.length > 0) {
+        zones.forEach(zone => {
+          const zx = Math.round(zone.x * sc);
+          const zy = Math.round(zone.y * sc);
+          const zw = Math.round(zone.w * sc);
+          const fs = Math.round(zone.fontSize * sc);
+          const zh = Math.round(zone.h * sc);
+          ctx.font = "bold " + fs + "px serif";
+          ctx.fillStyle = tpl.accent || "#8B4513";
+          ctx.textAlign = (zone.align as CanvasTextAlign) || "center";
+          ctx.textBaseline = "middle";
+          const text = zone.id === "title" ? (labelText || "")
+            : zone.id === "date" ? labelDate
+            : zone.id === "strength" ? labelStrength
+            : "";
+          if (text) {
+            const tx = zone.align === "center" ? zx + zw / 2 : zone.align === "right" ? zx + zw : zx;
+            const words = text.split(" ");
+            let line = "";
+            const lines: string[] = [];
+            words.forEach(word => {
+              const test = line + word + " ";
+              if (ctx.measureText(test).width > zw && line) { lines.push(line.trim()); line = word + " "; }
+              else { line = test; }
+            });
+            lines.push(line.trim());
+            let lineY = zy + (zh - lines.length * fs * 1.3) / 2 + fs * 0.7;
+            lines.forEach(l => { ctx.fillText(l, tx, lineY, zw); lineY += fs * 1.3; });
+          }
+        });
+      } else {
+        ctx.font = "bold " + Math.round(48 * sc) + "px serif";
+        ctx.fillStyle = tpl.accent || "#8B4513";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(labelText || "", CW / 2, CH * 0.45, CW * 0.8);
+        if (labelDate || labelStrength) {
+          ctx.font = Math.round(28 * sc) + "px sans-serif";
+          ctx.fillText([labelDate, labelStrength].filter(Boolean).join(" · "), CW / 2, CH * 0.55, CW * 0.8);
+        }
+      }
+    }
+
+    if (tpl.image) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => { ctx.drawImage(img, 0, 0, CW, CH); drawZones(); };
+      img.onerror = () => { ctx.fillStyle = tpl.bg || "#faf6f0"; ctx.fillRect(0, 0, CW, CH); drawZones(); };
+      img.src = tpl.image;
+    } else {
+      ctx.fillStyle = tpl.bg || "#faf6f0";
+      ctx.fillRect(0, 0, CW, CH);
+      drawZones();
+    }
+  }
 
   function handlePrint() {
     setQuantity(1);
@@ -490,7 +596,7 @@ function LabelConstructor() {
           Выберите шаблон из коллекции. Затем вы сможете вписать своё название и подпись.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-          {TEMPLATES.map((t) => (
+          {allTemplates.map((t) => (
             <button
               key={t.id}
               onClick={() => { setTemplateId(t.id); setStep(2); }}
@@ -539,15 +645,43 @@ function LabelConstructor() {
   if (step === 2) {
     return (
       <div>
+        {/* Full-screen preview modal */}
+        {showPreviewModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.85)" }}
+            onClick={() => setShowPreviewModal(false)}
+          >
+            <div className="relative" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="absolute -top-10 right-0 text-white text-sm opacity-70 hover:opacity-100"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                ✕ Закрыть
+              </button>
+              <canvas
+                ref={modalCanvasRef}
+                className="rounded-xl"
+                style={{
+                  maxWidth: "70vw",
+                  maxHeight: "70vh",
+                  boxShadow: "0 8px 48px rgba(0,0,0,0.5)",
+                }}
+              />
+            </div>
+          </div>
+        )}
         <button
           onClick={() => setStep(1)}
-          className="text-sm mb-4 transition-opacity hover:opacity-70"
-          style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+          className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
+          style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
         >
-          ← Назад к шаблонам
+          <ArrowLeft size={16} />
+          Назад к шаблонам
         </button>
 
-        <div className="grid sm:grid-cols-2 gap-6">
+        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 2fr" }}>
           {/* Controls */}
           <div className="space-y-4">
             <div>
@@ -564,18 +698,33 @@ function LabelConstructor() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Подпись / описание
-              </label>
-              <input
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                placeholder="Например: Домашний рецепт · 2025 · 25%"
-                className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
-                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Дата
+                </label>
+                <input
+                  type="text"
+                  value={labelDate}
+                  onChange={(e) => setLabelDate(e.target.value)}
+                  placeholder="Например: 2025"
+                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Крепость
+                </label>
+                <input
+                  type="text"
+                  value={labelStrength}
+                  onChange={(e) => setLabelStrength(e.target.value)}
+                  placeholder="Например: 40"
+                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                />
+              </div>
             </div>
 
             {/* Size selector */}
@@ -617,75 +766,21 @@ function LabelConstructor() {
           </div>
 
           {/* Preview */}
-          <div className="flex items-center justify-center" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 16 }}>
-            <div
-              className="relative flex flex-col items-center justify-center text-center transition-all"
+          <div className="flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 24, minHeight: 400 }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Нажмите на этикетку для увеличения
+            </p>
+            <canvas
+              ref={canvasRef}
+              onClick={() => setShowPreviewModal(true)}
+              className="cursor-zoom-in hover:scale-[1.02] transition-transform rounded-lg"
               style={{
-                width: prevW,
-                height: prevH,
-                background: tpl.image ? "#000" : tpl.bg,
-                border: tpl.border,
-                borderRadius: sz.round ? "50%" : 4,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                padding: 8,
-                overflow: "hidden",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                maxWidth: "100%",
+                maxHeight: 480,
+                objectFit: "contain",
               }}
-            >
-              {tpl.image && (
-                <img
-                  src={tpl.image}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{ zIndex: 0 }}
-                />
-              )}
-              <div className="relative" style={{ zIndex: 1, textShadow: tpl.image ? "0 1px 4px rgba(0,0,0,0.7)" : "none" }}>
-                <div
-                  className="font-bold leading-tight"
-                  style={{
-                    color: tpl.image ? "#fff" : tpl.accent,
-                    fontFamily: getFontFamily(tpl.family),
-                    fontSize: Math.max(10, Math.round(prevH * 0.15)),
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {labelText || "Название"}
-                </div>
-                {subtitle && (
-                  <div
-                    className="mt-1"
-                    style={{
-                      color: tpl.image ? "rgba(255,255,255,0.85)" : tpl.accent,
-                      fontFamily: "var(--font-body)",
-                      fontSize: Math.max(7, Math.round(prevH * 0.08)),
-                      opacity: 0.85,
-                      wordBreak: "break-word",
-                      textShadow: tpl.image ? "0 1px 3px rgba(0,0,0,0.7)" : "none",
-                    }}
-                  >
-                    {subtitle}
-                  </div>
-                )}
-              </div>
-
-              {/* QR code on label */}
-              {qrDataUrl && (
-                <img
-                  src={qrDataUrl}
-                  alt="QR"
-                  className="absolute rounded"
-                  style={{
-                    width: Math.max(20, Math.round(prevH * 0.22)),
-                    height: Math.max(20, Math.round(prevH * 0.22)),
-                    bottom: 4,
-                    right: 4,
-                    zIndex: 2,
-                    border: "1px solid rgba(255,255,255,0.5)",
-                    background: "#fff",
-                  }}
-                />
-              )}
-            </div>
+            />
           </div>
         </div>
       </div>
