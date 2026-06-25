@@ -1,21 +1,8 @@
-name: Deploy to server
-on:
-  push:
-    branches: [main]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            fuser -k 3000/tcp || true
-            cd /var/www/ai-nastoika-site
-            git pull origin main
-            npm ci
-            npm run build
-            pm2 restart /var/www/ai-nastoika-site/ecosystem.config.cjs --update-env
+script: |
+  systemctl stop pm2-deploy.service || true
+  fuser -k 3000/tcp || true
+  cd /var/www/ai-nastoika-site
+  git pull origin main
+  npm ci
+  npm run build
+  pm2 restart /var/www/ai-nastoika-site/ecosystem.config.cjs --update-env
