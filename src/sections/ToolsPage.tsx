@@ -470,6 +470,7 @@ function LabelConstructor() {
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEmptyWarning, setShowEmptyWarning] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
   const [showCropper, setShowCropper] = useState(false);
@@ -616,6 +617,11 @@ function LabelConstructor() {
     setUserImage(out.toDataURL("image/png"));
     setShowCropper(false);
   }
+
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   // Redraw cropper when params change
   useEffect(() => {
@@ -841,18 +847,27 @@ function LabelConstructor() {
     setStep(3);
   }
 
-  function handleDownload() {
-    // Create full-res canvas (1086x1448) and download as PNG
+  function doDownload() {
     const canvas = document.createElement("canvas");
     paintCanvas(canvas, 1.0);
-
-    // Wait for async image loads then download
     setTimeout(() => {
       const link = document.createElement("a");
       link.download = (labelText || "этикетка") + ".png";
       link.href = canvas.toDataURL("image/png");
       link.click();
     }, 500);
+  }
+
+  function handleDownload() {
+    const emptyFields = [];
+    if (!labelText.trim()) emptyFields.push("Название напитка");
+    if (!labelDate.trim()) emptyFields.push("Дата");
+    if (!labelStrength.trim()) emptyFields.push("Крепость");
+    if (emptyFields.length > 0) {
+      setShowEmptyWarning(true);
+    } else {
+      doDownload();
+    }
   }
 
   /* Step 1: Choose template */
@@ -912,6 +927,44 @@ function LabelConstructor() {
   if (step === 2) {
     return (
       <div>
+        {/* Empty fields warning modal */}
+        {showEmptyWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
+            <div className="rounded-2xl p-6 flex flex-col gap-4 max-w-sm w-full" style={{ background: "var(--bg-card)" }}>
+              <div className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Не все поля заполнены
+              </div>
+              <div className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                {[
+                  !labelText.trim() && "• Название напитка",
+                  !labelDate.trim() && "• Дата",
+                  !labelStrength.trim() && "• Крепость",
+                ].filter(Boolean).join("
+")}
+              </div>
+              <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Скачать пустую этикетку или вернуться и заполнить?
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowEmptyWarning(false); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+                >
+                  Заполнить
+                </button>
+                <button
+                  onClick={() => { setShowEmptyWarning(false); doDownload(); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+                >
+                  Скачать как есть
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Image Cropper Modal */}
         {showCropper && cropSrc && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
@@ -1115,8 +1168,7 @@ function LabelConstructor() {
             <div className="flex gap-3 flex-wrap">
               <button
                 onClick={handleDownload}
-                disabled={!labelText.trim()}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
                 style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
               >
                 <Download size={22} />
