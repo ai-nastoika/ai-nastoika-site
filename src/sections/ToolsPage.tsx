@@ -1218,7 +1218,7 @@ function LabelConstructor() {
               >
                 {labelText}
               </div>
-              {subtitle && (
+              {(labelDate || labelStrength) && (
                 <div
                   style={{
                     color: tpl.accent,
@@ -1229,7 +1229,7 @@ function LabelConstructor() {
                     wordBreak: "break-word",
                   }}
                 >
-                  {subtitle}
+                  {[labelDate, labelStrength].filter(Boolean).join(" · ")}
                 </div>
               )}
             </div>
