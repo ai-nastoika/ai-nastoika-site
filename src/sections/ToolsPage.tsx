@@ -908,7 +908,7 @@ function LabelConstructor() {
                 onMouseLeave={() => { cropDragRef.current = null; }}
                 onWheel={(e) => {
                   e.preventDefault();
-                  setCropScale(s => Math.max(0.1, Math.min(5, s - e.deltaY * 0.001)));
+                  setCropScale(s => Math.max(0.1, Math.min(5, s - e.deltaY * 0.0003)));
                 }}
               />
               <img ref={cropImgRef} src={cropSrc} style={{ display: "none" }}
