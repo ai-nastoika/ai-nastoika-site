@@ -499,6 +499,8 @@ function LabelConstructor() {
       setShowCropper(true);
     };
     reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = "";
   }
 
   // Paste — also open cropper
