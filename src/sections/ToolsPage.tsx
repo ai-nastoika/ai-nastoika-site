@@ -455,6 +455,13 @@ function LabelConstructor() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [cropScale, setCropScale] = useState(1);
+  const cropCanvasRef = useRef<HTMLCanvasElement>(null);
+  const cropImgRef = useRef<HTMLImageElement | null>(null);
+  const cropDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -470,7 +477,7 @@ function LabelConstructor() {
           const file = item.getAsFile();
           if (!file) continue;
           const reader = new FileReader();
-          reader.onload = (ev) => setUserImage(ev.target?.result as string);
+          reader.onload = (ev) => openCropperWithSrc(ev.target?.result as string);
           reader.readAsDataURL(file);
           break;
         }
@@ -480,14 +487,122 @@ function LabelConstructor() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [step]);
 
-  // Load image from file input
+  // Load image from file input — open cropper
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setUserImage(ev.target?.result as string);
+    reader.onload = (ev) => {
+      setCropSrc(ev.target?.result as string);
+      setCropOffset({ x: 0, y: 0 });
+      setCropScale(1);
+      setShowCropper(true);
+    };
     reader.readAsDataURL(file);
   }
+
+  // Paste — also open cropper
+  // (override paste handler to use cropper)
+
+  function openCropperWithSrc(src: string) {
+    setCropSrc(src);
+    setCropOffset({ x: 0, y: 0 });
+    setCropScale(1);
+    setShowCropper(true);
+  }
+
+  function drawCropper() {
+    const canvas = cropCanvasRef.current;
+    const img = cropImgRef.current;
+    if (!canvas || !img) return;
+    const S = 400; // crop canvas size
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, S, S);
+
+    // Draw checkerboard background
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillRect(0, 0, S, S);
+    for (let r = 0; r < S / 20; r++) for (let c = 0; c < S / 20; c++) {
+      if ((r + c) % 2 === 0) { ctx.fillStyle = "#f0f0f0"; ctx.fillRect(c*20, r*20, 20, 20); }
+    }
+
+    // Draw image with offset and scale
+    const iw = img.naturalWidth * cropScale;
+    const ih = img.naturalHeight * cropScale;
+    const ix = (S - iw) / 2 + cropOffset.x;
+    const iy = (S - ih) / 2 + cropOffset.y;
+    ctx.drawImage(img, ix, iy, iw, ih);
+
+    // Draw shape overlay (darken outside)
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, S, S);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    if (imageShape === "circle") {
+      ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI*2);
+    } else if (imageShape === "oval") {
+      ctx.ellipse(S/2, S/2, S/2 - 4, S/2 - 4, 0, 0, Math.PI*2);
+    } else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(4+r, 4); ctx.arcTo(S-4, 4, S-4, S-4, r);
+      ctx.arcTo(S-4, S-4, 4, S-4, r); ctx.arcTo(4, S-4, 4, 4, r);
+      ctx.arcTo(4, 4, S-4, 4, r); ctx.closePath();
+    } else {
+      ctx.rect(4, 4, S-8, S-8);
+    }
+    ctx.fill();
+    ctx.restore();
+
+    // Border
+    ctx.strokeStyle = "#8B4513";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2-4, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2-4, S/2-4, 0, 0, Math.PI*2);
+    else { ctx.rect(4, 4, S-8, S-8); }
+    ctx.stroke();
+  }
+
+  function applyCrop() {
+    const canvas = cropCanvasRef.current;
+    const img = cropImgRef.current;
+    if (!canvas || !img) return;
+    const S = 400;
+    const out = document.createElement("canvas");
+    out.width = S; out.height = S;
+    const ctx = out.getContext("2d")!;
+
+    // Clip shape
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2, S/2, 0, 0, Math.PI*2);
+    else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(r, 0); ctx.arcTo(S, 0, S, S, r); ctx.arcTo(S, S, 0, S, r);
+      ctx.arcTo(0, S, 0, 0, r); ctx.arcTo(0, 0, S, 0, r); ctx.closePath();
+    } else {
+      ctx.rect(0, 0, S, S);
+    }
+    ctx.clip();
+
+    const iw = img.naturalWidth * cropScale;
+    const ih = img.naturalHeight * cropScale;
+    const ix = (S - iw) / 2 + cropOffset.x;
+    const iy = (S - ih) / 2 + cropOffset.y;
+    ctx.drawImage(img, ix, iy, iw, ih);
+
+    setUserImage(out.toDataURL("image/png"));
+    setShowCropper(false);
+  }
+
+  // Redraw cropper when params change
+  useEffect(() => {
+    if (showCropper && cropImgRef.current?.complete) drawCropper();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropOffset, cropScale, imageShape, showCropper]);
 
   // Draw on canvas when data changes
   useEffect(() => {
@@ -764,6 +879,58 @@ function LabelConstructor() {
   if (step === 2) {
     return (
       <div>
+        {/* Image Cropper Modal */}
+        {showCropper && cropSrc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+            <div className="rounded-2xl p-6 flex flex-col items-center gap-4" style={{ background: "var(--bg-card)", maxWidth: 480, width: "100%" }}>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Настройте расположение фото
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Тяните фото мышью · Колёсико — масштаб
+              </div>
+              <canvas
+                ref={cropCanvasRef}
+                width={400} height={400}
+                style={{ borderRadius: 12, cursor: "grab", maxWidth: "100%", touchAction: "none" }}
+                onMouseDown={(e) => {
+                  cropDragRef.current = { startX: e.clientX, startY: e.clientY, ox: cropOffset.x, oy: cropOffset.y };
+                }}
+                onMouseMove={(e) => {
+                  if (!cropDragRef.current) return;
+                  const dx = e.clientX - cropDragRef.current.startX;
+                  const dy = e.clientY - cropDragRef.current.startY;
+                  setCropOffset({ x: cropDragRef.current.ox + dx, y: cropDragRef.current.oy + dy });
+                }}
+                onMouseUp={() => { cropDragRef.current = null; }}
+                onMouseLeave={() => { cropDragRef.current = null; }}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  setCropScale(s => Math.max(0.1, Math.min(5, s - e.deltaY * 0.001)));
+                }}
+              />
+              <img ref={cropImgRef} src={cropSrc} style={{ display: "none" }}
+                onLoad={() => {
+                  // Auto-fit
+                  const img = cropImgRef.current!;
+                  const S = 400;
+                  const fit = Math.max(S / img.naturalWidth, S / img.naturalHeight);
+                  setCropScale(fit);
+                  drawCropper();
+                }}
+              />
+              <div className="flex gap-3 w-full">
+                <button onClick={() => setShowCropper(false)} className="flex-1 py-2.5 rounded-xl text-sm" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                  Отмена
+                </button>
+                <button onClick={applyCrop} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                  Применить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Full-screen preview modal */}
         {showPreviewModal && (
           <div
