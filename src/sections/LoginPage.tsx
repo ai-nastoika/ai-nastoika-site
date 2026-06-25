@@ -12,6 +12,23 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register" | "verify-email">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  function translateError(msg: string): string {
+    const map: Record<string, string> = {
+      "Invalid credentials": "Неверный email или пароль",
+      "User not found": "Пользователь не найден",
+      "Email already exists": "Этот email уже зарегистрирован",
+      "Email not verified": "Email не подтверждён. Проверьте почту",
+      "EMAIL_NOT_VERIFIED": "Email не подтверждён. Проверьте почту",
+      "Invalid OTP": "Неверный код подтверждения",
+      "OTP expired": "Код подтверждения истёк. Запросите новый",
+      "Too many requests": "Слишком много попыток. Подождите немного",
+      "Password too short": "Пароль слишком короткий (минимум 6 символов)",
+      "Invalid email": "Неверный формат email",
+      "Network error": "Ошибка сети. Проверьте подключение",
+    };
+    return map[msg] || msg;
+  }
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -40,13 +57,13 @@ export default function LoginPage() {
     },
     onError: (err) => {
       setMode("verify-email");
-      setError(err.message);
+      setError(translateError(err.message));
     },
   });
 
   const resendMutation = trpc.auth.resendVerification.useMutation({
     onSuccess: () => setSuccess("Письмо отправлено повторно — проверьте почту"),
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(translateError(err.message)),
   });
 
   useEffect(() => {
@@ -69,14 +86,14 @@ export default function LoginPage() {
         setEmailNotVerified(true);
         setError("Email не подтверждён. Проверьте почту или запросите новое письмо.");
       } else {
-        setError(err.message);
+        setError(translateError(err.message));
       }
     },
   });
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: () => setShowCheckEmail(true),
-    onError: (err) => setError(err.message),
+    onError: (err) => setError(translateError(err.message)),
   });
 
   function handleSubmit(e: React.FormEvent) {
