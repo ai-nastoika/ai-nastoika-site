@@ -824,6 +824,20 @@ function LabelConstructor() {
     setStep(3);
   }
 
+  function handleDownload() {
+    // Create full-res canvas (1086x1448) and download as PNG
+    const canvas = document.createElement("canvas");
+    paintCanvas(canvas, 1.0);
+
+    // Wait for async image loads then download
+    setTimeout(() => {
+      const link = document.createElement("a");
+      link.download = (labelText || "этикетка") + ".png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }, 500);
+  }
+
   /* Step 1: Choose template */
   if (step === 1) {
     return (
@@ -1081,15 +1095,25 @@ function LabelConstructor() {
               </p>
             </div>
 
-            <button
-              onClick={handlePrint}
-              disabled={!labelText.trim()}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105 disabled:opacity-50"
-              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-            >
-              <Download size={22} />
-              Скачать для печати
-            </button>
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={handleDownload}
+                disabled={!labelText.trim()}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105 disabled:opacity-50"
+                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+              >
+                <Download size={22} />
+                Скачать PNG
+              </button>
+              <button
+                onClick={handlePrint}
+                disabled={!labelText.trim()}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105 disabled:opacity-50"
+                style={{ background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                🖨️ На А4
+              </button>
+            </div>
           </div>
 
           {/* Preview */}
