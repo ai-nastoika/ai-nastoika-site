@@ -1218,10 +1218,15 @@ function LabelConstructor() {
         >
           {/* A4 border */}
           <div style={{ position: "absolute", inset: 0, border: "1px solid #ddd", pointerEvents: "none" }} />
-          {/* Labels grid */}
+          {/* Labels grid — centered on A4 */}
           <div style={{
             position: "absolute",
-            top: 10, left: 10,
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+          <div style={{
             display: "grid",
             gridTemplateColumns: `repeat(${cols}, ${labelW}px)`,
             gap: 8,
@@ -1235,6 +1240,7 @@ function LabelConstructor() {
                 paintFn={paintCanvas}
               />
             ))}
+          </div>
           </div>
         </div>
       </div>
