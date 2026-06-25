@@ -443,6 +443,23 @@ function getFontFamily(family: string) {
 /* ═══════════════════════════════════════════════════════════════
    SUB-COMPONENT: Label Constructor
    ═══════════════════════════════════════════════════════════════ */
+// Small canvas component for A4 preview
+function A4LabelCanvas({ width, height, scale, paintFn }: {
+  width: number; height: number; scale: number;
+  paintFn: (canvas: HTMLCanvasElement, scale: number) => void;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (ref.current) paintFn(ref.current, scale);
+  }, [paintFn, scale]);
+  return (
+    <canvas
+      ref={ref}
+      style={{ width, height, display: "block", pageBreakInside: "avoid" }}
+    />
+  );
+}
+
 function LabelConstructor() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
@@ -1140,14 +1157,25 @@ function LabelConstructor() {
 
   /* Step 3: Print layout */
   const maxQ = sz.perA4;
-  const gridCols = Math.ceil(Math.sqrt(quantity * (Number(sz.w) / Number(sz.h))));
-  const ratioStr = String(sz.w) + " / " + String(sz.h);
+
+  // A4 preview: 210x297mm at 3px/mm = 630x891px display
+  const A4_W = 630;
+  const A4_H = 891;
+  const PX_PER_MM = 3;
+  const labelW = sz.w * PX_PER_MM;
+  const labelH = sz.h * PX_PER_MM;
+  const cols = Math.floor((A4_W - 20) / (labelW + 8));
+  const rows = Math.floor((A4_H - 20) / (labelH + 8));
+  const maxFit = cols * rows;
+  const printQty = Math.min(quantity, maxFit);
+  const labelScale = labelW / 1086;
+
   return (
     <div>
       <button
         onClick={() => setStep(2)}
-        className="text-sm mb-4 transition-opacity hover:opacity-70"
-        style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+        className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
+        style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
       >
         ← Назад к редактированию
       </button>
@@ -1155,10 +1183,10 @@ function LabelConstructor() {
       {/* Quantity selector */}
       <div className="mb-5">
         <label className="block text-sm font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Сколько этикеток на листе А4 (макс. {maxQ})
+          Сколько этикеток на листе А4 (макс. {maxFit})
         </label>
         <div className="flex flex-wrap gap-2">
-          {Array.from({ length: maxQ }, (_, i) => i + 1).map((q) => (
+          {Array.from({ length: maxFit }, (_, i) => i + 1).map((q) => (
             <button
               key={q}
               onClick={() => setQuantity(q)}
@@ -1175,65 +1203,39 @@ function LabelConstructor() {
         </div>
       </div>
 
-      {/* Print preview */}
-      <div
-        className="mb-5 p-4 sm:p-6 overflow-auto"
-        style={{ background: "#fff", border: "1px dashed var(--border)", borderRadius: 4 }}
-      >
+      {/* A4 sheet preview */}
+      <div className="mb-5 overflow-auto">
         <div
           style={{
-            width: 210,
-            minHeight: 297,
-            margin: "0 auto",
+            width: A4_W,
+            height: A4_H,
             background: "#fff",
-            display: "grid",
-            gridTemplateColumns: "repeat(" + gridCols + ", 1fr)",
-            gap: 4,
-            padding: 8,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+            position: "relative",
+            flexShrink: 0,
+            margin: "0 auto",
           }}
         >
-          {Array.from({ length: quantity }, (_, i) => (
-            <div
-              key={i}
-              className="flex flex-col items-center justify-center text-center"
-              style={{
-                aspectRatio: ratioStr,
-                background: tpl.bg,
-                border: tpl.border,
-                borderRadius: sz.round ? "50%" : 2,
-                padding: "4px 2px",
-                overflow: "hidden",
-                pageBreakInside: "avoid",
-              }}
-            >
-              <div
-                style={{
-                  color: tpl.accent,
-                  fontFamily: getFontFamily(tpl.family),
-                  fontSize: "min(10px, 1.8vw)",
-                  fontWeight: "bold",
-                  lineHeight: 1.15,
-                  wordBreak: "break-word",
-                }}
-              >
-                {labelText}
-              </div>
-              {(labelDate || labelStrength) && (
-                <div
-                  style={{
-                    color: tpl.accent,
-                    fontFamily: "var(--font-body)",
-                    fontSize: "min(7px, 1.2vw)",
-                    opacity: 0.7,
-                    marginTop: 2,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {[labelDate, labelStrength].filter(Boolean).join(" · ")}
-                </div>
-              )}
-            </div>
-          ))}
+          {/* A4 border */}
+          <div style={{ position: "absolute", inset: 0, border: "1px solid #ddd", pointerEvents: "none" }} />
+          {/* Labels grid */}
+          <div style={{
+            position: "absolute",
+            top: 10, left: 10,
+            display: "grid",
+            gridTemplateColumns: `repeat(${cols}, ${labelW}px)`,
+            gap: 8,
+          }}>
+            {Array.from({ length: printQty }, (_, i) => (
+              <A4LabelCanvas
+                key={i}
+                width={labelW}
+                height={labelH}
+                scale={labelScale}
+                paintFn={paintCanvas}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1244,33 +1246,15 @@ function LabelConstructor() {
         style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
       >
         <Download size={22} />
-        Печать {quantity} этикет{quantity === 1 ? "ки" : quantity < 5 ? "ки" : "ок"} на А4
+        Печать {printQty} этикет{printQty === 1 ? "ки" : printQty < 5 ? "ки" : "ок"} на А4
       </button>
 
       {/* Print styles */}
       <style>{`
         @media print {
           body > * { display: none !important; }
-          body > div:last-child { display: block !important; }
-          body > div:last-child > * { display: none !important; }
-          body > div:last-child > div:nth-child(3) {
-            display: block !important;
-            position: fixed;
-            top: 0; left: 0;
-            width: 210mm; height: 297mm;
-            margin: 0; padding: 0;
-          }
-          body > div:last-child > div:nth-child(3) > div {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            margin: 0 !important;
-            padding: 10mm !important;
-            gap: 5mm !important;
-          }
-          body > div:last-child > div:nth-child(3) > div > div {
-            page-break-inside: avoid !important;
-          }
-          @page { size: A4; margin: 0; }
+          #print-sheet { display: block !important; }
+          @page { size: A4 portrait; margin: 10mm; }
         }
       `}</style>
     </div>
