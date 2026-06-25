@@ -939,8 +939,9 @@ function LabelConstructor() {
                   !labelText.trim() && "• Название напитка",
                   !labelDate.trim() && "• Дата",
                   !labelStrength.trim() && "• Крепость",
-                ].filter(Boolean).join("
-")}
+                ].filter(Boolean).map((item, i) => (
+                  <div key={i}>{item}</div>
+                ))}
               </div>
               <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                 Скачать пустую этикетку или вернуться и заполнить?
