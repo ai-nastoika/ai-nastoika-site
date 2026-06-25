@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogIn, UserPlus, ArrowLeft, CheckCircle2, Mail, RefreshCw } from "lucide-react";
+import { LogIn, UserPlus, ArrowLeft, CheckCircle2, Mail, RefreshCw, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const location = useLocation();
   const [mode, setMode] = useState<"login" | "register" | "verify-email">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -211,15 +212,25 @@ export default function LoginPage() {
               </div>
               <div>
                 <Label>Пароль</Label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Минимум 6 символов"
-                  required
-                  minLength={mode === "register" ? 6 : undefined}
-                  className="mt-1"
-                />
+                <div className="relative mt-1">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Минимум 6 символов"
+                    required
+                    minLength={mode === "register" ? 6 : undefined}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-70"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {error && (
