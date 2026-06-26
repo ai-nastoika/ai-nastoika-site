@@ -139,6 +139,16 @@ export const appRouter = router({
       }),
 
     me: publicProcedure.query(async ({ ctx }) => {
+      // Support both old (token string) and new (user object) context
+      if ((ctx as any).user) {
+        const user = (ctx as any).user;
+        const { getDb } = await import("./queries/connection");
+        const { users: usersTable } = await import("@db/schema");
+        const { eq } = await import("drizzle-orm");
+        const dbUser = await getDb().query.users.findFirst({ where: eq(usersTable.id, user.id) });
+        if (!dbUser) return null;
+        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role, emailVerified: dbUser.emailVerified };
+      }
       const token = (ctx as any).token;
       if (!token) return null;
       const { getAuthUser } = await import("./trpc");
