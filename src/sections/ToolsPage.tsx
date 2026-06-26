@@ -1372,22 +1372,70 @@ function LabelConstructor() {
 
       {/* Print button */}
       <button
-        onClick={() => window.print()}
+        onClick={() => {
+          // Generate A4 canvas with all labels and open print dialog
+          const A4_PX_W = 2480; // A4 at 300dpi
+          const A4_PX_H = 3508;
+          const margin = 120;
+          const gap = 40;
+          const labW = Math.floor((A4_PX_W - margin * 2 - gap * (cols - 1)) / cols);
+          const labH = Math.floor(labW * (1448 / 1086));
+          const labScale = labW / 1086;
+
+          const a4 = document.createElement("canvas");
+          a4.width = A4_PX_W;
+          a4.height = A4_PX_H;
+          const ctx = a4.getContext("2d")!;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, A4_PX_W, A4_PX_H);
+
+          // Draw each label
+          const totalW = labW * cols + gap * (cols - 1);
+          const startX = Math.round((A4_PX_W - totalW) / 2);
+          const totalH = labH * Math.ceil(printQty / cols) + gap * (Math.ceil(printQty / cols) - 1);
+          const startY = Math.round((A4_PX_H - totalH) / 2);
+
+          let drawn = 0;
+          const drawNext = () => {
+            if (drawn >= printQty) {
+              // All drawn — open print
+              const img = document.createElement("img");
+              img.src = a4.toDataURL("image/png");
+              img.style.cssText = "width:100%;height:auto;";
+              const win = window.open("", "_blank");
+              if (!win) return;
+              win.document.write(`<!DOCTYPE html><html><head><style>
+                body{margin:0;padding:0;}
+                img{display:block;width:100%;height:auto;}
+                @media print{@page{size:A4 portrait;margin:0;}}
+              </style></head><body>`);
+              win.document.write(img.outerHTML);
+              win.document.write(`</body></html>`);
+              win.document.close();
+              setTimeout(() => win.print(), 500);
+              return;
+            }
+            const col = drawn % cols;
+            const row = Math.floor(drawn / cols);
+            const x = startX + col * (labW + gap);
+            const y = startY + row * (labH + gap);
+
+            const tempCanvas = document.createElement("canvas");
+            paintCanvas(tempCanvas, labScale);
+            setTimeout(() => {
+              ctx.drawImage(tempCanvas, x, y, labW, labH);
+              drawn++;
+              drawNext();
+            }, 650);
+          };
+          drawNext();
+        }}
         className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
         style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
       >
         <Download size={22} />
         Печать {printQty} этикет{printQty === 1 ? "ки" : printQty < 5 ? "ки" : "ок"} на А4
       </button>
-
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body > * { display: none !important; }
-          #print-sheet { display: block !important; }
-          @page { size: A4 portrait; margin: 10mm; }
-        }
-      `}</style>
     </div>
   );
 }
