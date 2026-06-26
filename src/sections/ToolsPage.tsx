@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Download,
   ArrowLeft,
+  Star,
 } from "lucide-react";
 
 /* ============================================================
@@ -483,6 +484,8 @@ function LabelConstructor() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
+  const [savedLabelId, setSavedLabelId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
   const [imageZoneScale, setImageZoneScale] = useState(1.0);
@@ -678,6 +681,13 @@ function LabelConstructor() {
 
   // Шаблоны из БД (добавляются к захардкоженным)
   const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
+  const saveLabelMutation = trpc.savedLabels.save.useMutation({
+    onSuccess: (data) => { setSavedLabelId(data.id); setIsSaving(false); },
+    onError: () => setIsSaving(false),
+  });
+  const deleteLabelMutation = trpc.savedLabels.delete.useMutation({
+    onSuccess: () => setSavedLabelId(null),
+  });
   const allTemplates = [
     ...TEMPLATES,
     ...(dbTemplates ?? [])
@@ -866,6 +876,26 @@ function LabelConstructor() {
   function handlePrint() {
     setQuantity(1);
     setStep(3);
+  }
+
+  function handleSaveLabel() {
+    setIsSaving(true);
+    // Generate preview PNG
+    const canvas = document.createElement("canvas");
+    paintCanvas(canvas, 0.3);
+    setTimeout(() => {
+      const previewUrl = canvas.toDataURL("image/png");
+      saveLabelMutation.mutate({
+        id: savedLabelId ?? undefined,
+        templateId,
+        labelText,
+        labelDate,
+        labelStrength,
+        imageShape,
+        imageZoneScale: String(imageZoneScale),
+        previewUrl,
+      });
+    }, 600);
   }
 
   function doDownload() {
@@ -1240,6 +1270,30 @@ function LabelConstructor() {
             </div>
 
             <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={handleSaveLabel}
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:scale-105"
+                style={{
+                  background: savedLabelId ? "var(--accent)" : "var(--bg-secondary)",
+                  color: savedLabelId ? "#fff" : "var(--text-secondary)",
+                  border: savedLabelId ? "none" : "1px solid var(--border)",
+                  fontFamily: "var(--font-body)"
+                }}
+              >
+                <Star size={20} fill={savedLabelId ? "#fff" : "none"} />
+                {isSaving ? "Сохраняю..." : savedLabelId ? "Обновить" : "В избранное"}
+              </button>
+              {savedLabelId && (
+                <button
+                  onClick={() => deleteLabelMutation.mutate({ id: savedLabelId })}
+                  className="px-3 py-3 rounded-xl text-sm transition-all hover:opacity-70"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                  title="Удалить из избранного"
+                >
+                  ✕
+                </button>
+              )}
               <button
                 onClick={handleDownload}
                 className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"

@@ -6,6 +6,7 @@ import { sendEmail } from "./lib/email";
 import crypto from "crypto";
 import { labelTemplateRouter } from "./labelTemplateRouter";
 import { recipeRouter } from "./recipeRouter";
+import { savedLabelsRouter } from "./savedLabelsRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -329,6 +330,7 @@ export const appRouter = router({
   }),
 
   labelTemplate: labelTemplateRouter,
+  savedLabels: savedLabelsRouter,
 
   submission: router({
     create: publicProcedure.input(z.any()).mutation(() => ({ id: Date.now() })),
