@@ -1554,7 +1554,7 @@ const tools = [
     desc: "Выберите готовый шаблон из коллекции, впишите название напитка и подпись — скачайте для печати на А4.",
     badge: "Популярное",
     color: "var(--accent)",
-    content: <LabelConstructor editData={editLabelData} />,
+    content: null, // replaced dynamically
   },
   {
     id: "generate",
@@ -1760,7 +1760,7 @@ export default function ToolsPage() {
                       className="rounded-xl p-5"
                       style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
                     >
-                      {tool.content}
+                      {tool.id === "label" ? <LabelConstructor editData={editLabelData} /> : tool.content}
                     </div>
                   </div>
                 </div>
