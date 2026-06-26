@@ -481,6 +481,7 @@ function LabelConstructor() {
   const cropCanvasRef = useRef<HTMLCanvasElement>(null);
   const cropImgRef = useRef<HTMLImageElement | null>(null);
   const cropDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const cropPinchRef = useRef<{ dist: number; scale: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -982,7 +983,7 @@ function LabelConstructor() {
                 Настройте расположение фото
               </div>
               <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Тяните фото мышью · Колёсико — масштаб
+                Тяните фото · Два пальца — масштаб
               </div>
               <canvas
                 ref={cropCanvasRef}
@@ -1003,6 +1004,34 @@ function LabelConstructor() {
                   e.preventDefault();
                   setCropScale(s => Math.max(0.1, Math.min(5, s - e.deltaY * 0.0003)));
                 }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  if (e.touches.length === 1) {
+                    cropDragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: cropOffset.x, oy: cropOffset.y };
+                    cropPinchRef.current = null;
+                  } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    cropPinchRef.current = { dist, scale: cropScale };
+                    cropDragRef.current = null;
+                  }
+                }}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  if (e.touches.length === 1 && cropDragRef.current) {
+                    const dx = e.touches[0].clientX - cropDragRef.current.startX;
+                    const dy = e.touches[0].clientY - cropDragRef.current.startY;
+                    setCropOffset({ x: cropDragRef.current.ox + dx, y: cropDragRef.current.oy + dy });
+                  } else if (e.touches.length === 2 && cropPinchRef.current) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const ratio = dist / cropPinchRef.current.dist;
+                    setCropScale(Math.max(0.1, Math.min(5, cropPinchRef.current.scale * ratio)));
+                  }
+                }}
+                onTouchEnd={() => { cropDragRef.current = null; cropPinchRef.current = null; }}
               />
               <img ref={cropImgRef} src={cropSrc} style={{ display: "none" }}
                 onLoad={() => {
