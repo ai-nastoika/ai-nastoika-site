@@ -439,8 +439,16 @@ export default function ProfilePage() {
                           <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                             {new Date(label.updatedAt).toLocaleDateString("ru-RU")}
                           </div>
+                          {/* Preview */}
+                          {label.previewUrl && (
+                            <img src={label.previewUrl} alt="" className="w-full rounded-lg mb-3" style={{ aspectRatio: "3/4", objectFit: "cover" }} />
+                          )}
                           <div className="flex gap-2">
-                            <a href="/#/tools" className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                            <a
+                              href={`/#/tools?labelId=${label.id}&templateId=${label.templateId}&text=${encodeURIComponent(label.labelText || "")}&date=${encodeURIComponent(label.labelDate || "")}&strength=${encodeURIComponent(label.labelStrength || "")}&shape=${label.imageShape || "rect"}&scale=${label.imageZoneScale || 1}`}
+                              className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
+                              style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                            >
                               Редактировать
                             </a>
                             <button onClick={() => deleteSavedLabel.mutate({ id: label.id })} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>

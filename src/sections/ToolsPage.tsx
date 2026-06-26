@@ -641,6 +641,31 @@ function LabelConstructor() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
+  // Restore label state from URL params (e.g. /#/tools?label=1&text=...)
+  useEffect(() => {
+    const hash = window.location.hash;
+    const queryStart = hash.indexOf("?");
+    if (queryStart === -1) return;
+    const params = new URLSearchParams(hash.slice(queryStart + 1));
+    if (params.get("labelId")) {
+      const tid = Number(params.get("templateId") || 1001);
+      const ltext = params.get("text") || "";
+      const ldate = params.get("date") || "";
+      const lstrength = params.get("strength") || "";
+      const lshape = (params.get("shape") || "rect") as "rect" | "rounded" | "oval" | "circle";
+      const lscale = Number(params.get("scale") || 1);
+      const lid = Number(params.get("labelId"));
+      setTemplateId(tid);
+      setLabelText(ltext);
+      setLabelDate(ldate);
+      setLabelStrength(lstrength);
+      setImageShape(lshape);
+      setImageZoneScale(lscale);
+      setSavedLabelId(lid);
+      setStep(2);
+    }
+  }, []);
+
   // Redraw cropper when params change
   useEffect(() => {
     if (showCropper && cropImgRef.current?.complete) drawCropper();
@@ -882,15 +907,22 @@ function LabelConstructor() {
 
   function handleSaveLabel() {
     setIsSaving(true);
-    saveLabelMutation.mutate({
-      id: savedLabelId ?? undefined,
-      templateId,
-      labelText,
-      labelDate,
-      labelStrength,
-      imageShape,
-      imageZoneScale: String(imageZoneScale),
-    });
+    // Generate tiny preview (scale 0.08 = ~87x116px, ~15KB base64)
+    const canvas = document.createElement("canvas");
+    paintCanvas(canvas, 0.08);
+    setTimeout(() => {
+      const previewUrl = canvas.toDataURL("image/jpeg", 0.7);
+      saveLabelMutation.mutate({
+        id: savedLabelId ?? undefined,
+        templateId,
+        labelText,
+        labelDate,
+        labelStrength,
+        imageShape,
+        imageZoneScale: String(imageZoneScale),
+        previewUrl,
+      });
+    }, 700);
   }
 
   function doDownload() {
