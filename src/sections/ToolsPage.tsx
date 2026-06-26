@@ -448,14 +448,26 @@ function A4LabelCanvas({ width, height, scale, paintFn }: {
   width: number; height: number; scale: number;
   paintFn: (canvas: HTMLCanvasElement, scale: number) => void;
 }) {
-  const ref = useRef<HTMLCanvasElement>(null);
+  const [dataUrl, setDataUrl] = useState<string>("");
+
   useEffect(() => {
-    if (ref.current) paintFn(ref.current, scale);
+    const canvas = document.createElement("canvas");
+    paintFn(canvas, scale);
+    // Wait for async image loads (bg image + user image)
+    setTimeout(() => {
+      setDataUrl(canvas.toDataURL("image/png"));
+    }, 600);
   }, [paintFn, scale]);
+
+  if (!dataUrl) {
+    return <div style={{ width, height, background: "#f5f5f5", display: "block" }} />;
+  }
+
   return (
-    <canvas
-      ref={ref}
+    <img
+      src={dataUrl}
       style={{ width, height, display: "block", pageBreakInside: "avoid" }}
+      alt="этикетка"
     />
   );
 }
