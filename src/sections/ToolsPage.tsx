@@ -641,29 +641,22 @@ function LabelConstructor() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  // Restore label state from URL params (e.g. /#/tools?label=1&text=...)
+  // Restore label state from sessionStorage (set by ProfilePage)
   useEffect(() => {
-    const hash = window.location.hash;
-    const queryStart = hash.indexOf("?");
-    if (queryStart === -1) return;
-    const params = new URLSearchParams(hash.slice(queryStart + 1));
-    if (params.get("labelId")) {
-      const tid = Number(params.get("templateId") || 1001);
-      const ltext = params.get("text") || "";
-      const ldate = params.get("date") || "";
-      const lstrength = params.get("strength") || "";
-      const lshape = (params.get("shape") || "rect") as "rect" | "rounded" | "oval" | "circle";
-      const lscale = Number(params.get("scale") || 1);
-      const lid = Number(params.get("labelId"));
-      setTemplateId(tid);
-      setLabelText(ltext);
-      setLabelDate(ldate);
-      setLabelStrength(lstrength);
-      setImageShape(lshape);
-      setImageZoneScale(lscale);
-      setSavedLabelId(lid);
+    const saved = sessionStorage.getItem("edit-label");
+    if (!saved) return;
+    sessionStorage.removeItem("edit-label");
+    try {
+      const data = JSON.parse(saved);
+      setTemplateId(data.templateId || 1001);
+      setLabelText(data.labelText || "");
+      setLabelDate(data.labelDate || "");
+      setLabelStrength(data.labelStrength || "");
+      setImageShape(data.imageShape || "rect");
+      setImageZoneScale(Number(data.imageZoneScale) || 1);
+      setSavedLabelId(data.id);
       setStep(2);
-    }
+    } catch {}
   }, []);
 
   // Redraw cropper when params change
@@ -909,7 +902,7 @@ function LabelConstructor() {
     setIsSaving(true);
     // Generate tiny preview (scale 0.08 = ~87x116px, ~15KB base64)
     const canvas = document.createElement("canvas");
-    paintCanvas(canvas, 0.08);
+    paintCanvas(canvas, 0.04);
     setTimeout(() => {
       const previewUrl = canvas.toDataURL("image/jpeg", 0.7);
       saveLabelMutation.mutate({
