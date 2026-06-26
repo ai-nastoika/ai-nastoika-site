@@ -473,6 +473,7 @@ function LabelConstructor() {
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
+  const [imageZoneScale, setImageZoneScale] = useState(1.0);
   const [showCropper, setShowCropper] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
@@ -635,14 +636,14 @@ function LabelConstructor() {
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape, imageZoneScale]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape, imageZoneScale]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -768,10 +769,17 @@ function LabelConstructor() {
 
   function drawUserImage(preloaded: HTMLImageElement | null) {
     if (!imgZone) return;
-    const zx = Math.round(imgZone.x * sc);
-    const zy = Math.round(imgZone.y * sc);
-    const zw = Math.round(imgZone.w * sc);
-    const zh = Math.round(imgZone.h * sc);
+    // Apply imageZoneScale symmetrically from center
+    const baseW = imgZone.w * sc;
+    const baseH = imgZone.h * sc;
+    const baseCX = imgZone.x * sc + baseW / 2;
+    const baseCY = imgZone.y * sc + baseH / 2;
+    const scaledW = baseW * imageZoneScale;
+    const scaledH = baseH * imageZoneScale;
+    const zx = Math.round(baseCX - scaledW / 2);
+    const zy = Math.round(baseCY - scaledH / 2);
+    const zw = Math.round(scaledW);
+    const zh = Math.round(scaledH);
     if (preloaded) {
       ctx.save();
       applyShapeClip(zx, zy, zw, zh);
@@ -1135,6 +1143,30 @@ function LabelConstructor() {
                       {s.label}
                     </button>
                   ))}
+                </div>
+                {/* Zone size slider */}
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      Размер зоны
+                    </label>
+                    <span className="text-xs font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                      {Math.round(imageZoneScale * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50} max={150} step={1}
+                    value={Math.round(imageZoneScale * 100)}
+                    onChange={(e) => setImageZoneScale(Number(e.target.value) / 100)}
+                    className="w-full"
+                    style={{ accentColor: "var(--accent)" }}
+                  />
+                  <div className="flex justify-between text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    <span>50%</span>
+                    <span>100%</span>
+                    <span>150%</span>
+                  </div>
                 </div>
               </div>
             )}
