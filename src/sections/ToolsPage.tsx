@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
 import {
@@ -680,6 +681,7 @@ function LabelConstructor() {
   }, []);
 
   // Шаблоны из БД (добавляются к захардкоженным)
+  const { isLoggedIn } = useAuth();
   const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
   const saveLabelMutation = trpc.savedLabels.save.useMutation({
     onSuccess: (data) => { setSavedLabelId(data.id); setIsSaving(false); },
@@ -880,22 +882,15 @@ function LabelConstructor() {
 
   function handleSaveLabel() {
     setIsSaving(true);
-    // Generate preview PNG
-    const canvas = document.createElement("canvas");
-    paintCanvas(canvas, 0.3);
-    setTimeout(() => {
-      const previewUrl = canvas.toDataURL("image/png");
-      saveLabelMutation.mutate({
-        id: savedLabelId ?? undefined,
-        templateId,
-        labelText,
-        labelDate,
-        labelStrength,
-        imageShape,
-        imageZoneScale: String(imageZoneScale),
-        previewUrl,
-      });
-    }, 600);
+    saveLabelMutation.mutate({
+      id: savedLabelId ?? undefined,
+      templateId,
+      labelText,
+      labelDate,
+      labelStrength,
+      imageShape,
+      imageZoneScale: String(imageZoneScale),
+    });
   }
 
   function doDownload() {
@@ -1270,28 +1265,41 @@ function LabelConstructor() {
             </div>
 
             <div className="flex gap-3 flex-wrap">
-              <button
-                onClick={handleSaveLabel}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:scale-105"
-                style={{
-                  background: savedLabelId ? "var(--accent)" : "var(--bg-secondary)",
-                  color: savedLabelId ? "#fff" : "var(--text-secondary)",
-                  border: savedLabelId ? "none" : "1px solid var(--border)",
-                  fontFamily: "var(--font-body)"
-                }}
-              >
-                <Star size={20} fill={savedLabelId ? "#fff" : "none"} />
-                {isSaving ? "Сохраняю..." : savedLabelId ? "Обновить" : "В избранное"}
-              </button>
-              {savedLabelId && (
+              {isLoggedIn ? (
+                <>
+                  <button
+                    onClick={handleSaveLabel}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:scale-105"
+                    style={{
+                      background: savedLabelId ? "var(--accent)" : "var(--bg-secondary)",
+                      color: savedLabelId ? "#fff" : "var(--text-secondary)",
+                      border: savedLabelId ? "none" : "1px solid var(--border)",
+                      fontFamily: "var(--font-body)"
+                    }}
+                  >
+                    <Star size={20} fill={savedLabelId ? "#fff" : "none"} />
+                    {isSaving ? "Сохраняю..." : savedLabelId ? "Обновить" : "В избранное"}
+                  </button>
+                  {savedLabelId && (
+                    <button
+                      onClick={() => deleteLabelMutation.mutate({ id: savedLabelId })}
+                      className="px-3 py-3 rounded-xl text-sm transition-all hover:opacity-70"
+                      style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      title="Удалить из избранного"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </>
+              ) : (
                 <button
-                  onClick={() => deleteLabelMutation.mutate({ id: savedLabelId })}
-                  className="px-3 py-3 rounded-xl text-sm transition-all hover:opacity-70"
-                  style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                  title="Удалить из избранного"
+                  onClick={() => window.location.href = "/#/login"}
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:opacity-80"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
                 >
-                  ✕
+                  <Star size={20} />
+                  Войдите чтобы сохранить
                 </button>
               )}
               <button
