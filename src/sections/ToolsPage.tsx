@@ -474,7 +474,7 @@ function A4LabelCanvas({ width, height, scale, paintFn }: {
   );
 }
 
-function LabelConstructor() {
+function LabelConstructor({ editData }: { editData?: any }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
   const [labelText, setLabelText] = useState("");
@@ -641,23 +641,18 @@ function LabelConstructor() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  // Restore label state from sessionStorage (set by ProfilePage)
+  // Restore label state from editData prop (passed from profile)
   useEffect(() => {
-    const saved = sessionStorage.getItem("edit-label");
-    if (!saved) return;
-    sessionStorage.removeItem("edit-label");
-    try {
-      const data = JSON.parse(saved);
-      setTemplateId(data.templateId || 1001);
-      setLabelText(data.labelText || "");
-      setLabelDate(data.labelDate || "");
-      setLabelStrength(data.labelStrength || "");
-      setImageShape(data.imageShape || "rect");
-      setImageZoneScale(Number(data.imageZoneScale) || 1);
-      setSavedLabelId(data.id);
-      setStep(2);
-    } catch {}
-  }, []);
+    if (!editData) return;
+    setTemplateId(editData.templateId || 1001);
+    setLabelText(editData.labelText || "");
+    setLabelDate(editData.labelDate || "");
+    setLabelStrength(editData.labelStrength || "");
+    setImageShape(editData.imageShape || "rect");
+    setImageZoneScale(Number(editData.imageZoneScale) || 1);
+    setSavedLabelId(editData.id);
+    setStep(2);
+  }, [editData]);
 
   // Redraw cropper when params change
   useEffect(() => {
@@ -1559,7 +1554,7 @@ const tools = [
     desc: "Выберите готовый шаблон из коллекции, впишите название напитка и подпись — скачайте для печати на А4.",
     badge: "Популярное",
     color: "var(--accent)",
-    content: <LabelConstructor />,
+    content: <LabelConstructor editData={editLabelData} />,
   },
   {
     id: "generate",
@@ -1636,14 +1631,23 @@ function LabelGeneratorPromo() {
 
 export default function ToolsPage() {
   const [activeTool, setActiveTool] = useState("taste");
+  const [editLabelData, setEditLabelData] = useState<any>(null);
   const navigate = useNavigate();
 
-  /* Auto-select label tab when coming from recipe page */
+  /* Auto-select label tab when coming from recipe page or profile */
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.includes("?label") || hash.includes("label")) {
+    const savedEdit = sessionStorage.getItem("edit-label");
+    if (savedEdit) {
+      sessionStorage.removeItem("edit-label");
+      try {
+        const data = JSON.parse(savedEdit);
+        setEditLabelData(data);
+        setActiveTool("label");
+      } catch {}
+    } else if (hash.includes("?label") || hash.includes("label")) {
       setActiveTool("label");
-      window.location.hash = "#/tools";
+      if (hash !== "#/tools") window.location.hash = "#/tools";
     }
   }, []);
 
