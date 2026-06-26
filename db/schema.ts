@@ -271,7 +271,7 @@ export const savedLabels = mysqlTable("saved_labels", {
   labelStrength: varchar("label_strength", { length: 50 }).default(""),
   imageShape: varchar("image_shape", { length: 20 }).default("rect"),
   imageZoneScale: varchar("image_zone_scale", { length: 10 }).default("1"),
-  previewUrl: varchar("preview_url", { length: 500 }),
+  previewUrl: text("preview_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
