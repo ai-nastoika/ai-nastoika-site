@@ -24,7 +24,6 @@ export const users = mysqlTable("users", {
   name: varchar("name", { length: 100 }),
   avatar: varchar("avatar", { length: 255 }),
   role: varchar("role", { length: 20 }).default("user").notNull(),
-  // ─── Email & Phone verification (NEW) ───
   emailVerified: int("email_verified").default(0).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
   emailVerifyExpires: timestamp("email_verify_expires"),
@@ -68,7 +67,6 @@ export const recipes = mysqlTable("recipes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ─── OTP Codes (NEW) ───
 export const otpCodes = mysqlTable("otp_codes", {
   id: serial("id").primaryKey(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
@@ -115,9 +113,18 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 // ─── Auth procedure ───
+// Поддерживает оба варианта контекста:
+// - новый (api/context.ts): ctx.user уже готовый объект { id, email, name, role }
+// - старый (boot.ts: createContext: () => ({ token })): ctx.token строка, ищем юзера сами
 export const authedProcedure = t.procedure.use(async (opts) => {
   const { ctx } = opts;
-  const user = await getAuthUser((ctx as any).token);
+  const ctxAny = ctx as any;
+
+  if (ctxAny.user) {
+    return opts.next({ ctx: { ...ctx, user: ctxAny.user, userId: ctxAny.user.id } });
+  }
+
+  const user = await getAuthUser(ctxAny.token);
   if (!user) throw new Error("UNAUTHORIZED");
   return opts.next({ ctx: { ...ctx, user, userId: user.id } });
 });
