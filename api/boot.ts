@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
+import { createContext } from "./context";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -127,12 +128,11 @@ app.get("/uploads/*", async (c) => {
 
 // tRPC handler
 app.use("/api/trpc/*", async (c) => {
-  const token = c.req.header("Authorization")?.replace("Bearer ", "") || "";
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
     router: appRouter,
-    createContext: () => ({ token }),
+    createContext,
   });
 });
 

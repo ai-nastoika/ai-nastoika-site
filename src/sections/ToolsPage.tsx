@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router";
 import QRCode from "qrcode";
 import {
@@ -12,6 +13,7 @@ import {
   RotateCcw,
   Download,
   ArrowLeft,
+  Star,
 } from "lucide-react";
 
 /* ============================================================
@@ -443,7 +445,36 @@ function getFontFamily(family: string) {
 /* ═══════════════════════════════════════════════════════════════
    SUB-COMPONENT: Label Constructor
    ═══════════════════════════════════════════════════════════════ */
-function LabelConstructor() {
+// Small canvas component for A4 preview
+function A4LabelCanvas({ width, height, scale, paintFn }: {
+  width: number; height: number; scale: number;
+  paintFn: (canvas: HTMLCanvasElement, scale: number) => void;
+}) {
+  const [dataUrl, setDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    const canvas = document.createElement("canvas");
+    paintFn(canvas, scale);
+    // Wait for async image loads (bg image + user image)
+    setTimeout(() => {
+      setDataUrl(canvas.toDataURL("image/png"));
+    }, 600);
+  }, [paintFn, scale]);
+
+  if (!dataUrl) {
+    return <div style={{ width, height, background: "#f5f5f5", display: "block" }} />;
+  }
+
+  return (
+    <img
+      src={dataUrl}
+      style={{ width, height, display: "block", pageBreakInside: "avoid" }}
+      alt="этикетка"
+    />
+  );
+}
+
+function LabelConstructor({ editData }: { editData?: any }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
   const [labelText, setLabelText] = useState("");
@@ -453,8 +484,20 @@ function LabelConstructor() {
   const [quantity, setQuantity] = useState(1);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEmptyWarning, setShowEmptyWarning] = useState(false);
+  const [savedLabelId, setSavedLabelId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
+  const [imageZoneScale, setImageZoneScale] = useState(1.0);
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [cropScale, setCropScale] = useState(1);
+  const cropCanvasRef = useRef<HTMLCanvasElement>(null);
+  const cropImgRef = useRef<HTMLImageElement | null>(null);
+  const cropDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const cropPinchRef = useRef<{ dist: number; scale: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -470,7 +513,7 @@ function LabelConstructor() {
           const file = item.getAsFile();
           if (!file) continue;
           const reader = new FileReader();
-          reader.onload = (ev) => setUserImage(ev.target?.result as string);
+          reader.onload = (ev) => openCropperWithSrc(ev.target?.result as string);
           reader.readAsDataURL(file);
           break;
         }
@@ -480,14 +523,142 @@ function LabelConstructor() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [step]);
 
-  // Load image from file input
+  // Load image from file input — open cropper
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setUserImage(ev.target?.result as string);
+    reader.onload = (ev) => {
+      setCropSrc(ev.target?.result as string);
+      setCropOffset({ x: 0, y: 0 });
+      setCropScale(1);
+      setShowCropper(true);
+    };
     reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = "";
   }
+
+  // Paste — also open cropper
+  // (override paste handler to use cropper)
+
+  function openCropperWithSrc(src: string) {
+    setCropSrc(src);
+    setCropOffset({ x: 0, y: 0 });
+    setCropScale(1);
+    setShowCropper(true);
+  }
+
+  function drawCropper() {
+    const canvas = cropCanvasRef.current;
+    const img = cropImgRef.current;
+    if (!canvas || !img) return;
+    const S = 400; // crop canvas size
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, S, S);
+
+    // Draw checkerboard background
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillRect(0, 0, S, S);
+    for (let r = 0; r < S / 20; r++) for (let c = 0; c < S / 20; c++) {
+      if ((r + c) % 2 === 0) { ctx.fillStyle = "#f0f0f0"; ctx.fillRect(c*20, r*20, 20, 20); }
+    }
+
+    // Draw image with offset and scale
+    const iw = img.naturalWidth * cropScale;
+    const ih = img.naturalHeight * cropScale;
+    const ix = (S - iw) / 2 + cropOffset.x;
+    const iy = (S - ih) / 2 + cropOffset.y;
+    ctx.drawImage(img, ix, iy, iw, ih);
+
+    // Draw shape overlay (darken outside)
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, S, S);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    if (imageShape === "circle") {
+      ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI*2);
+    } else if (imageShape === "oval") {
+      ctx.ellipse(S/2, S/2, S/2 - 4, S/2 - 4, 0, 0, Math.PI*2);
+    } else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(4+r, 4); ctx.arcTo(S-4, 4, S-4, S-4, r);
+      ctx.arcTo(S-4, S-4, 4, S-4, r); ctx.arcTo(4, S-4, 4, 4, r);
+      ctx.arcTo(4, 4, S-4, 4, r); ctx.closePath();
+    } else {
+      ctx.rect(4, 4, S-8, S-8);
+    }
+    ctx.fill();
+    ctx.restore();
+
+    // Border
+    ctx.strokeStyle = "#8B4513";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2-4, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2-4, S/2-4, 0, 0, Math.PI*2);
+    else { ctx.rect(4, 4, S-8, S-8); }
+    ctx.stroke();
+  }
+
+  function applyCrop() {
+    const canvas = cropCanvasRef.current;
+    const img = cropImgRef.current;
+    if (!canvas || !img) return;
+    const S = 400;
+    const out = document.createElement("canvas");
+    out.width = S; out.height = S;
+    const ctx = out.getContext("2d")!;
+
+    // Clip shape
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2, S/2, 0, 0, Math.PI*2);
+    else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(r, 0); ctx.arcTo(S, 0, S, S, r); ctx.arcTo(S, S, 0, S, r);
+      ctx.arcTo(0, S, 0, 0, r); ctx.arcTo(0, 0, S, 0, r); ctx.closePath();
+    } else {
+      ctx.rect(0, 0, S, S);
+    }
+    ctx.clip();
+
+    const iw = img.naturalWidth * cropScale;
+    const ih = img.naturalHeight * cropScale;
+    const ix = (S - iw) / 2 + cropOffset.x;
+    const iy = (S - ih) / 2 + cropOffset.y;
+    ctx.drawImage(img, ix, iy, iw, ih);
+
+    setUserImage(out.toDataURL("image/png"));
+    setShowCropper(false);
+  }
+
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
+  // Restore label state from editData prop (passed from profile)
+  useEffect(() => {
+    if (!editData) return;
+    setTemplateId(editData.templateId || 1001);
+    setLabelText(editData.labelText || "");
+    setLabelDate(editData.labelDate || "");
+    setLabelStrength(editData.labelStrength || "");
+    setImageShape(editData.imageShape || "rect");
+    setImageZoneScale(Number(editData.imageZoneScale) || 1);
+    setSavedLabelId(editData.id);
+    setStep(2);
+  }, [editData]);
+
+  // Redraw cropper when params change
+  useEffect(() => {
+    if (showCropper && cropImgRef.current?.complete) drawCropper();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cropOffset, cropScale, imageShape, showCropper]);
 
   // Draw on canvas when data changes
   useEffect(() => {
@@ -495,14 +666,14 @@ function LabelConstructor() {
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape, imageZoneScale]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape, imageZoneScale]);
 
   /* Check if user came from recipe page */
   useEffect(() => {
@@ -523,7 +694,15 @@ function LabelConstructor() {
   }, []);
 
   // Шаблоны из БД (добавляются к захардкоженным)
+  const { isLoggedIn } = useAuth();
   const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
+  const saveLabelMutation = trpc.savedLabels.save.useMutation({
+    onSuccess: (data) => { setSavedLabelId(data.id); setIsSaving(false); },
+    onError: () => setIsSaving(false),
+  });
+  const deleteLabelMutation = trpc.savedLabels.delete.useMutation({
+    onSuccess: () => setSavedLabelId(null),
+  });
   const allTemplates = [
     ...TEMPLATES,
     ...(dbTemplates ?? [])
@@ -628,10 +807,17 @@ function LabelConstructor() {
 
   function drawUserImage(preloaded: HTMLImageElement | null) {
     if (!imgZone) return;
-    const zx = Math.round(imgZone.x * sc);
-    const zy = Math.round(imgZone.y * sc);
-    const zw = Math.round(imgZone.w * sc);
-    const zh = Math.round(imgZone.h * sc);
+    // Apply imageZoneScale symmetrically from center
+    const baseW = imgZone.w * sc;
+    const baseH = imgZone.h * sc;
+    const baseCX = imgZone.x * sc + baseW / 2;
+    const baseCY = imgZone.y * sc + baseH / 2;
+    const scaledW = baseW * imageZoneScale;
+    const scaledH = baseH * imageZoneScale;
+    const zx = Math.round(baseCX - scaledW / 2);
+    const zy = Math.round(baseCY - scaledH / 2);
+    const zw = Math.round(scaledW);
+    const zh = Math.round(scaledH);
     if (preloaded) {
       ctx.save();
       applyShapeClip(zx, zy, zw, zh);
@@ -707,6 +893,49 @@ function LabelConstructor() {
     setStep(3);
   }
 
+  function handleSaveLabel() {
+    setIsSaving(true);
+    // Generate tiny preview (scale 0.08 = ~87x116px, ~15KB base64)
+    const canvas = document.createElement("canvas");
+    paintCanvas(canvas, 0.04);
+    setTimeout(() => {
+      const previewUrl = canvas.toDataURL("image/jpeg", 0.7);
+      saveLabelMutation.mutate({
+        id: savedLabelId ?? undefined,
+        templateId,
+        labelText,
+        labelDate,
+        labelStrength,
+        imageShape,
+        imageZoneScale: String(imageZoneScale),
+        previewUrl,
+      });
+    }, 700);
+  }
+
+  function doDownload() {
+    const canvas = document.createElement("canvas");
+    paintCanvas(canvas, 1.0);
+    setTimeout(() => {
+      const link = document.createElement("a");
+      link.download = (labelText || "этикетка") + ".png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }, 500);
+  }
+
+  function handleDownload() {
+    const emptyFields = [];
+    if (!labelText.trim()) emptyFields.push("Название напитка");
+    if (!labelDate.trim()) emptyFields.push("Дата");
+    if (!labelStrength.trim()) emptyFields.push("Крепость");
+    if (emptyFields.length > 0) {
+      setShowEmptyWarning(true);
+    } else {
+      doDownload();
+    }
+  }
+
   /* Step 1: Choose template */
   if (step === 1) {
     return (
@@ -764,6 +993,125 @@ function LabelConstructor() {
   if (step === 2) {
     return (
       <div>
+        {/* Empty fields warning modal */}
+        {showEmptyWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
+            <div className="rounded-2xl p-6 flex flex-col gap-4 max-w-sm w-full" style={{ background: "var(--bg-card)" }}>
+              <div className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Не все поля заполнены
+              </div>
+              <div className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                {[
+                  !labelText.trim() && "• Название напитка",
+                  !labelDate.trim() && "• Дата",
+                  !labelStrength.trim() && "• Крепость",
+                ].filter(Boolean).map((item, i) => (
+                  <div key={i}>{item}</div>
+                ))}
+              </div>
+              <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Скачать пустую этикетку или вернуться и заполнить?
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowEmptyWarning(false); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+                >
+                  Заполнить
+                </button>
+                <button
+                  onClick={() => { setShowEmptyWarning(false); doDownload(); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+                >
+                  Скачать как есть
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Cropper Modal */}
+        {showCropper && cropSrc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+            <div className="rounded-2xl p-6 flex flex-col items-center gap-4" style={{ background: "var(--bg-card)", maxWidth: 480, width: "100%" }}>
+              <div className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Настройте расположение фото
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Тяните фото · Два пальца — масштаб
+              </div>
+              <canvas
+                ref={cropCanvasRef}
+                width={400} height={400}
+                style={{ borderRadius: 12, cursor: "grab", maxWidth: "100%", touchAction: "none" }}
+                onMouseDown={(e) => {
+                  cropDragRef.current = { startX: e.clientX, startY: e.clientY, ox: cropOffset.x, oy: cropOffset.y };
+                }}
+                onMouseMove={(e) => {
+                  if (!cropDragRef.current) return;
+                  const dx = e.clientX - cropDragRef.current.startX;
+                  const dy = e.clientY - cropDragRef.current.startY;
+                  setCropOffset({ x: cropDragRef.current.ox + dx, y: cropDragRef.current.oy + dy });
+                }}
+                onMouseUp={() => { cropDragRef.current = null; }}
+                onMouseLeave={() => { cropDragRef.current = null; }}
+                onWheel={(e) => {
+                  e.preventDefault();
+                  setCropScale(s => Math.max(0.1, Math.min(5, s - e.deltaY * 0.0003)));
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  if (e.touches.length === 1) {
+                    cropDragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: cropOffset.x, oy: cropOffset.y };
+                    cropPinchRef.current = null;
+                  } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    cropPinchRef.current = { dist, scale: cropScale };
+                    cropDragRef.current = null;
+                  }
+                }}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  if (e.touches.length === 1 && cropDragRef.current) {
+                    const dx = e.touches[0].clientX - cropDragRef.current.startX;
+                    const dy = e.touches[0].clientY - cropDragRef.current.startY;
+                    setCropOffset({ x: cropDragRef.current.ox + dx, y: cropDragRef.current.oy + dy });
+                  } else if (e.touches.length === 2 && cropPinchRef.current) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const ratio = dist / cropPinchRef.current.dist;
+                    setCropScale(Math.max(0.1, Math.min(5, cropPinchRef.current.scale * ratio)));
+                  }
+                }}
+                onTouchEnd={() => { cropDragRef.current = null; cropPinchRef.current = null; }}
+              />
+              <img ref={cropImgRef} src={cropSrc} style={{ display: "none" }}
+                onLoad={() => {
+                  // Auto-fit
+                  const img = cropImgRef.current!;
+                  const S = 400;
+                  const fit = Math.max(S / img.naturalWidth, S / img.naturalHeight);
+                  setCropScale(fit);
+                  drawCropper();
+                }}
+              />
+              <div className="flex gap-3 w-full">
+                <button onClick={() => setShowCropper(false)} className="flex-1 py-2.5 rounded-xl text-sm" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                  Отмена
+                </button>
+                <button onClick={applyCrop} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                  Применить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Full-screen preview modal */}
         {showPreviewModal && (
           <div
@@ -882,6 +1230,30 @@ function LabelConstructor() {
                     </button>
                   ))}
                 </div>
+                {/* Zone size slider */}
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      Размер зоны
+                    </label>
+                    <span className="text-xs font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                      {Math.round(imageZoneScale * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50} max={150} step={1}
+                    value={Math.round(imageZoneScale * 100)}
+                    onChange={(e) => setImageZoneScale(Number(e.target.value) / 100)}
+                    className="w-full"
+                    style={{ accentColor: "var(--accent)" }}
+                  />
+                  <div className="flex justify-between text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    <span>50%</span>
+                    <span>100%</span>
+                    <span>150%</span>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -912,15 +1284,60 @@ function LabelConstructor() {
               </p>
             </div>
 
-            <button
-              onClick={handlePrint}
-              disabled={!labelText.trim()}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105 disabled:opacity-50"
-              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-            >
-              <Download size={22} />
-              Скачать для печати
-            </button>
+            <div className="flex gap-3 flex-wrap">
+              {isLoggedIn ? (
+                <>
+                  <button
+                    onClick={handleSaveLabel}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:scale-105"
+                    style={{
+                      background: savedLabelId ? "var(--accent)" : "var(--bg-secondary)",
+                      color: savedLabelId ? "#fff" : "var(--text-secondary)",
+                      border: savedLabelId ? "none" : "1px solid var(--border)",
+                      fontFamily: "var(--font-body)"
+                    }}
+                  >
+                    <Star size={20} fill={savedLabelId ? "#fff" : "none"} />
+                    {isSaving ? "Сохраняю..." : savedLabelId ? "Обновить" : "В избранное"}
+                  </button>
+                  {savedLabelId && (
+                    <button
+                      onClick={() => deleteLabelMutation.mutate({ id: savedLabelId })}
+                      className="px-3 py-3 rounded-xl text-sm transition-all hover:opacity-70"
+                      style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                      title="Удалить из избранного"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => window.location.href = "/#/login"}
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base font-medium transition-all hover:opacity-80"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                >
+                  <Star size={20} />
+                  Войдите чтобы сохранить
+                </button>
+              )}
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
+                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+              >
+                <Download size={22} />
+                Скачать PNG
+              </button>
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
+                style={{ background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                🖨️ На А4
+              </button>
+            </div>
           </div>
 
           {/* Preview */}
@@ -947,14 +1364,25 @@ function LabelConstructor() {
 
   /* Step 3: Print layout */
   const maxQ = sz.perA4;
-  const gridCols = Math.ceil(Math.sqrt(quantity * (Number(sz.w) / Number(sz.h))));
-  const ratioStr = String(sz.w) + " / " + String(sz.h);
+
+  // A4 preview: 210x297mm at 3px/mm = 630x891px display
+  const A4_W = 630;
+  const A4_H = 891;
+  const PX_PER_MM = 3;
+  const labelW = sz.w * PX_PER_MM;
+  const labelH = sz.h * PX_PER_MM;
+  const cols = Math.floor((A4_W - 20) / (labelW + 8));
+  const rows = Math.floor((A4_H - 20) / (labelH + 8));
+  const maxFit = cols * rows;
+  const printQty = Math.min(quantity, maxFit);
+  const labelScale = labelW / 1086;
+
   return (
     <div>
       <button
         onClick={() => setStep(2)}
-        className="text-sm mb-4 transition-opacity hover:opacity-70"
-        style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+        className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
+        style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
       >
         ← Назад к редактированию
       </button>
@@ -962,10 +1390,10 @@ function LabelConstructor() {
       {/* Quantity selector */}
       <div className="mb-5">
         <label className="block text-sm font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Сколько этикеток на листе А4 (макс. {maxQ})
+          Сколько этикеток на листе А4 (макс. {maxFit})
         </label>
         <div className="flex flex-wrap gap-2">
-          {Array.from({ length: maxQ }, (_, i) => i + 1).map((q) => (
+          {Array.from({ length: maxFit }, (_, i) => i + 1).map((q) => (
             <button
               key={q}
               onClick={() => setQuantity(q)}
@@ -982,104 +1410,114 @@ function LabelConstructor() {
         </div>
       </div>
 
-      {/* Print preview */}
-      <div
-        className="mb-5 p-4 sm:p-6 overflow-auto"
-        style={{ background: "#fff", border: "1px dashed var(--border)", borderRadius: 4 }}
-      >
+      {/* A4 sheet preview */}
+      <div className="mb-5 overflow-auto">
         <div
           style={{
-            width: 210,
-            minHeight: 297,
-            margin: "0 auto",
+            width: A4_W,
+            height: A4_H,
             background: "#fff",
-            display: "grid",
-            gridTemplateColumns: "repeat(" + gridCols + ", 1fr)",
-            gap: 4,
-            padding: 8,
+            boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+            position: "relative",
+            flexShrink: 0,
+            margin: "0 auto",
           }}
         >
-          {Array.from({ length: quantity }, (_, i) => (
-            <div
-              key={i}
-              className="flex flex-col items-center justify-center text-center"
-              style={{
-                aspectRatio: ratioStr,
-                background: tpl.bg,
-                border: tpl.border,
-                borderRadius: sz.round ? "50%" : 2,
-                padding: "4px 2px",
-                overflow: "hidden",
-                pageBreakInside: "avoid",
-              }}
-            >
-              <div
-                style={{
-                  color: tpl.accent,
-                  fontFamily: getFontFamily(tpl.family),
-                  fontSize: "min(10px, 1.8vw)",
-                  fontWeight: "bold",
-                  lineHeight: 1.15,
-                  wordBreak: "break-word",
-                }}
-              >
-                {labelText}
-              </div>
-              {subtitle && (
-                <div
-                  style={{
-                    color: tpl.accent,
-                    fontFamily: "var(--font-body)",
-                    fontSize: "min(7px, 1.2vw)",
-                    opacity: 0.7,
-                    marginTop: 2,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {subtitle}
-                </div>
-              )}
-            </div>
-          ))}
+          {/* A4 border */}
+          <div style={{ position: "absolute", inset: 0, border: "1px solid #ddd", pointerEvents: "none" }} />
+          {/* Labels grid — centered on A4 */}
+          <div style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${cols}, ${labelW}px)`,
+            gap: 8,
+          }}>
+            {Array.from({ length: printQty }, (_, i) => (
+              <A4LabelCanvas
+                key={i}
+                width={labelW}
+                height={labelH}
+                scale={labelScale}
+                paintFn={paintCanvas}
+              />
+            ))}
+          </div>
+          </div>
         </div>
       </div>
 
       {/* Print button */}
       <button
-        onClick={() => window.print()}
+        onClick={() => {
+          // Generate A4 canvas with all labels and open print dialog
+          const A4_PX_W = 2480; // A4 at 300dpi
+          const A4_PX_H = 3508;
+          const margin = 120;
+          const gap = 40;
+          const labW = Math.floor((A4_PX_W - margin * 2 - gap * (cols - 1)) / cols);
+          const labH = Math.floor(labW * (1448 / 1086));
+          const labScale = labW / 1086;
+
+          const a4 = document.createElement("canvas");
+          a4.width = A4_PX_W;
+          a4.height = A4_PX_H;
+          const ctx = a4.getContext("2d")!;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, A4_PX_W, A4_PX_H);
+
+          // Draw each label
+          const totalW = labW * cols + gap * (cols - 1);
+          const startX = Math.round((A4_PX_W - totalW) / 2);
+          const totalH = labH * Math.ceil(printQty / cols) + gap * (Math.ceil(printQty / cols) - 1);
+          const startY = Math.round((A4_PX_H - totalH) / 2);
+
+          let drawn = 0;
+          const drawNext = () => {
+            if (drawn >= printQty) {
+              // All drawn — open print
+              const img = document.createElement("img");
+              img.src = a4.toDataURL("image/png");
+              img.style.cssText = "width:100%;height:auto;";
+              const win = window.open("", "_blank");
+              if (!win) return;
+              win.document.write(`<!DOCTYPE html><html><head><style>
+                body{margin:0;padding:0;}
+                img{display:block;width:100%;height:auto;}
+                @media print{@page{size:A4 portrait;margin:0;}}
+              </style></head><body>`);
+              win.document.write(img.outerHTML);
+              win.document.write(`</body></html>`);
+              win.document.close();
+              setTimeout(() => win.print(), 500);
+              return;
+            }
+            const col = drawn % cols;
+            const row = Math.floor(drawn / cols);
+            const x = startX + col * (labW + gap);
+            const y = startY + row * (labH + gap);
+
+            const tempCanvas = document.createElement("canvas");
+            paintCanvas(tempCanvas, labScale);
+            setTimeout(() => {
+              ctx.drawImage(tempCanvas, x, y, labW, labH);
+              drawn++;
+              drawNext();
+            }, 650);
+          };
+          drawNext();
+        }}
         className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
         style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
       >
         <Download size={22} />
-        Печать {quantity} этикет{quantity === 1 ? "ки" : quantity < 5 ? "ки" : "ок"} на А4
+        Печать {printQty} этикет{printQty === 1 ? "ки" : printQty < 5 ? "ки" : "ок"} на А4
       </button>
-
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body > * { display: none !important; }
-          body > div:last-child { display: block !important; }
-          body > div:last-child > * { display: none !important; }
-          body > div:last-child > div:nth-child(3) {
-            display: block !important;
-            position: fixed;
-            top: 0; left: 0;
-            width: 210mm; height: 297mm;
-            margin: 0; padding: 0;
-          }
-          body > div:last-child > div:nth-child(3) > div {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            margin: 0 !important;
-            padding: 10mm !important;
-            gap: 5mm !important;
-          }
-          body > div:last-child > div:nth-child(3) > div > div {
-            page-break-inside: avoid !important;
-          }
-          @page { size: A4; margin: 0; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -1116,7 +1554,7 @@ const tools = [
     desc: "Выберите готовый шаблон из коллекции, впишите название напитка и подпись — скачайте для печати на А4.",
     badge: "Популярное",
     color: "var(--accent)",
-    content: <LabelConstructor />,
+    content: null, // replaced dynamically
   },
   {
     id: "generate",
@@ -1193,14 +1631,23 @@ function LabelGeneratorPromo() {
 
 export default function ToolsPage() {
   const [activeTool, setActiveTool] = useState("taste");
+  const [editLabelData, setEditLabelData] = useState<any>(null);
   const navigate = useNavigate();
 
-  /* Auto-select label tab when coming from recipe page */
+  /* Auto-select label tab when coming from recipe page or profile */
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.includes("?label") || hash.includes("label")) {
+    const savedEdit = sessionStorage.getItem("edit-label");
+    if (savedEdit) {
+      sessionStorage.removeItem("edit-label");
+      try {
+        const data = JSON.parse(savedEdit);
+        setEditLabelData(data);
+        setActiveTool("label");
+      } catch {}
+    } else if (hash.includes("?label") || hash.includes("label")) {
       setActiveTool("label");
-      window.location.hash = "#/tools";
+      if (hash !== "#/tools") window.location.hash = "#/tools";
     }
   }, []);
 
@@ -1313,7 +1760,7 @@ export default function ToolsPage() {
                       className="rounded-xl p-5"
                       style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
                     >
-                      {tool.content}
+                      {tool.id === "label" ? <LabelConstructor editData={editLabelData} /> : tool.content}
                     </div>
                   </div>
                 </div>

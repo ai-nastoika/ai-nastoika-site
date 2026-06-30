@@ -260,3 +260,21 @@ export const aiUsage = mysqlTable("ai_usage", {
   tokensUsed: int("tokens_used").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Saved Labels ───────────────────────────────────────────
+export const savedLabels = mysqlTable("saved_labels", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  templateId: int("template_id").notNull(),
+  labelText: varchar("label_text", { length: 200 }).default(""),
+  labelDate: varchar("label_date", { length: 50 }).default(""),
+  labelStrength: varchar("label_strength", { length: 50 }).default(""),
+  imageShape: varchar("image_shape", { length: 20 }).default("rect"),
+  imageZoneScale: varchar("image_zone_scale", { length: 10 }).default("1"),
+  previewUrl: text("preview_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type SavedLabel = typeof savedLabels.$inferSelect;
+export type InsertSavedLabel = typeof savedLabels.$inferInsert;

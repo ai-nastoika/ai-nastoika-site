@@ -161,7 +161,8 @@ export default function ProfilePage() {
   };
 
   const savedPlaces: { id: number; name: string; city: string; rating: number; image: string }[] = [];
-  const savedLabels: { id: number; name: string; style: string; date: string }[] = [];
+  const { data: savedLabels, refetch: refetchLabels } = trpc.savedLabels.list.useQuery();
+  const deleteSavedLabel = trpc.savedLabels.delete.useMutation({ onSuccess: () => refetchLabels() });
   const aiHistory: { id: number; tool: string; query: string; date: string; model: string }[] = [];
 
   return (
@@ -415,9 +416,53 @@ export default function ProfilePage() {
               </div>
             )}
             {favSub === "labels" && (
-              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
+              <div>
+                {!savedLabels?.length ? (
+                  <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                    <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
+                    <a href="/#/tools" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                      Создать этикетку
+                    </a>
+                  </div>
+                ) : (
+                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+                    {savedLabels.map(label => (
+                      <div key={label.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                        <div className="p-4">
+                          <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                            {label.labelText || "Без названия"}
+                          </div>
+                          <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                            {[label.labelDate, label.labelStrength && label.labelStrength + "%"].filter(Boolean).join(" · ") || "Поля не заполнены"}
+                          </div>
+                          <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                            {new Date(label.updatedAt).toLocaleDateString("ru-RU")}
+                          </div>
+                          {/* Preview */}
+                          {label.previewUrl && (
+                            <img src={label.previewUrl} alt="" className="w-full rounded-lg mb-3" style={{ aspectRatio: "3/4", objectFit: "cover" }} />
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                sessionStorage.setItem("edit-label", JSON.stringify(label));
+                                window.location.hash = "/tools";
+                              }}
+                              className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
+                              style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                            >
+                              Редактировать
+                            </button>
+                            <button onClick={() => deleteSavedLabel.mutate({ id: label.id })} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {favSub === "places" && (
