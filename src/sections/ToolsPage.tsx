@@ -409,28 +409,7 @@ const LABEL_SIZES = [
 /* ═══════════════════════════════════════════════════════════════
    20 LABEL TEMPLATES — image-based
    ═══════════════════════════════════════════════════════════════ */
-const TEMPLATES = [
-  { id: 1,  name: "Классика",        family: "serif",    border: "3px solid #8B4513", bg: "linear-gradient(135deg,#f5efe6,#faf6f0)", decor: "ornament", accent: "#8B4513", image: "/labels/template-01-classic.jpg" },
-  { id: 2,  name: "Минимализм",      family: "sans",     border: "2px solid #2d2d2d", bg: "#ffffff", decor: "none", accent: "#2d2d2d", image: "/labels/template-02-minimal.jpg" },
-  { id: 3,  name: "Крафт",           family: "mono",     border: "2px dashed #5a4a3a", bg: "repeating-linear-gradient(45deg,#faf6f0,#faf6f0 10px,#f0ebe0 10px,#f0ebe0 20px)", decor: "stamp", accent: "#5a4a3a", image: "/labels/template-03-craft.jpg" },
-  { id: 4,  name: "Ар-деко",         family: "serif",    border: "2px solid #c9a227", bg: "linear-gradient(135deg,#0f0f23,#1a1a3e)", decor: "deco", accent: "#c9a227", image: "/labels/template-04-deco.jpg" },
-  { id: 5,  name: "Хохлома",         family: "serif",    border: "3px solid #c9a227", bg: "#1a1a1a", decor: "folk", accent: "#e63946", image: "/labels/template-05-folk.jpg" },
-  { id: 6,  name: "Винтаж золото",   family: "serif",    border: "4px double #b8860b", bg: "linear-gradient(180deg,#1a1a2e,#16213e)", decor: "gold", accent: "#b8860b", image: null },
-  { id: 7,  name: "Современный",     family: "sans",     border: "none", bg: "linear-gradient(135deg,#667eea,#764ba2)", decor: "gradient", accent: "#ffffff", image: null },
-  { id: 8,  name: "Рустик",          family: "serif",    border: "3px solid #6b4423", bg: "#f4e8d0", decor: "rope", accent: "#6b4423", image: null },
-  { id: 9,  name: "Скандинавия",     family: "sans",     border: "2px solid #3d5a80", bg: "#f0f4f8", decor: "nordic", accent: "#3d5a80", image: null },
-  { id: 10, name: "Бохо",            family: "cursive",  border: "2px solid #d4a373", bg: "linear-gradient(135deg,#faedcd,#fefae0)", decor: "floral", accent: "#d4a373", image: null },
-  { id: 11, name: "Индустриальный",  family: "mono",     border: "2px solid #495057", bg: "#e9ecef", decor: "grid", accent: "#495057", image: null },
-  { id: 12, name: "Пастель",         family: "sans",     border: "2px solid #f4a261", bg: "linear-gradient(135deg,#ffe5d9,#ffd7ba)", decor: "soft", accent: "#f4a261", image: null },
-  { id: 13, name: "Готика",          family: "serif",    border: "3px solid #2b2d42", bg: "linear-gradient(180deg,#2b2d42,#1a1a2e)", decor: "gothic", accent: "#c9a227", image: null },
-  { id: 14, name: "Тропики",         family: "sans",     border: "2px solid #2a9d8f", bg: "linear-gradient(135deg,#e9f5db,#d8f3dc)", decor: "leaf", accent: "#2a9d8f", image: null },
-  { id: 15, name: "Мрамор",          family: "serif",    border: "2px solid #adb5bd", bg: "linear-gradient(135deg,#f8f9fa,#e9ecef 50%,#dee2e6 50%,#ced4da)", decor: "marble", accent: "#495057", image: null },
-  { id: 16, name: "Французский",     family: "serif",    border: "2px solid #9b2226", bg: "linear-gradient(135deg,#fff0f3,#ffe5ec)", decor: "fleur", accent: "#9b2226", image: null },
-  { id: 17, name: "Морской",         family: "sans",     border: "2px solid #0077b6", bg: "linear-gradient(180deg,#caf0f8,#90e0ef)", decor: "wave", accent: "#0077b6", image: null },
-  { id: 18, name: "Лесной",          family: "serif",    border: "2px solid #386641", bg: "linear-gradient(135deg,#d8f3dc,#b7e4c7)", decor: "tree", accent: "#386641", image: null },
-  { id: 19, name: "Премьер",         family: "sans",     border: "2px solid #212529", bg: "linear-gradient(135deg,#f8f9fa,#ffffff)", decor: "foil", accent: "#212529", image: null },
-  { id: 20, name: "Космос",          family: "sans",     border: "2px solid #7209b7", bg: "linear-gradient(180deg,#10002b,#240046,#3c096c)", decor: "stars", accent: "#e0aaff", image: null },
-];
+const TEMPLATES: Array<{ id: number; name: string; family: string; border: string; bg: string; decor: string; accent: string; image: string | null }> = [];
 
 function getFontFamily(family: string) {
   switch (family) {
