@@ -897,9 +897,9 @@ function LabelConstructor({ editData }: { editData?: any }) {
     setIsSaving(true);
     // Generate tiny preview (scale 0.08 = ~87x116px, ~15KB base64)
     const canvas = document.createElement("canvas");
-    paintCanvas(canvas, 0.04);
+    paintCanvas(canvas, 0.15);
     setTimeout(() => {
-      const previewUrl = canvas.toDataURL("image/jpeg", 0.7);
+      const previewUrl = canvas.toDataURL("image/jpeg", 0.6);
       saveLabelMutation.mutate({
         id: savedLabelId ?? undefined,
         templateId,
