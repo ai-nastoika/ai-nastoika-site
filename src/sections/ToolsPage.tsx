@@ -750,9 +750,9 @@ function LabelConstructor({ editData }: { editData?: any }) {
       } else {
         // Default zones — same coordinates for all templates without custom zones
         const defaultZones = [
-          { id: "title",    x: 190, y: 1020, w: 706, h: 80,  fontSize: 72, align: "center" },
-          { id: "date",     x: 213, y: 1175, w: 243, h: 60,  fontSize: 52, align: "center" },
-          { id: "strength", x: 631, y: 1175, w: 230, h: 60,  fontSize: 52, align: "center" },
+          { id: "title",    x: 190, y: 1055, w: 706, h: 80,  fontSize: 72, align: "center" },
+          { id: "date",     x: 270, y: 1200, w: 200, h: 60,  fontSize: 52, align: "center" },
+          { id: "strength", x: 580, y: 1200, w: 200, h: 60,  fontSize: 52, align: "center" },
         ];
         defaultZones.forEach(zone => {
           const zx = Math.round(zone.x * sc);
@@ -834,38 +834,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
       ctx.drawImage(preloaded, dx, dy, dw, dh);
       ctx.restore();
     } else {
-      // Draw placeholder with correct shape
-      ctx.save();
-      ctx.strokeStyle = tpl.accent || "#8B4513";
-      ctx.setLineDash([6, 4]);
-      ctx.lineWidth = Math.max(1, Math.round(1.5 * sc));
-      // Draw shape outline
-      ctx.beginPath();
-      if (imageShape === "circle") {
-        const r = Math.min(zw, zh) / 2 - 2;
-        ctx.arc(zx + zw / 2, zy + zh / 2, r, 0, Math.PI * 2);
-      } else if (imageShape === "oval") {
-        ctx.ellipse(zx + zw / 2, zy + zh / 2, zw / 2 - 2, zh / 2 - 2, 0, 0, Math.PI * 2);
-      } else if (imageShape === "rounded") {
-        const r = Math.min(zw, zh) * 0.12;
-        ctx.moveTo(zx + r, zy + 2);
-        ctx.arcTo(zx + zw - 2, zy + 2, zx + zw - 2, zy + zh - 2, r);
-        ctx.arcTo(zx + zw - 2, zy + zh - 2, zx + 2, zy + zh - 2, r);
-        ctx.arcTo(zx + 2, zy + zh - 2, zx + 2, zy + 2, r);
-        ctx.arcTo(zx + 2, zy + 2, zx + zw - 2, zy + 2, r);
-        ctx.closePath();
-      } else {
-        ctx.rect(zx + 2, zy + 2, zw - 4, zh - 4);
-      }
-      ctx.stroke();
-      ctx.restore();
-      ctx.font = Math.round(20 * sc) + "px sans-serif";
-      ctx.fillStyle = tpl.accent || "#8B4513";
-      ctx.globalAlpha = 0.35;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Вставьте фото (Ctrl+V)", zx + zw / 2, zy + zh / 2);
-      ctx.globalAlpha = 1;
+      // No placeholder - templates with images don't need it
     }
   }
 
