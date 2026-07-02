@@ -94,6 +94,25 @@ app.post("/api/upload-label", async (c) => {
     const filePath = path.join(labelsDir, fileName);
     const arrayBuffer = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    // Auto-overlay base template (lines for title/date/strength)
+    const basePath = path.resolve(__dirname, "..", "uploads", "labels", "_base.png");
+    if (fs.existsSync(basePath)) {
+      try {
+        const { execSync } = await import("child_process");
+        execSync(`python3 -c "
+from PIL import Image
+template = Image.open('${filePath}').convert('RGBA')
+base = Image.open('${basePath}').convert('RGBA')
+result = template.copy()
+result.paste(base, (0, 0), base)
+result.convert('RGB').save('${filePath}')
+"`);
+      } catch (e) {
+        console.error("Base overlay error:", e);
+      }
+    }
+
     const publicPath = `/uploads/labels/${fileName}`;
     return c.json({ success: true, path: publicPath });
   } catch (err) {
