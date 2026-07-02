@@ -748,15 +748,41 @@ function LabelConstructor({ editData }: { editData?: any }) {
           }
         });
       } else {
-        ctx.font = "bold " + Math.round(48 * sc) + "px serif";
-        ctx.fillStyle = tpl.accent || "#8B4513";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(labelText || "", CW / 2, CH * 0.45, CW * 0.8);
-        if (labelDate || labelStrength) {
-          ctx.font = Math.round(28 * sc) + "px sans-serif";
-          ctx.fillText([labelDate, labelStrength].filter(Boolean).join(" · "), CW / 2, CH * 0.55, CW * 0.8);
-        }
+        // Default zones — same coordinates for all templates without custom zones
+        const defaultZones = [
+          { id: "title",    x: 201, y: 1000, w: 697, h: 80,  fontSize: 72, align: "center" },
+          { id: "date",     x: 213, y: 1155, w: 243, h: 55,  fontSize: 42, align: "center" },
+          { id: "strength", x: 631, y: 1155, w: 230, h: 55,  fontSize: 42, align: "center" },
+        ];
+        defaultZones.forEach(zone => {
+          const zx = Math.round(zone.x * sc);
+          const zy = Math.round(zone.y * sc);
+          const zw = Math.round(zone.w * sc);
+          const fs = Math.round(zone.fontSize * sc);
+          const zh = Math.round(zone.h * sc);
+          ctx.font = "bold " + fs + "px serif";
+          ctx.fillStyle = tpl.accent || "#8B4513";
+          ctx.textAlign = zone.align as CanvasTextAlign;
+          ctx.textBaseline = "middle";
+          const text = zone.id === "title" ? (labelText || "")
+            : zone.id === "date" ? labelDate
+            : zone.id === "strength" ? labelStrength
+            : "";
+          if (text) {
+            const tx = zone.align === "center" ? zx + zw / 2 : zx;
+            const words = text.split(" ");
+            let line = "";
+            const lines: string[] = [];
+            words.forEach(word => {
+              const test = line + word + " ";
+              if (ctx.measureText(test).width > zw && line) { lines.push(line.trim()); line = word + " "; }
+              else { line = test; }
+            });
+            lines.push(line.trim());
+            let lineY = zy + (zh - lines.length * fs * 1.3) / 2 + fs * 0.7;
+            lines.forEach(l => { ctx.fillText(l, tx, lineY, zw); lineY += fs * 1.3; });
+          }
+        });
       }
     }
 
