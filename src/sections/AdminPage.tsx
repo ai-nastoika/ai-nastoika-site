@@ -1803,7 +1803,7 @@ function LabelTemplatesAdmin() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>
-          {view === "list" ? `Шаблоны этикеток (${templates?.data?.length ?? 0})`
+          {view === "list" ? `Шаблоны этикеток (${templates?.length ?? 0})`
             : view === "types" ? "Типы шаблонов"
             : editId ? "Редактировать шаблон" : "Новый шаблон"}
         </CardTitle>
@@ -1935,7 +1935,7 @@ function LabelTemplatesAdmin() {
         {view === "types" && (
           <div className="space-y-4">
             <TypesManager
-              types={types.data ?? []}
+              types={types?.data ?? []}
               onSave={(data) => upsertType.mutate(data)}
               onDelete={(id) => { if (confirm("Удалить тип?")) deleteType.mutate({ id }); }}
             />
