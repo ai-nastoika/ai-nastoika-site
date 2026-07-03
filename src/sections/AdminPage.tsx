@@ -1855,12 +1855,11 @@ function LabelTemplatesAdmin() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">ID</TableHead>
-                <TableHead>Превью</TableHead>
+                <TableHead style={{ minWidth: 60 }}>Превью</TableHead>
                 <TableHead>Название</TableHead>
-                <TableHead>Тип</TableHead>
                 <TableHead>Порядок</TableHead>
                 <TableHead>Статус</TableHead>
-                <TableHead className="text-right">Действия</TableHead>
+                <TableHead className="text-right" style={{ minWidth: 180 }}>Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1873,9 +1872,6 @@ function LabelTemplatesAdmin() {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell className="text-xs">
-                    {t.image ? "🖼️ Изображение" : "🎨 CSS"}
-                  </TableCell>
                   <TableCell>{t.sortOrder}</TableCell>
                   <TableCell>
                     <button
@@ -1891,9 +1887,7 @@ function LabelTemplatesAdmin() {
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Изменить</Button>
-                    <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить?")) del.mutate({ id: t.id }); }}>
-                      Удалить
-                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить?")) del.mutate({ id: t.id }); }}>Удалить</Button>
                   </TableCell>
                 </TableRow>
               ))}
