@@ -6,8 +6,6 @@ import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import fs from "fs";
-import sharp from "sharp";
-import sharp from "sharp";
 import path from "path";
 import crypto from "crypto";
 
@@ -97,18 +95,25 @@ app.post("/api/upload-label", async (c) => {
     const arrayBuffer = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
 
-    // Auto-overlay base template (lines for title/date/strength)
+    // Auto-overlay base template (lines for title/date/strength) via Python
     const basePath = path.resolve(__dirname, "..", "uploads", "labels", "_base.png");
     if (fs.existsSync(basePath)) {
-      try {
-        const baseBuffer = fs.readFileSync(basePath);
-        await sharp(filePath)
-          .composite([{ input: baseBuffer, blend: "over" }])
-          .toFile(filePath + ".tmp");
-        fs.renameSync(filePath + ".tmp", filePath);
-      } catch (e) {
-        console.error("Base overlay error:", e);
-      }
+      await new Promise<void>((resolve) => {
+        const { spawn } = require("child_process");
+        const py = spawn("python3", ["-c", `
+from PIL import Image
+try:
+    template = Image.open("${filePath}").convert("RGBA")
+    base = Image.open("${basePath}").convert("RGBA")
+    result = template.copy()
+    result.paste(base, (0, 0), base)
+    result.convert("RGB").save("${filePath}")
+except Exception as e:
+    print("overlay error:", e)
+`]);
+        py.on("close", () => resolve());
+        py.on("error", () => resolve());
+      });
     }
 
     const publicPath = `/uploads/labels/${fileName}`;
