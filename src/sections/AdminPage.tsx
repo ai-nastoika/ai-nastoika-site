@@ -1886,9 +1886,7 @@ function LabelTemplatesAdmin() {
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Изменить</Button>
-                    <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить?")) del.mutate({ id: t.id }); }}>
-                      Удалить
-                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить шаблон?")) del.mutate({ id: t.id }); }}>🗑</Button>
                   </TableCell>
                 </TableRow>
               ))}
