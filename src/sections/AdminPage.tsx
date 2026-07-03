@@ -1831,12 +1831,17 @@ function LabelTemplatesAdmin() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button size="sm" onClick={handleSave} disabled={!name.trim() || upsert.isPending}>
               {upsert.isPending ? "Сохраняю..." : "Сохранить"}
             </Button>
             {editId && (
               <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>Отмена</Button>
+            )}
+            {editId && (
+              <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить шаблон?")) { del.mutate({ id: editId }); resetForm(); setView("list"); } }}>
+                Удалить шаблон
+              </Button>
             )}
           </div>
         </div>
