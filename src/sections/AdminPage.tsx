@@ -1722,7 +1722,7 @@ function LabelTemplatesAdmin() {
   });
 
   const [editId, setEditId] = useState<number | null>(null);
-  const [view, setView] = useState<"list" | "form">("list");
+  const [view, setView] = useState<"list" | "form" | "types">("list");
   const [name, setName] = useState("");
   const [image, setImage] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
