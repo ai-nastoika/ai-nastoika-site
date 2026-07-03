@@ -193,6 +193,9 @@ function AdminPanel() {
   /* Queries */
   const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery();
   const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
+  const { data: labelTemplatesCount } = trpc.labelTemplate.list.useQuery();
+  const { data: submissionsCount } = trpc.submission.listAll.useQuery();
+  const { data: usersCount } = trpc.user.list.useQuery();
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -369,9 +372,9 @@ function AdminPanel() {
             <TabsTrigger value="parser">Из текста</TabsTrigger>
             <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="labelTemplates">Этикетки</TabsTrigger>
-            <TabsTrigger value="moderation">Модерация</TabsTrigger>
-            <TabsTrigger value="users">Пользователи</TabsTrigger>
+            <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
+            <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
           </TabsList>
 
           {/* ─── Парсер из текста ─── */}

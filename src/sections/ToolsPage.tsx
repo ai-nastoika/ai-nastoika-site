@@ -698,6 +698,8 @@ function LabelConstructor({ editData }: { editData?: any }) {
         accent: t.accent ?? "#8B4513",
         image: t.image ?? null,
         zones: t.zones ?? null,
+        typeId: (t as any).typeId ?? null,
+        isBase: (t as any).isBase ?? 0,
       })),
   ];
 
