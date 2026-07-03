@@ -1797,6 +1797,8 @@ function LabelTemplatesAdmin() {
     }
     upsert.mutate({
       id: editId ?? undefined,
+      typeId: typeId ?? null,
+      isBase,
       name, image: image || undefined, bg: bg || undefined,
       border: border || undefined, accent, fontFamily,
       zones: parsedZones,
@@ -1887,6 +1889,24 @@ function LabelTemplatesAdmin() {
             </div>
           </div>
 
+          {/* Type selector */}
+          <div>
+            <Label className="text-xs">Тип шаблона</Label>
+            <select
+              value={typeId ?? ""}
+              onChange={(e) => setTypeId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full mt-1 rounded-lg px-3 py-2 text-sm outline-none"
+              style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+            >
+              <option value="">— Без типа —</option>
+              {typesData?.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <div className="flex items-center gap-2 mt-2">
+              <input type="checkbox" id="isBase" checked={isBase === 1} onChange={e => setIsBase(e.target.checked ? 1 : 0)} />
+              <label htmlFor="isBase" className="text-xs" style={{ color: "var(--text-muted)" }}>Базовый шаблон типа (показывается первым)</label>
+            </div>
+          </div>
+
           {/* Zones JSON */}
           <div>
             <Label className="text-xs">
@@ -1928,8 +1948,12 @@ function LabelTemplatesAdmin() {
               <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>Отмена</Button>
             )}
             {editId && (
-              <Button size="sm" variant="destructive" onClick={() => { if (confirm("Удалить шаблон?")) { del.mutate({ id: editId }); resetForm(); setView("list"); } }}>
-                Удалить шаблон
+              <Button
+                size="sm"
+                onClick={() => { if (confirm("Удалить шаблон? Это действие нельзя отменить.")) { del.mutate({ id: editId! }); resetForm(); setView("list"); } }}
+                style={{ background: "#dc2626", color: "#fff", border: "none" }}
+              >
+                🗑 Удалить шаблон
               </Button>
             )}
           </div>
