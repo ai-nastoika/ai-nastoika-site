@@ -675,6 +675,8 @@ function LabelConstructor({ editData }: { editData?: any }) {
   // Шаблоны из БД (добавляются к захардкоженным)
   const { isLoggedIn } = useAuth();
   const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
+  const { data: templateTypes } = trpc.labelTemplate.listTypes.useQuery();
+  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const saveLabelMutation = trpc.savedLabels.save.useMutation({
     onSuccess: (data) => { setSavedLabelId(data.id); setIsSaving(false); },
     onError: () => setIsSaving(false),
@@ -911,54 +913,124 @@ function LabelConstructor({ editData }: { editData?: any }) {
   }
 
   /* Step 1: Choose template */
+  // Render template card helper
+  function TemplateCard({ t }: { t: typeof allTemplates[0] }) {
+    return (
+      <button
+        key={t.id}
+        onClick={() => { setTemplateId(t.id); setStep(2); }}
+        className="rounded-xl p-3 text-center transition-all hover:scale-[1.03]"
+        style={{
+          background: t.bg,
+          border: t.id === templateId ? `2px solid ${t.accent}` : "1px solid var(--border)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        }}
+      >
+        <div
+          className="mx-auto mb-2 rounded flex items-center justify-center text-center overflow-hidden"
+          style={{
+            width: 72, height: 90,
+            border: t.border,
+            background: t.image ? undefined : t.bg,
+            fontFamily: getFontFamily(t.family),
+            color: t.accent,
+            fontSize: 8, fontWeight: "bold", lineHeight: 1.2,
+          }}
+        >
+          {t.image ? (
+            <img src={t.image} alt={t.name} className="w-full h-full object-cover" />
+          ) : (
+            <div><div style={{ fontSize: 14, marginBottom: 4 }}>Aa</div><div style={{ fontSize: 7, opacity: 0.7 }}>{t.name}</div></div>
+          )}
+        </div>
+        <div className="text-xs font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+          {t.name}
+        </div>
+      </button>
+    );
+  }
+
   if (step === 1) {
+    // Templates with types — grouped view
+    const hasTypes = templateTypes && templateTypes.length > 0;
+    const typedTemplates = allTemplates.filter(t => (t as any).typeId);
+    const untypedTemplates = allTemplates.filter(t => !(t as any).typeId);
+
+    // If type selected — show templates of that type
+    if (selectedTypeId !== null) {
+      const typeTemplates = allTemplates.filter(t => (t as any).typeId === selectedTypeId);
+      const currentType = templateTypes?.find(t => t.id === selectedTypeId);
+      return (
+        <div>
+          <button
+            onClick={() => setSelectedTypeId(null)}
+            className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
+            style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
+          >
+            ← Все типы
+          </button>
+          <p className="text-base mb-5 font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            {currentType?.name}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            {typeTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+          </div>
+        </div>
+      );
+    }
+
+    // Show types as cards
     return (
       <div>
         <p className="text-base mb-5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-          Выберите шаблон из коллекции. Затем вы сможете вписать своё название и подпись.
+          Выберите тип этикетки. Затем выберите конкретный шаблон.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-          {allTemplates.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => { setTemplateId(t.id); setStep(2); }}
-              className="rounded-xl p-3 text-center transition-all hover:scale-[1.03]"
-              style={{
-                background: t.bg,
-                border: t.id === templateId ? `2px solid ${t.accent}` : "1px solid var(--border)",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-              }}
-            >
-              {/* Mini preview */}
-              <div
-                className="mx-auto mb-2 rounded flex items-center justify-center text-center overflow-hidden"
-                style={{
-                  width: 72,
-                  height: 90,
-                  border: t.border,
-                  background: t.image ? undefined : t.bg,
-                  fontFamily: getFontFamily(t.family),
-                  color: t.accent,
-                  fontSize: 8,
-                  fontWeight: "bold",
-                  lineHeight: 1.2,
-                }}
-              >
-                {t.image ? (
-                  <img src={t.image} alt={t.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div>
-                    <div style={{ fontSize: 14, marginBottom: 4 }}>Aa</div>
-                    <div style={{ fontSize: 7, opacity: 0.7 }}>{t.name}</div>
-                  </div>
-                )}
+        {hasTypes ? (
+          <div>
+            {/* Types grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+              {templateTypes!.map(type => {
+                const baseTemplate = allTemplates.find(t => (t as any).typeId === type.id && (t as any).isBase === 1)
+                  ?? allTemplates.find(t => (t as any).typeId === type.id);
+                const count = allTemplates.filter(t => (t as any).typeId === type.id).length;
+                return (
+                  <button
+                    key={type.id}
+                    onClick={() => setSelectedTypeId(type.id)}
+                    className="rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02]"
+                    style={{ border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", background: "var(--bg-card)" }}
+                  >
+                    <div className="w-full overflow-hidden" style={{ height: 140, background: "var(--bg-secondary)" }}>
+                      {baseTemplate?.image ? (
+                        <img src={baseTemplate.image} alt={type.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ color: "var(--text-muted)", fontSize: 32 }}>🏷️</div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="font-medium text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{type.name}</div>
+                      {type.description && <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{type.description}</div>}
+                      <div className="text-xs mt-1" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>{count} шаблон{count === 1 ? "" : count < 5 ? "а" : "ов"}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Templates without type */}
+            {untypedTemplates.length > 0 && (
+              <div>
+                <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Другие шаблоны</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {untypedTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+                </div>
               </div>
-              <div className="text-xs font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                {t.id}. {t.name}
-              </div>
-            </button>
-          ))}
-        </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            {allTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+          </div>
+        )}
       </div>
     );
   }

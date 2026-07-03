@@ -154,9 +154,24 @@ export const feedback = mysqlTable("feedback", {
 export type Feedback = typeof feedback.$inferSelect;
 export type InsertFeedback = typeof feedback.$inferInsert;
 
+// ─── Label Template Types ───────────────────────────────────
+export const labelTemplateTypes = mysqlTable("label_template_types", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: varchar("description", { length: 300 }),
+  sortOrder: int("sort_order").notNull().default(0),
+  isActive: int("is_active").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type LabelTemplateType = typeof labelTemplateTypes.$inferSelect;
+export type InsertLabelTemplateType = typeof labelTemplateTypes.$inferInsert;
+
 // ─── Label Templates ────────────────────────────────────────
 export const labelTemplates = mysqlTable("label_templates", {
   id: serial("id").primaryKey(),
+  typeId: int("type_id"),
+  isBase: int("is_base").notNull().default(0),
   name: varchar("name", { length: 100 }).notNull(),
   image: varchar("image", { length: 255 }),
   bg: varchar("bg", { length: 255 }),

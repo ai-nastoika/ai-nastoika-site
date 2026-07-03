@@ -1629,6 +1629,81 @@ function ModerationTab() {
 /* ═══════════════════════════════════════
    LabelTemplatesAdmin — CRUD шаблонов этикеток
    ═══════════════════════════════════════ */
+function TypesManager({ types, onSave, onDelete }: {
+  types: { id: number; name: string; description?: string | null; sortOrder: number }[];
+  onSave: (data: { id?: number; name: string; description?: string; sortOrder: number; isActive: number }) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [editId, setEditId] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [sortOrder, setSortOrder] = useState(0);
+  const [showForm, setShowForm] = useState(false);
+
+  function startEdit(t: typeof types[0]) {
+    setEditId(t.id); setName(t.name); setDesc(t.description ?? ""); setSortOrder(t.sortOrder); setShowForm(true);
+  }
+  function reset() { setEditId(null); setName(""); setDesc(""); setSortOrder(0); setShowForm(false); }
+  function save() { onSave({ id: editId ?? undefined, name, description: desc, sortOrder, isActive: 1 }); reset(); }
+
+  return (
+    <div className="space-y-4">
+      {showForm ? (
+        <div className="p-4 rounded-xl space-y-3" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+          <h4 className="text-sm font-bold" style={{ color: "var(--accent)" }}>{editId ? "Редактировать тип" : "Новый тип"}</h4>
+          <div>
+            <Label className="text-xs">Название</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Классика" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Описание</Label>
+            <Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Краткое описание" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Порядок</Label>
+            <Input type="number" value={sortOrder} onChange={e => setSortOrder(Number(e.target.value))} className="mt-1 w-24" />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={save} disabled={!name.trim()}>Сохранить</Button>
+            <Button size="sm" variant="outline" onClick={reset}>Отмена</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" onClick={() => setShowForm(true)}>+ Добавить тип</Button>
+      )}
+      {types.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Типов нет. Добавьте первый.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Название</TableHead>
+              <TableHead>Описание</TableHead>
+              <TableHead>Порядок</TableHead>
+              <TableHead className="text-right">Действия</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {types.map(t => (
+              <TableRow key={t.id}>
+                <TableCell>{t.id}</TableCell>
+                <TableCell className="font-medium">{t.name}</TableCell>
+                <TableCell className="text-xs" style={{ color: "var(--text-muted)" }}>{t.description}</TableCell>
+                <TableCell>{t.sortOrder}</TableCell>
+                <TableCell className="text-right space-x-1">
+                  <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Изменить</Button>
+                  <Button size="sm" variant="destructive" onClick={() => onDelete(t.id)}>Удалить</Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
 function LabelTemplatesAdmin() {
   const utils = trpc.useUtils();
   const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
@@ -1680,6 +1755,8 @@ function LabelTemplatesAdmin() {
   }
 
   function resetForm() {
+    setTypeId(null);
+    setIsBase(0);
     setEditId(null);
     setName(""); setImage(""); setBg(""); setBorder("");
     setAccent("#8B4513"); setFontFamily("serif");
@@ -1699,6 +1776,8 @@ function LabelTemplatesAdmin() {
     setZones(t.zones ? JSON.stringify(t.zones, null, 2) : "[]");
     setZonesError("");
     setSortOrder(t.sortOrder); setIsActive(t.isActive);
+    setTypeId((t as any).typeId ?? null);
+    setIsBase((t as any).isBase ?? 0);
     setView("form");
   }
 
@@ -1724,19 +1803,24 @@ function LabelTemplatesAdmin() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>
-          {view === "list"
-            ? `Шаблоны этикеток (${templates?.length ?? 0})`
+          {view === "list" ? `Шаблоны этикеток (${templates?.data?.length ?? 0})`
+            : view === "types" ? "Типы шаблонов"
             : editId ? "Редактировать шаблон" : "Новый шаблон"}
         </CardTitle>
-        {view === "list" ? (
-          <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>
-            + Добавить шаблон
-          </Button>
-        ) : (
-          <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>
-            ← Назад к списку
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {view === "list" && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setView("types")}>Типы</Button>
+              <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>+ Добавить шаблон</Button>
+            </>
+          )}
+          {view === "types" && (
+            <Button size="sm" variant="outline" onClick={() => setView("list")}>← К шаблонам</Button>
+          )}
+          {(view === "form") && (
+            <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>← Назад к списку</Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Edit form */}
@@ -1845,6 +1929,17 @@ function LabelTemplatesAdmin() {
             )}
           </div>
         </div>
+        )}
+
+        {/* Types management */}
+        {view === "types" && (
+          <div className="space-y-4">
+            <TypesManager
+              types={types.data ?? []}
+              onSave={(data) => upsertType.mutate(data)}
+              onDelete={(id) => { if (confirm("Удалить тип?")) deleteType.mutate({ id }); }}
+            />
+          </div>
         )}
 
         {/* Table */}
