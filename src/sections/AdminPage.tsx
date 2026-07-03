@@ -1806,6 +1806,40 @@ function LabelTemplatesAdmin() {
     });
   }
 
+  // Sort state
+  const [sortCol, setSortCol] = useState<"id" | "name" | "type" | "sortOrder" | "isActive">("id");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  }
+
+  const sortedTemplates = [...(templates ?? [])].sort((a, b) => {
+    let av: string | number = "", bv: string | number = "";
+    if (sortCol === "id") { av = a.id; bv = b.id; }
+    else if (sortCol === "name") { av = a.name; bv = b.name; }
+    else if (sortCol === "type") { av = (a as any).typeId ?? 999; bv = (b as any).typeId ?? 999; }
+    else if (sortCol === "sortOrder") { av = a.sortOrder; bv = b.sortOrder; }
+    else if (sortCol === "isActive") { av = a.isActive; bv = b.isActive; }
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  function SortHead({ col, children }: { col: typeof sortCol; children: React.ReactNode }) {
+    const active = sortCol === col;
+    return (
+      <TableHead
+        onClick={() => toggleSort(col)}
+        className="cursor-pointer select-none"
+        style={{ userSelect: "none", whiteSpace: "nowrap" }}
+      >
+        {children} {active ? (sortDir === "asc" ? "↑" : "↓") : <span style={{ opacity: 0.3 }}>↕</span>}
+      </TableHead>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -1978,16 +2012,17 @@ function LabelTemplatesAdmin() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">ID</TableHead>
+                <SortHead col="id">ID</SortHead>
                 <TableHead style={{ minWidth: 60 }}>Превью</TableHead>
-                <TableHead>Название</TableHead>
-                <TableHead>Порядок</TableHead>
-                <TableHead>Статус</TableHead>
+                <SortHead col="name">Название</SortHead>
+                <SortHead col="type">Тип</SortHead>
+                <SortHead col="sortOrder">Порядок</SortHead>
+                <SortHead col="isActive">Статус</SortHead>
                 <TableHead className="text-right" style={{ minWidth: 180 }}>Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((t) => (
+              {sortedTemplates.map((t) => (
                 <TableRow key={t.id} style={!t.isActive ? { opacity: 0.5 } : undefined}>
                   <TableCell>{t.id}</TableCell>
                   <TableCell>
@@ -1996,6 +2031,9 @@ function LabelTemplatesAdmin() {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">{t.name}</TableCell>
+                  <TableCell className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {typesData?.find(tp => tp.id === (t as any).typeId)?.name ?? "—"}
+                  </TableCell>
                   <TableCell>{t.sortOrder}</TableCell>
                   <TableCell>
                     <button
