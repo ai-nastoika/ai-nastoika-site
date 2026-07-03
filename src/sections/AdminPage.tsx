@@ -1707,6 +1707,9 @@ function TypesManager({ types, onSave, onDelete }: {
 function LabelTemplatesAdmin() {
   const utils = trpc.useUtils();
   const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
+  const { data: typesData } = trpc.labelTemplate.listTypes.useQuery();
+  const upsertType = trpc.labelTemplate.upsertType.useMutation({ onSuccess: () => utils.labelTemplate.listTypes.invalidate() });
+  const deleteType = trpc.labelTemplate.deleteType.useMutation({ onSuccess: () => utils.labelTemplate.listTypes.invalidate() });
 
   const upsert = trpc.labelTemplate.upsert.useMutation({
     onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); setView("list"); },
@@ -1935,7 +1938,7 @@ function LabelTemplatesAdmin() {
         {view === "types" && (
           <div className="space-y-4">
             <TypesManager
-              types={types?.data ?? []}
+              types={typesData ?? []}
               onSave={(data) => upsertType.mutate(data)}
               onDelete={(id) => { if (confirm("Удалить тип?")) deleteType.mutate({ id }); }}
             />
