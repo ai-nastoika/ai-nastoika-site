@@ -754,9 +754,9 @@ function LabelConstructor({ editData }: { editData?: any }) {
       } else {
         // Default zones — same coordinates for all templates without custom zones
         const defaultZones = [
-          { id: "title",    x: 190, y: 1160, w: 706, h: 80,  fontSize: 68, align: "center" },
-          { id: "date",     x: 270, y: 1300, w: 200, h: 60,  fontSize: 48, align: "center" },
-          { id: "strength", x: 580, y: 1300, w: 200, h: 60,  fontSize: 48, align: "center" },
+          { id: "title",    x: 190, y: 1120, w: 706, h: 80,  fontSize: 68, align: "center" },
+          { id: "date",     x: 270, y: 1260, w: 200, h: 60,  fontSize: 48, align: "center" },
+          { id: "strength", x: 580, y: 1260, w: 200, h: 60,  fontSize: 48, align: "center" },
         ];
         defaultZones.forEach(zone => {
           const zx = Math.round(zone.x * sc);
