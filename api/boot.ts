@@ -6,6 +6,8 @@ import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import fs from "fs";
+import sharp from "sharp";
+import sharp from "sharp";
 import path from "path";
 import crypto from "crypto";
 
@@ -99,15 +101,11 @@ app.post("/api/upload-label", async (c) => {
     const basePath = path.resolve(__dirname, "..", "uploads", "labels", "_base.png");
     if (fs.existsSync(basePath)) {
       try {
-        const { execSync } = await import("child_process");
-        execSync(`python3 -c "
-from PIL import Image
-template = Image.open('${filePath}').convert('RGBA')
-base = Image.open('${basePath}').convert('RGBA')
-result = template.copy()
-result.paste(base, (0, 0), base)
-result.convert('RGB').save('${filePath}')
-"`);
+        const baseBuffer = fs.readFileSync(basePath);
+        await sharp(filePath)
+          .composite([{ input: baseBuffer, blend: "over" }])
+          .toFile(filePath + ".tmp");
+        fs.renameSync(filePath + ".tmp", filePath);
       } catch (e) {
         console.error("Base overlay error:", e);
       }
