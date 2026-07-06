@@ -73,6 +73,15 @@ app.post("/api/upload-image", async (c) => {
 });
 
 // ─── Label template upload endpoint ───
+// ВАЖНО: раньше здесь была автоматическая склейка "_base.png" (линии
+// ДАТА/КРЕПОСТЬ/%) поверх каждого загруженного шаблона через Python.
+// Убрано: она вплавляла линии в файл НАВСЕГДА при каждой заливке, из-за
+// чего при повторной загрузке одного и того же шаблона линии клеились
+// друг на друга (видно на текущем id=1 — тройной наплыв "ДАТА/КРЕПОСТЬ").
+// Теперь этот эндпоинт просто сохраняет файл как есть — рамка/узоры/линии
+// уже должны быть частью самого шаблона (нарисованы в оригинале), а фото
+// пользователя накладывается динамически при рендере через
+// labelTemplateRouter.render (api/lib/labelEngine.ts), не портя исходник.
 app.post("/api/upload-label", async (c) => {
   try {
     const body = await c.req.parseBody();
@@ -94,27 +103,6 @@ app.post("/api/upload-label", async (c) => {
     const filePath = path.join(labelsDir, fileName);
     const arrayBuffer = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
-
-    // Auto-overlay base template (lines for title/date/strength) via Python
-    const basePath = path.resolve(__dirname, "..", "uploads", "labels", "_base.png");
-    if (fs.existsSync(basePath)) {
-      await new Promise<void>((resolve) => {
-        const { spawn } = require("child_process");
-        const py = spawn("python3", ["-c", `
-from PIL import Image
-try:
-    template = Image.open("${filePath}").convert("RGBA")
-    base = Image.open("${basePath}").convert("RGBA")
-    result = template.copy()
-    result.paste(base, (0, 0), base)
-    result.convert("RGB").save("${filePath}")
-except Exception as e:
-    print("overlay error:", e)
-`]);
-        py.on("close", () => resolve());
-        py.on("error", () => resolve());
-      });
-    }
 
     const publicPath = `/uploads/labels/${fileName}`;
     return c.json({ success: true, path: publicPath });
