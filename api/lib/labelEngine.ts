@@ -1,8 +1,7 @@
 // api/lib/labelEngine.ts
 //
-// v3 — работает с ассетами, пришедшими из БД (labelTemplates.zones), а не
-// с фиксированной папкой на диске. Сама генерация (sharp + @napi-rs/canvas)
-// не изменилась относительно того, что мы проверяли локально.
+// Работает с ассетами, пришедшими из БД (labelTemplates.zones): маска +
+// рамка/узоры + текстовые поля с поддержкой bold/italic.
 
 import sharp from "sharp";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
@@ -31,6 +30,8 @@ export interface LabelField {
   color?: string;
   suffix?: string;
   pad_bottom?: number;
+  weight?: "normal" | "bold";
+  style?: "normal" | "italic";
 }
 
 // Это форма, которую храним в labelTemplates.zones (json) для маска-базированных
@@ -75,14 +76,17 @@ function renderTextLayer(
     const color = field.color ?? "#5a4632";
     const padBottom = field.pad_bottom ?? 6;
     const fontName = field.font ?? "Lora";
+    const weight = field.weight ?? "normal";
+    const style = field.style ?? "normal";
+    const fontSpec = (sz: number) => `${style === "italic" ? "italic " : ""}${weight === "bold" ? "bold " : ""}${sz}px "${fontName}"`;
 
     let size = field.size ?? 32;
     while (size > 14) {
-      ctx.font = `${size}px "${fontName}"`;
+      ctx.font = fontSpec(size);
       if (ctx.measureText(text).width <= w) break;
       size -= 1;
     }
-    ctx.font = `${size}px "${fontName}"`;
+    ctx.font = fontSpec(size);
     const textW = ctx.measureText(text).width;
 
     let tx = field.x;
