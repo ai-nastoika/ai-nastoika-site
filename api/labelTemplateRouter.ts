@@ -3,7 +3,6 @@ import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { labelTemplates, labelTemplateTypes } from "@db/schema";
 import { eq, asc } from "drizzle-orm";
-import { renderLabelFromZones, saveRenderedLabel, type LabelZones } from "./lib/labelEngine";
 
 export const labelTemplateRouter = createRouter({
   // ─── Types ───
@@ -120,37 +119,5 @@ export const labelTemplateRouter = createRouter({
         .set({ isActive: input.isActive })
         .where(eq(labelTemplates.id, input.id));
       return { success: true };
-    }),
-
-  // ─── Рендер готовой этикетки (PNG) ───
-  render: publicQuery
-    .input(z.object({
-      templateId: z.number(),
-      artDataUrl: z.string().startsWith("data:image/"), // фото/AI-картинка пользователя, base64
-      values: z.object({
-        name: z.string().optional(),
-        date: z.string().optional(),
-        strength: z.string().optional(),
-      }),
-    }))
-    .mutation(async ({ input }) => {
-      const template = await getDb().query.labelTemplates.findFirst({
-        where: eq(labelTemplates.id, input.templateId),
-      });
-      if (!template) throw new Error("Шаблон не найден");
-      if (!template.zones) throw new Error("У шаблона не заданы zones");
-
-      const zones = template.zones as LabelZones;
-      const base64 = input.artDataUrl.split(",")[1];
-      const artBuffer = Buffer.from(base64, "base64");
-
-      const png = await renderLabelFromZones(zones, artBuffer, {
-        name: input.values.name ?? "",
-        date: input.values.date ?? "",
-        strength: input.values.strength ?? "",
-      });
-      const url = await saveRenderedLabel(png);
-
-      return { url };
     }),
 });
