@@ -42,7 +42,7 @@ const EMPTY_RECIPE = {
 
 const EMPTY_PLACE = {
   slug: "", name: "", city: "", address: "", metro: "", phone: "",
-  website: "", rating: "", reviews: 0, price: "", hours: "", image: "",
+  website: "", lat: "", lng: "", rating: "", reviews: 0, price: "", hours: "", image: "",
   tags: [] as string[], description: "", infusionsHighlight: "", infusionsSignature: "",
   externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
 };
@@ -333,6 +333,8 @@ function AdminPanel() {
       ...EMPTY_PLACE,
       slug: p.slug, name: p.name, city: p.city ?? "", address: p.address ?? "",
       metro: p.metro ?? "", phone: p.phone ?? "", website: p.website ?? "",
+      lat: p.lat !== null && p.lat !== undefined ? String(p.lat) : "",
+      lng: p.lng !== null && p.lng !== undefined ? String(p.lng) : "",
       rating: String(p.rating ?? ""), reviews: p.reviews ?? 0,
       price: p.price ?? "", hours: p.hours ?? "", image: p.image ?? "",
       tags: p.tags ?? [], description: p.description ?? "",
@@ -346,9 +348,22 @@ function AdminPanel() {
     setPlaceOpen(true);
   }
   function submitPlace() {
+    const latNum = pForm.lat.trim() === "" ? undefined : Number(pForm.lat.replace(",", "."));
+    const lngNum = pForm.lng.trim() === "" ? undefined : Number(pForm.lng.replace(",", "."));
+    if (pForm.lat.trim() !== "" && Number.isNaN(latNum)) {
+      alert("Широта указана некорректно — введите число, например 55.751244");
+      return;
+    }
+    if (pForm.lng.trim() !== "" && Number.isNaN(lngNum)) {
+      alert("Долгота указана некорректно — введите число, например 37.618423");
+      return;
+    }
+    const { lat, lng, ...rest } = pForm;
     const data = {
-      ...pForm,
+      ...rest,
       id: editPlaceId,
+      lat: latNum,
+      lng: lngNum,
       rating: pForm.rating || undefined,
       tags: jsonArr(tagsStr),
       externalPros: jsonArr(prosStr),
@@ -854,6 +869,15 @@ function PlaceForm({
         <Field label="Телефон" value={f.phone} onChange={(v) => update({ phone: v })} />
         <Field label="Сайт" value={f.website} onChange={(v) => update({ website: v })} />
         <Field label="Часы работы" value={f.hours} onChange={(v) => update({ hours: v })} />
+      </div>
+      <div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Широта (lat)" value={f.lat} onChange={(v) => update({ lat: v })} placeholder="55.751244" />
+          <Field label="Долгота (lng)" value={f.lng} onChange={(v) => update({ lng: v })} placeholder="37.618423" />
+        </div>
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          Откройте заведение на Яндекс.Картах → нажмите на точку → в адресной строке появится <code>ll=37.618423%2C55.751244</code> (это долгота,широта — в обратном порядке!) либо возьмите координаты из панели «Поделиться». Вставьте широту и долготу в соответствующие поля.
+        </p>
       </div>
       <div className="grid grid-cols-3 gap-4">
         <Field label="Рейтинг" value={f.rating} onChange={(v) => update({ rating: v })} />
