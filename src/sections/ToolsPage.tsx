@@ -681,7 +681,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
   ];
 
   const tpl = allTemplates.find((t) => t.id === templateId) ?? allTemplates[0];
-  const isEditable = (tpl as any).isBase === 1;
+  const isEditable = !!tpl && (tpl as any).isBase === 1;
   const sz = LABEL_SIZES[sizeIdx];
 
   const scale = Math.min(1, 340 / Math.max(sz.w, sz.h));
@@ -880,6 +880,17 @@ function LabelConstructor({ editData }: { editData?: any }) {
           {t.name}
         </div>
       </button>
+    );
+  }
+
+  // Шаблоны из БД ещё грузятся — показываем заглушку вместо падения на undefined
+  if (!tpl) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Загружаю шаблоны...
+        </p>
+      </div>
     );
   }
 
