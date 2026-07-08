@@ -877,6 +877,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
   }
 
   function handleDownload() {
+    if (!isEditable) { doDownload(); return; }
     const emptyFields = [];
     if (!labelText.trim()) emptyFields.push("Название напитка");
     if (!labelDate.trim()) emptyFields.push("Дата");
@@ -958,39 +959,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
   }
 
   /* Step 2, НЕ базовый шаблон — статичная картинка, без редактора */
-  if (step === 2 && !isEditable) {
-    return (
-      <div>
-        <button
-          onClick={() => setStep(1)}
-          className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
-          style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
-        >
-          <ArrowLeft size={16} />
-          Назад к шаблонам
-        </button>
-        <div className="flex flex-col items-center gap-5">
-          <div style={{ maxWidth: 420, width: "100%", borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-            {tpl.image ? (
-              <img src={tpl.image} alt={tpl.name} style={{ width: "100%", display: "block" }} />
-            ) : (
-              <div style={{ aspectRatio: "1086/1448", background: tpl.bg }} />
-            )}
-          </div>
-          <a
-            href={tpl.image ?? "#"}
-            download={(tpl.name || "этикетка") + ".png"}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
-            style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-          >
-            <Download size={22} />
-            Скачать PNG
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   /* Step 2: Edit text + preview (базовый шаблон) */
   if (step === 2) {
     return (
@@ -1148,48 +1116,52 @@ function LabelConstructor({ editData }: { editData?: any }) {
 
         <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 2fr" }}>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Название напитка
-              </label>
-              <input
-                type="text"
-                value={labelText}
-                onChange={(e) => setLabelText(e.target.value)}
-                placeholder="Например: Вишнёвка бабушкина"
-                className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
-                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-              />
-            </div>
+            {isEditable && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Название напитка
+                  </label>
+                  <input
+                    type="text"
+                    value={labelText}
+                    onChange={(e) => setLabelText(e.target.value)}
+                    placeholder="Например: Вишнёвка бабушкина"
+                    className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                    style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                  />
+                </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Дата
-                </label>
-                <input
-                  type="text"
-                  value={labelDate}
-                  onChange={(e) => setLabelDate(e.target.value)}
-                  placeholder="Например: 2025"
-                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
-                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Крепость
-                </label>
-                <input
-                  type="text"
-                  value={labelStrength}
-                  onChange={(e) => setLabelStrength(e.target.value)}
-                  placeholder="Например: 40"
-                  className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
-                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      Дата
+                    </label>
+                    <input
+                      type="text"
+                      value={labelDate}
+                      onChange={(e) => setLabelDate(e.target.value)}
+                      placeholder="Например: 2025"
+                      className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                      style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      Крепость
+                    </label>
+                    <input
+                      type="text"
+                      value={labelStrength}
+                      onChange={(e) => setLabelStrength(e.target.value)}
+                      placeholder="Например: 40"
+                      className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
+                      style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {(tpl as any).zones?.some((z: any) => z.id === "image") && (
               <div>
@@ -1330,13 +1302,15 @@ function LabelConstructor({ editData }: { editData?: any }) {
               >
                 🖨️ На А4
               </button>
-              <button
-                onClick={handleClear}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base transition-all hover:opacity-80"
-                style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-              >
-                ✕ Очистить
-              </button>
+              {isEditable && (
+                <button
+                  onClick={handleClear}
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base transition-all hover:opacity-80"
+                  style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                >
+                  ✕ Очистить
+                </button>
+              )}
             </div>
           </div>
 
