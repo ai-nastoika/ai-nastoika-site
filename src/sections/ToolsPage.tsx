@@ -893,6 +893,15 @@ function LabelConstructor({ editData }: { editData?: any }) {
     }
   }
 
+  function handleClear() {
+    setLabelText("");
+    setLabelDate("");
+    setLabelStrength("");
+    setUserImage(null);
+    setImageShape("rect");
+    setImageZoneScale(1.0);
+  }
+
   function TemplateCard({ t }: { t: typeof allTemplates[0] }) {
     return (
       <button
@@ -1325,6 +1334,13 @@ function LabelConstructor({ editData }: { editData?: any }) {
                 style={{ background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               >
                 🖨️ На А4
+              </button>
+              <button
+                onClick={handleClear}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-base transition-all hover:opacity-80"
+                style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                ✕ Очистить
               </button>
             </div>
           </div>
