@@ -454,8 +454,6 @@ function A4LabelCanvas({ width, height, scale, paintFn }: {
 }
 
 function LabelConstructor({ editData }: { editData?: any }) {
-  const MASK_URL = "/assets/label-templates/label-template-base/design_mask.png";
-
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateId, setTemplateId] = useState(1);
   const [labelText, setLabelText] = useState("");
@@ -469,11 +467,12 @@ function LabelConstructor({ editData }: { editData?: any }) {
   const [savedLabelId, setSavedLabelId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(null);
+  const [imageShape, setImageShape] = useState<"rect" | "rounded" | "oval" | "circle">("rect");
+  const [imageZoneScale, setImageZoneScale] = useState(1.0);
   const [showCropper, setShowCropper] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
   const [cropScale, setCropScale] = useState(1);
-  const [maskLoaded, setMaskLoaded] = useState(false);
   const cropCanvasRef = useRef<HTMLCanvasElement>(null);
   const cropImgRef = useRef<HTMLImageElement | null>(null);
   const cropDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
@@ -481,18 +480,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const maskImgRef = useRef<HTMLImageElement | null>(null);
 
-  // Грузим маску формы этикетки один раз — используется только для базового шаблона,
-  // но грузить дёшево и не мешает остальным
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => { maskImgRef.current = img; setMaskLoaded(true); };
-    img.src = MASK_URL;
-  }, []);
-
-  // Paste image from clipboard
   useEffect(() => {
     if (step !== 2) return;
     function handlePaste(e: ClipboardEvent) {
@@ -513,7 +501,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
     return () => window.removeEventListener("paste", handlePaste);
   }, [step]);
 
-  // Load image from file input — open cropper
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -525,7 +512,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
       setShowCropper(true);
     };
     reader.readAsDataURL(file);
-    // Reset input so same file can be selected again
     e.target.value = "";
   }
 
@@ -536,8 +522,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
     setShowCropper(true);
   }
 
-  // Кроппер теперь всегда квадратный — итоговая форма фото определяется маской
-  // этикетки при финальной сборке, а не выбором пользователя
   function drawCropper() {
     const canvas = cropCanvasRef.current;
     const img = cropImgRef.current;
@@ -564,12 +548,29 @@ function LabelConstructor({ editData }: { editData?: any }) {
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(0, 0, S, S);
     ctx.globalCompositeOperation = "destination-out";
-    ctx.fillRect(4, 4, S - 8, S - 8);
+    ctx.beginPath();
+    if (imageShape === "circle") {
+      ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI*2);
+    } else if (imageShape === "oval") {
+      ctx.ellipse(S/2, S/2, S/2 - 4, S/2 - 4, 0, 0, Math.PI*2);
+    } else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(4+r, 4); ctx.arcTo(S-4, 4, S-4, S-4, r);
+      ctx.arcTo(S-4, S-4, 4, S-4, r); ctx.arcTo(4, S-4, 4, 4, r);
+      ctx.arcTo(4, 4, S-4, 4, r); ctx.closePath();
+    } else {
+      ctx.rect(4, 4, S-8, S-8);
+    }
+    ctx.fill();
     ctx.restore();
 
     ctx.strokeStyle = "#8B4513";
     ctx.lineWidth = 2;
-    ctx.strokeRect(4, 4, S - 8, S - 8);
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2-4, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2-4, S/2-4, 0, 0, Math.PI*2);
+    else { ctx.rect(4, 4, S-8, S-8); }
+    ctx.stroke();
   }
 
   function applyCrop() {
@@ -581,7 +582,16 @@ function LabelConstructor({ editData }: { editData?: any }) {
     out.width = S; out.height = S;
     const ctx = out.getContext("2d")!;
 
-    ctx.rect(0, 0, S, S);
+    ctx.beginPath();
+    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2, 0, Math.PI*2);
+    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2, S/2, 0, 0, Math.PI*2);
+    else if (imageShape === "rounded") {
+      const r = S * 0.12;
+      ctx.moveTo(r, 0); ctx.arcTo(S, 0, S, S, r); ctx.arcTo(S, S, 0, S, r);
+      ctx.arcTo(0, S, 0, 0, r); ctx.arcTo(0, 0, S, 0, r); ctx.closePath();
+    } else {
+      ctx.rect(0, 0, S, S);
+    }
     ctx.clip();
 
     const iw = img.naturalWidth * cropScale;
@@ -594,44 +604,41 @@ function LabelConstructor({ editData }: { editData?: any }) {
     setShowCropper(false);
   }
 
-  // Scroll to top when step changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  // Restore label state from editData prop (passed from profile)
   useEffect(() => {
     if (!editData) return;
     setTemplateId(editData.templateId || 1001);
     setLabelText(editData.labelText || "");
     setLabelDate(editData.labelDate || "");
     setLabelStrength(editData.labelStrength || "");
+    setImageShape(editData.imageShape || "rect");
+    setImageZoneScale(Number(editData.imageZoneScale) || 1);
     setSavedLabelId(editData.id);
     setStep(2);
   }, [editData]);
 
-  // Redraw cropper when params change
   useEffect(() => {
     if (showCropper && cropImgRef.current?.complete) drawCropper();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cropOffset, cropScale, showCropper]);
+  }, [cropOffset, cropScale, imageShape, showCropper]);
 
-  // Draw on canvas when data changes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || step !== 2) return;
     paintCanvas(canvas, 0.3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, maskLoaded]);
+  }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape, imageZoneScale]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
     paintCanvas(canvas, 0.65);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, maskLoaded]);
+  }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape, imageZoneScale]);
 
-  /* Check if user came from recipe page */
   useEffect(() => {
     try {
       const raw = localStorage.getItem("label-recipe-data");
@@ -649,11 +656,8 @@ function LabelConstructor({ editData }: { editData?: any }) {
     } catch { /* ignore */ }
   }, []);
 
-  // Шаблоны из БД
   const { isLoggedIn } = useAuth();
   const { data: dbTemplates } = trpc.labelTemplate.list.useQuery();
-  const { data: templateTypes } = trpc.labelTemplate.listTypes.useQuery();
-  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const saveLabelMutation = trpc.savedLabels.save.useMutation({
     onSuccess: (data) => { setSavedLabelId(data.id); setIsSaving(false); },
     onError: () => setIsSaving(false),
@@ -675,7 +679,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
         accent: t.accent ?? "#8B4513",
         image: t.image ?? null,
         zones: t.zones ?? null,
-        typeId: (t as any).typeId ?? null,
         isBase: (t as any).isBase ?? 0,
       })),
   ];
@@ -705,7 +708,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
         { id: "strength", x: 580, y: 1260, w: 200, h: 60,  fontSize: 48, align: "center" },
       ];
       activeZones.forEach(zone => {
-        if (zone.id === "image" || zone.id === "imageMask") return; // не текстовые зоны
+        if (zone.id === "image") return;
         const zx = Math.round(zone.x * sc);
         const zy = Math.round(zone.y * sc);
         const zw = Math.round(zone.w * sc);
@@ -736,40 +739,49 @@ function LabelConstructor({ editData }: { editData?: any }) {
       });
     }
 
-    // Зона фото (прямоугольник — используется как базовая область для cover-фита,
-    // окончательная форма даётся маской design_mask.png для базового шаблона)
     const imgZone = ((tpl as any).zones as any[] | null)?.find((z: any) => z.id === "image");
 
-    function drawUserImage(preloaded: HTMLImageElement | null) {
-      if (!imgZone || !preloaded) return;
-      const zx = Math.round(imgZone.x * sc);
-      const zy = Math.round(imgZone.y * sc);
-      const zw = Math.round(imgZone.w * sc);
-      const zh = Math.round(imgZone.h * sc);
-
-      const ratio = Math.max(zw / preloaded.width, zh / preloaded.height);
-      const dw = Math.round(preloaded.width * ratio);
-      const dh = Math.round(preloaded.height * ratio);
-      const dx = zx + Math.round((zw - dw) / 2);
-      const dy = zy + Math.round((zh - dh) / 2);
-
-      if (isEditable && maskImgRef.current) {
-        // Клип по контуру этикетки: рисуем фото на отдельном слое, затем
-        // "вырезаем" его маской (destination-in), и только потом кладём на
-        // основной canvas — так фото никогда не перекрывает рамку/узоры,
-        // которые уже нарисованы на фоне (tpl.image).
-        const off = document.createElement("canvas");
-        off.width = CW; off.height = CH;
-        const octx = off.getContext("2d")!;
-        octx.drawImage(preloaded, dx, dy, dw, dh);
-        octx.globalCompositeOperation = "destination-in";
-        octx.drawImage(maskImgRef.current, 0, 0, CW, CH);
-        ctx.drawImage(off, 0, 0);
+    function applyShapeClip(zx: number, zy: number, zw: number, zh: number) {
+      ctx.beginPath();
+      if (imageShape === "circle") {
+        const r = Math.min(zw, zh) / 2;
+        ctx.arc(zx + zw / 2, zy + zh / 2, r, 0, Math.PI * 2);
+      } else if (imageShape === "oval") {
+        ctx.ellipse(zx + zw / 2, zy + zh / 2, zw / 2, zh / 2, 0, 0, Math.PI * 2);
+      } else if (imageShape === "rounded") {
+        const r = Math.min(zw, zh) * 0.12;
+        ctx.moveTo(zx + r, zy);
+        ctx.arcTo(zx + zw, zy, zx + zw, zy + zh, r);
+        ctx.arcTo(zx + zw, zy + zh, zx, zy + zh, r);
+        ctx.arcTo(zx, zy + zh, zx, zy, r);
+        ctx.arcTo(zx, zy, zx + zw, zy, r);
+        ctx.closePath();
       } else {
-        ctx.save();
-        ctx.beginPath();
         ctx.rect(zx, zy, zw, zh);
-        ctx.clip();
+      }
+      ctx.clip();
+    }
+
+    function drawUserImage(preloaded: HTMLImageElement | null) {
+      if (!imgZone) return;
+      const baseW = imgZone.w * sc;
+      const baseH = imgZone.h * sc;
+      const baseCX = imgZone.x * sc + baseW / 2;
+      const baseCY = imgZone.y * sc + baseH / 2;
+      const scaledW = baseW * imageZoneScale;
+      const scaledH = baseH * imageZoneScale;
+      const zx = Math.round(baseCX - scaledW / 2);
+      const zy = Math.round(baseCY - scaledH / 2);
+      const zw = Math.round(scaledW);
+      const zh = Math.round(scaledH);
+      if (preloaded) {
+        ctx.save();
+        applyShapeClip(zx, zy, zw, zh);
+        const ratio = Math.min(zw / preloaded.width, zh / preloaded.height);
+        const dw = Math.round(preloaded.width * ratio);
+        const dh = Math.round(preloaded.height * ratio);
+        const dx = zx + Math.round((zw - dw) / 2);
+        const dy = zy + Math.round((zh - dh) / 2);
         ctx.drawImage(preloaded, dx, dy, dw, dh);
         ctx.restore();
       }
@@ -816,8 +828,8 @@ function LabelConstructor({ editData }: { editData?: any }) {
         labelText,
         labelDate,
         labelStrength,
-        imageShape: "rect",
-        imageZoneScale: "1",
+        imageShape,
+        imageZoneScale: String(imageZoneScale),
         previewUrl,
       });
     }, 700);
@@ -846,7 +858,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
     }
   }
 
-  /* Step 1: Choose template */
   function TemplateCard({ t }: { t: typeof allTemplates[0] }) {
     return (
       <button
@@ -883,7 +894,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
     );
   }
 
-  // Шаблоны из БД ещё грузятся — показываем заглушку вместо падения на undefined
   if (!tpl) {
     return (
       <div className="py-12 text-center">
@@ -894,82 +904,16 @@ function LabelConstructor({ editData }: { editData?: any }) {
     );
   }
 
+  /* Step 1: Choose template — плоский список, без группировки по типам */
   if (step === 1) {
-    const hasTypes = templateTypes && templateTypes.length > 0;
-    const typedTemplates = allTemplates.filter(t => (t as any).typeId);
-    const untypedTemplates = allTemplates.filter(t => !(t as any).typeId);
-
-    if (selectedTypeId !== null) {
-      const typeTemplates = allTemplates.filter(t => (t as any).typeId === selectedTypeId);
-      const currentType = templateTypes?.find(t => t.id === selectedTypeId);
-      return (
-        <div>
-          <button
-            onClick={() => setSelectedTypeId(null)}
-            className="inline-flex items-center gap-2 text-sm mb-5 px-4 py-2 rounded-xl transition-all hover:opacity-80"
-            style={{ color: "var(--accent)", fontFamily: "var(--font-body)", background: "var(--bg-secondary)", border: "1px solid var(--border)" }}
-          >
-            ← Все типы
-          </button>
-          <p className="text-base mb-5 font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            {currentType?.name}
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-            {typeTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div>
         <p className="text-base mb-5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-          Выберите тип этикетки. Затем выберите конкретный шаблон.
+          Выберите шаблон этикетки.
         </p>
-        {hasTypes ? (
-          <div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-              {templateTypes!.map(type => {
-                const baseTemplate = allTemplates.find(t => (t as any).typeId === type.id && (t as any).isBase === 1)
-                  ?? allTemplates.find(t => (t as any).typeId === type.id);
-                const count = allTemplates.filter(t => (t as any).typeId === type.id).length;
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => setSelectedTypeId(type.id)}
-                    className="rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02]"
-                    style={{ border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", background: "var(--bg-card)" }}
-                  >
-                    <div className="w-full overflow-hidden" style={{ height: 140, background: "var(--bg-secondary)" }}>
-                      {baseTemplate?.image ? (
-                        <img src={baseTemplate.image} alt={type.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ color: "var(--text-muted)", fontSize: 32 }}>🏷️</div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <div className="font-medium text-sm" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{type.name}</div>
-                      {type.description && <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{type.description}</div>}
-                      <div className="text-xs mt-1" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>{count} шаблон{count === 1 ? "" : count < 5 ? "а" : "ов"}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {untypedTemplates.length > 0 && (
-              <div>
-                <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Другие шаблоны</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {untypedTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-            {allTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
-          </div>
-        )}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+          {allTemplates.map(t => <TemplateCard key={t.id} t={t} />)}
+        </div>
       </div>
     );
   }
@@ -1008,11 +952,10 @@ function LabelConstructor({ editData }: { editData?: any }) {
     );
   }
 
-  /* Step 2: Edit text + preview (только базовый шаблон) */
+  /* Step 2: Edit text + preview (базовый шаблон) */
   if (step === 2) {
     return (
       <div>
-        {/* Empty fields warning modal */}
         {showEmptyWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
             <div className="rounded-2xl p-6 flex flex-col gap-4 max-w-sm w-full" style={{ background: "var(--bg-card)" }}>
@@ -1051,7 +994,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
           </div>
         )}
 
-        {/* Image Cropper Modal */}
         {showCropper && cropSrc && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
             <div className="rounded-2xl p-6 flex flex-col items-center gap-4" style={{ background: "var(--bg-card)", maxWidth: 480, width: "100%" }}>
@@ -1130,7 +1072,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
           </div>
         )}
 
-        {/* Full-screen preview modal */}
         {showPreviewModal && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -1167,7 +1108,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
         </button>
 
         <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 2fr" }}>
-          {/* Controls */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -1212,7 +1152,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
               </div>
             </div>
 
-            {/* Image upload */}
             {(tpl as any).zones?.some((z: any) => z.id === "image") && (
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -1233,10 +1172,46 @@ function LabelConstructor({ editData }: { editData?: any }) {
                     </button>
                   )}
                 </div>
+                <div className="flex gap-2 mt-2">
+                  {([
+                    { id: "rect",    label: "⬛ Квадрат"  },
+                    { id: "rounded", label: "▢ Скруглён"  },
+                    { id: "oval",    label: "⬭ Овал"      },
+                    { id: "circle",  label: "⬤ Круг"      },
+                  ] as const).map(s => (
+                    <button key={s.id} onClick={() => setImageShape(s.id)}
+                      className="flex-1 text-xs py-1.5 rounded-lg transition-all"
+                      style={{ background: imageShape === s.id ? "var(--accent)" : "var(--bg-secondary)", color: imageShape === s.id ? "#fff" : "var(--text-secondary)", fontFamily: "var(--font-body)", border: "none" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      Размер зоны
+                    </label>
+                    <span className="text-xs font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                      {Math.round(imageZoneScale * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50} max={150} step={1}
+                    value={Math.round(imageZoneScale * 100)}
+                    onChange={(e) => setImageZoneScale(Number(e.target.value) / 100)}
+                    className="w-full"
+                    style={{ accentColor: "var(--accent)" }}
+                  />
+                  <div className="flex justify-between text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    <span>50%</span>
+                    <span>100%</span>
+                    <span>150%</span>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Size selector */}
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                 Размер этикетки
@@ -1319,7 +1294,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
             </div>
           </div>
 
-          {/* Preview */}
           <div className="flex flex-col items-center justify-center gap-3" style={{ background: "var(--bg-secondary)", borderRadius: 12, padding: 24, minHeight: 400 }}>
             <p className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               Нажмите на этикетку для увеличения
@@ -1491,7 +1465,6 @@ function LabelConstructor({ editData }: { editData?: any }) {
     </div>
   );
 }
-
 
 /* ============================================================
    MAIN: Tools Page
