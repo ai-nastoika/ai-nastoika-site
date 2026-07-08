@@ -552,9 +552,10 @@ function LabelConstructor({ editData }: { editData?: any }) {
     if (imageShape === "circle") {
       ctx.arc(S/2, S/2, S/2 - 4, 0, Math.PI*2);
     } else if (imageShape === "oval") {
-      ctx.ellipse(S/2, S/2, S/2 - 4, S/2 - 4, 0, 0, Math.PI*2);
+      const base = S/2 - 4;
+      ctx.ellipse(S/2, S/2, base * 0.62, base, 0, 0, Math.PI*2);
     } else if (imageShape === "rounded") {
-      const r = S * 0.12;
+      const r = S * 0.3;
       ctx.moveTo(4+r, 4); ctx.arcTo(S-4, 4, S-4, S-4, r);
       ctx.arcTo(S-4, S-4, 4, S-4, r); ctx.arcTo(4, S-4, 4, 4, r);
       ctx.arcTo(4, 4, S-4, 4, r); ctx.closePath();
@@ -567,11 +568,22 @@ function LabelConstructor({ editData }: { editData?: any }) {
     ctx.strokeStyle = "#8B4513";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    if (imageShape === "circle") ctx.arc(S/2, S/2, S/2-4, 0, Math.PI*2);
-    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2-4, S/2-4, 0, 0, Math.PI*2);
-    else { ctx.rect(4, 4, S-8, S-8); }
+    if (imageShape === "circle") {
+      ctx.arc(S/2, S/2, S/2-4, 0, Math.PI*2);
+    } else if (imageShape === "oval") {
+      const base = S/2 - 4;
+      ctx.ellipse(S/2, S/2, base * 0.62, base, 0, 0, Math.PI*2);
+    } else if (imageShape === "rounded") {
+      const r = S * 0.3;
+      ctx.moveTo(4+r, 4); ctx.arcTo(S-4, 4, S-4, S-4, r);
+      ctx.arcTo(S-4, S-4, 4, S-4, r); ctx.arcTo(4, S-4, 4, 4, r);
+      ctx.arcTo(4, 4, S-4, 4, r); ctx.closePath();
+    } else {
+      ctx.rect(4, 4, S-8, S-8);
+    }
     ctx.stroke();
   }
+
 
   function applyCrop() {
     const canvas = cropCanvasRef.current;
@@ -584,9 +596,9 @@ function LabelConstructor({ editData }: { editData?: any }) {
 
     ctx.beginPath();
     if (imageShape === "circle") ctx.arc(S/2, S/2, S/2, 0, Math.PI*2);
-    else if (imageShape === "oval") ctx.ellipse(S/2, S/2, S/2, S/2, 0, 0, Math.PI*2);
+    else if (imageShape === "oval") { const base = S/2; ctx.ellipse(S/2, S/2, base * 0.62, base, 0, 0, Math.PI*2); }
     else if (imageShape === "rounded") {
-      const r = S * 0.12;
+      const r = S * 0.3;
       ctx.moveTo(r, 0); ctx.arcTo(S, 0, S, S, r); ctx.arcTo(S, S, 0, S, r);
       ctx.arcTo(0, S, 0, 0, r); ctx.arcTo(0, 0, S, 0, r); ctx.closePath();
     } else {
@@ -628,14 +640,14 @@ function LabelConstructor({ editData }: { editData?: any }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || step !== 2) return;
-    paintCanvas(canvas, 0.3);
+    paintCanvas(canvas, 0.3, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, labelText, labelDate, labelStrength, templateId, sizeIdx, userImage, imageShape, imageZoneScale]);
 
   useEffect(() => {
     const canvas = modalCanvasRef.current;
     if (!canvas || !showPreviewModal) return;
-    paintCanvas(canvas, 0.65);
+    paintCanvas(canvas, 0.65, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPreviewModal, labelText, labelDate, labelStrength, templateId, userImage, imageShape, imageZoneScale]);
 
@@ -691,7 +703,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
   const prevW = Math.round(sz.w * scale);
   const prevH = Math.round(sz.h * scale);
 
-  function paintCanvas(canvas: HTMLCanvasElement, sc: number) {
+  function paintCanvas(canvas: HTMLCanvasElement, sc: number, guides: boolean = false) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const CW = Math.round(1086 * sc);
@@ -741,15 +753,19 @@ function LabelConstructor({ editData }: { editData?: any }) {
 
     const imgZone = ((tpl as any).zones as any[] | null)?.find((z: any) => z.id === "image");
 
-    function applyShapeClip(zx: number, zy: number, zw: number, zh: number) {
+    // Строит путь формы (без клипа/обводки) — общая геометрия для клипа фото
+    // и для пунктирной рамки-подсказки в превью
+    function buildShapePath(zx: number, zy: number, zw: number, zh: number) {
       ctx.beginPath();
       if (imageShape === "circle") {
         const r = Math.min(zw, zh) / 2;
         ctx.arc(zx + zw / 2, zy + zh / 2, r, 0, Math.PI * 2);
       } else if (imageShape === "oval") {
-        ctx.ellipse(zx + zw / 2, zy + zh / 2, zw / 2, zh / 2, 0, 0, Math.PI * 2);
+        // Вытянутый вертикально овал, а не просто копия круга
+        const base = Math.min(zw, zh) / 2;
+        ctx.ellipse(zx + zw / 2, zy + zh / 2, base * 0.62, base, 0, 0, Math.PI * 2);
       } else if (imageShape === "rounded") {
-        const r = Math.min(zw, zh) * 0.12;
+        const r = Math.min(zw, zh) * 0.3; // заметно скруглённые углы
         ctx.moveTo(zx + r, zy);
         ctx.arcTo(zx + zw, zy, zx + zw, zy + zh, r);
         ctx.arcTo(zx + zw, zy + zh, zx, zy + zh, r);
@@ -759,7 +775,23 @@ function LabelConstructor({ editData }: { editData?: any }) {
       } else {
         ctx.rect(zx, zy, zw, zh);
       }
+    }
+
+    function applyShapeClip(zx: number, zy: number, zw: number, zh: number) {
+      buildShapePath(zx, zy, zw, zh);
       ctx.clip();
+    }
+
+    // Пунктирная рамка зоны вставки — только для превью (guides=true),
+    // никогда не попадает в скачанный файл или печать на А4
+    function drawZoneOutline(zx: number, zy: number, zw: number, zh: number) {
+      ctx.save();
+      buildShapePath(zx, zy, zw, zh);
+      ctx.setLineDash([Math.max(4, 10 * sc), Math.max(3, 6 * sc)]);
+      ctx.lineWidth = Math.max(1.5, 2 * sc);
+      ctx.strokeStyle = tpl.accent || "#8B4513";
+      ctx.stroke();
+      ctx.restore();
     }
 
     function drawUserImage(preloaded: HTMLImageElement | null) {
@@ -784,6 +816,9 @@ function LabelConstructor({ editData }: { editData?: any }) {
         const dy = zy + Math.round((zh - dh) / 2);
         ctx.drawImage(preloaded, dx, dy, dw, dh);
         ctx.restore();
+      }
+      if (guides) {
+        drawZoneOutline(zx, zy, zw, zh);
       }
     }
 
