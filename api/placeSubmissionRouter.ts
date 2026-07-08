@@ -5,7 +5,25 @@ import { placeSubmissions, places } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export const placeSubmissionRouter = createRouter({
-  /* ── Создать черновик (публично: и пользователь, и админ через тот же поток) ── */
+  /* ── Определить координаты по ссылке на Яндекс.Карты ──
+     Работает и с короткими (https://yandex.ru/maps/-/XXXXXXXX),
+     и с полными ссылками — просто идём по редиректу и парсим ll= из финального URL. */
+  resolveUrl: publicQuery
+    .input(z.object({ url: z.string().url() }))
+    .query(async ({ input }) => {
+      try {
+        const res = await fetch(input.url, { redirect: "follow" });
+        const finalUrl = res.url;
+        const match = finalUrl.match(/[?&]ll=([\d.]+)%2C([\d.]+)/) || finalUrl.match(/[?&]ll=([\d.]+),([\d.]+)/);
+        if (!match) {
+          return { lat: null, lng: null, finalUrl };
+        }
+        return { lng: Number(match[1]), lat: Number(match[2]), finalUrl };
+      } catch {
+        return { lat: null, lng: null, finalUrl: null };
+      }
+    }),
+
   create: publicQuery
     .input(
       z.object({
