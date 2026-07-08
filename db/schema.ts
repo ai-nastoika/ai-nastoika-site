@@ -82,6 +82,12 @@ export const places = mysqlTable("places", {
   metro: varchar("metro", { length: 100 }),
   phone: varchar("phone", { length: 50 }),
   website: varchar("website", { length: 200 }),
+  // ─ координаты для реальной карты (Яндекс.Карты) ─
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  // ─ модерация: admin создаёт сразу approved, заявки пользователей — pending ─
+  status: varchar("status", { length: 20 }).notNull().default("approved"), // approved | pending | rejected
+  submittedByUserId: bigint("submitted_by_user_id", { mode: "number", unsigned: true }),
   rating: decimal("rating", { precision: 2, scale: 1 }).default("0"),
   reviews: int("reviews").default(0),
   price: varchar("price", { length: 20 }),
@@ -111,6 +117,52 @@ export const placeInfusions = mysqlTable("place_infusions", {
 });
 
 export type PlaceInfusion = typeof placeInfusions.$inferSelect;
+
+// ─── Place Submissions (заявки на добавление заведений) ────
+export const placeSubmissions = mysqlTable("place_submissions", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
+  fingerprint: varchar("fingerprint", { length: 64 }),
+  authorName: varchar("author_name", { length: 100 }),
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // draft | ai_processed | pending | approved | rejected
+
+  // ─ сырые данные, вставленные вручную (адрес/координаты копируются
+  //   с открытой точки на Яндекс.Картах, отзывы — вручную найденные фрагменты) ─
+  rawUrl: varchar("raw_url", { length: 500 }),
+  rawCoords: varchar("raw_coords", { length: 100 }), // напр. "55.7558, 37.6173"
+  rawAddress: text("raw_address"),
+  rawPhone: varchar("raw_phone", { length: 50 }),
+  rawHours: varchar("raw_hours", { length: 200 }),
+  rawReviews: text("raw_reviews"), // вставленные тексты отзывов для анализа ИИ
+  rawNotes: text("raw_notes"),
+
+  // ─ поля, структурированные ИИ — 1:1 с таблицей places ─
+  slug: varchar("slug", { length: 100 }),
+  name: varchar("name", { length: 200 }),
+  city: varchar("city", { length: 100 }),
+  address: varchar("address", { length: 300 }),
+  metro: varchar("metro", { length: 100 }),
+  phone: varchar("phone", { length: 50 }),
+  website: varchar("website", { length: 200 }),
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  hours: varchar("hours", { length: 100 }),
+  image: varchar("image", { length: 255 }),
+  tags: json("tags").$type<string[]>(),
+  description: text("description"),
+  infusionsHighlight: varchar("infusions_highlight", { length: 300 }),
+  infusionsSignature: varchar("infusions_signature", { length: 200 }),
+  externalSummary: text("external_summary"),
+  externalPros: json("external_pros").$type<string[]>(),
+  externalCons: json("external_cons").$type<string[]>(),
+
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type PlaceSubmission = typeof placeSubmissions.$inferSelect;
+export type InsertPlaceSubmission = typeof placeSubmissions.$inferInsert;
 
 // ─── Comments ──────────────────────────────────────────────
 export const comments = mysqlTable("comments", {

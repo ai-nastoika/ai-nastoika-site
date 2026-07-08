@@ -7,6 +7,8 @@ import crypto from "crypto";
 import { labelTemplateRouter } from "./labelTemplateRouter";
 import { recipeRouter } from "./recipeRouter";
 import { savedLabelsRouter } from "./savedLabelsRouter";
+import { placeRouter } from "./placeRouter";
+import { placeSubmissionRouter } from "./placeSubmissionRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -327,13 +329,9 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Места ───
-  place: router({
-    list: publicProcedure.query(() => []),
-    bySlug: publicProcedure.input(z.object({ slug: z.string() })).query(() => null),
-    delete: publicProcedure.input(z.object({ id: z.number() })).mutation(() => ({ success: true })),
-    upsert: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-  }),
+  // ─── Места (барная карта) ───
+  place: placeRouter,
+  placeSubmission: placeSubmissionRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),
