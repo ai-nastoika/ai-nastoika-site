@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
-import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft } from "lucide-react";
+import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus } from "lucide-react";
+import AddPlaceForm from "./AddPlaceForm";
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
@@ -62,6 +63,7 @@ export default function BarMap() {
   const places = (apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces) as Venue[];
   const [activeCity, setActiveCity] = useState("Все города");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -188,6 +190,14 @@ export default function BarMap() {
     );
   }
 
+  if (showAddForm) {
+    return (
+      <div className="min-h-screen py-12 px-4" style={{ background: "var(--bg-primary)" }}>
+        <AddPlaceForm onClose={() => setShowAddForm(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* Hero */}
@@ -222,12 +232,21 @@ export default function BarMap() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-8">
-            {cities.map((city) => (
-              <button key={city} onClick={() => setActiveCity(city)} className="rounded-full px-5 py-2 text-base font-medium transition-all" style={{ background: activeCity === city ? "var(--accent)" : "var(--bg-card)", color: activeCity === city ? "#fff" : "var(--text-secondary)", border: activeCity === city ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                {city}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2 mt-8 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              {cities.map((city) => (
+                <button key={city} onClick={() => setActiveCity(city)} className="rounded-full px-5 py-2 text-base font-medium transition-all" style={{ background: activeCity === city ? "var(--accent)" : "var(--bg-card)", color: activeCity === city ? "#fff" : "var(--text-secondary)", border: activeCity === city ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                  {city}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-base font-medium transition-all hover:scale-105"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              <Plus size={18} /> Предложить заведение
+            </button>
           </div>
         </div>
       </section>

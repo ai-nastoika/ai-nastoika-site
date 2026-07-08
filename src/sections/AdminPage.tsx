@@ -195,6 +195,7 @@ function AdminPanel() {
   const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
   const { data: labelTemplatesCount } = trpc.labelTemplate.list.useQuery();
   const { data: submissionsCount } = trpc.submission.listAll.useQuery();
+  const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery();
   const { data: usersCount } = trpc.user.list.useQuery();
 
   /* Merge: API first, then local, then fallback */
@@ -389,6 +390,7 @@ function AdminPanel() {
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
+            <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
           </TabsList>
 
@@ -610,6 +612,9 @@ function AdminPanel() {
           {/* ─── Модерация заявок ─── */}
           <TabsContent value="moderation">
             <ModerationTab />
+          </TabsContent>
+          <TabsContent value="placeSubmissions">
+            <PlaceModerationTab />
           </TabsContent>
           <TabsContent value="users">
             <UsersTab />
@@ -1990,6 +1995,242 @@ function LabelTemplatesAdmin() {
             </TableBody>
           </Table>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlaceModerationTab() {
+  const utils = trpc.useUtils();
+  const [filter, setFilter] = useState<string>("all");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejectId, setRejectId] = useState<number | null>(null);
+
+  const { data: submissions, isLoading } = trpc.placeSubmission.listAll.useQuery();
+  const approve = trpc.placeSubmission.approve.useMutation({
+    onSuccess: () => {
+      utils.placeSubmission.listAll.invalidate();
+      utils.place.list.invalidate();
+    },
+  });
+  const reject = trpc.placeSubmission.reject.useMutation({
+    onSuccess: () => { utils.placeSubmission.listAll.invalidate(); setRejectId(null); setRejectNote(""); },
+  });
+
+  const filtered = (submissions ?? []).filter((s) => {
+    if (filter === "all") return true;
+    return s.status === filter;
+  });
+
+  const statusMeta: Record<string, { label: string; bg: string; color: string; icon: ReactNode }> = {
+    draft: { label: "Черновик", bg: "#f3f4f6", color: "#6b7280", icon: <Clock size={14} /> },
+    ai_processed: { label: "Обработан ИИ", bg: "#eff6ff", color: "#1e40af", icon: <Sparkles size={14} /> },
+    pending: { label: "На проверке", bg: "#fef3c7", color: "#92400e", icon: <Gavel size={14} /> },
+    approved: { label: "Одобрена", bg: "#d8f3dc", color: "#386641", icon: <Check size={14} /> },
+    rejected: { label: "Отклонена", bg: "#fee2e2", color: "#991b1b", icon: <X size={14} /> },
+  };
+
+  function handleApprove(s: NonNullable<typeof submissions>[0]) {
+    if (!s.slug || !s.name) {
+      alert("У заявки не заполнены slug или название — отредактируйте данные перед одобрением (пока редактирование заявок не реализовано, отклоните и попросите отправить заново).");
+      return;
+    }
+    if (!confirm(`Одобрить и опубликовать заведение «${s.name}»? Оно сразу появится на барной карте.`)) return;
+    approve.mutate({ id: s.id });
+  }
+
+  function handleReject(id: number) {
+    if (!rejectNote.trim()) {
+      setRejectId(id);
+      return;
+    }
+    reject.mutate({ id, adminNotes: rejectNote });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gavel size={20} style={{ color: "var(--accent)" }} />
+          Заявки на добавление заведений
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "all", label: `Все (${submissions?.length ?? 0})` },
+            { key: "pending", label: `На проверке (${submissions?.filter((s) => s.status === "pending").length ?? 0})` },
+            { key: "approved", label: `Одобрены (${submissions?.filter((s) => s.status === "approved").length ?? 0})` },
+            { key: "rejected", label: `Отклонены (${submissions?.filter((s) => s.status === "rejected").length ?? 0})` },
+            { key: "draft", label: `Черновики (${submissions?.filter((s) => s.status === "draft").length ?? 0})` },
+            { key: "ai_processed", label: `Обработаны ИИ (${submissions?.filter((s) => s.status === "ai_processed").length ?? 0})` },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: filter === f.key ? "var(--accent)" : "var(--surface)",
+                color: filter === f.key ? "#fff" : "var(--text-secondary)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <p>Загрузка...</p>
+        ) : !filtered.length ? (
+          <div className="text-center py-8">
+            <AlertCircle size={32} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
+            <p style={{ color: "var(--text-muted)" }}>Нет заявок в выбранной категории</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((s) => {
+              const meta = statusMeta[s.status] || statusMeta.draft;
+              const isExpanded = expandedId === s.id;
+              return (
+                <div
+                  key={s.id}
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: "1px solid var(--border)", background: "var(--bg-primary)" }}
+                >
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:opacity-80"
+                    onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                  >
+                    <span
+                      className="shrink-0 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+                      style={{ background: meta.bg, color: meta.color }}
+                    >
+                      {meta.icon} {meta.label}
+                    </span>
+                    <span className="font-medium text-sm flex-1 truncate" style={{ fontFamily: "var(--font-body)" }}>
+                      {s.name || "(без названия)"}
+                    </span>
+                    <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+                      <User size={12} className="inline mr-1" />
+                      {s.authorName || "Аноним"}
+                    </span>
+                    <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+                      {s.createdAt ? new Date(s.createdAt).toLocaleDateString("ru-RU") : ""}
+                    </span>
+                    <Eye size={16} style={{ color: "var(--text-muted)" }} />
+                  </div>
+
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+                      <div className="pt-3 space-y-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                          Исходные данные
+                        </h4>
+                        {s.rawUrl && (
+                          <p className="text-sm">
+                            <span style={{ color: "var(--text-muted)" }}>Ссылка:</span>{" "}
+                            <a href={s.rawUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{s.rawUrl}</a>
+                          </p>
+                        )}
+                        {s.rawCoords && (
+                          <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Координаты:</span> {s.rawCoords}</p>
+                        )}
+                        {s.rawAddress && (
+                          <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Адрес:</span> {s.rawAddress}</p>
+                        )}
+                        {s.rawReviews && (
+                          <div>
+                            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Отзывы (вставленные):</span>
+                            <pre className="text-sm mt-1 p-2 rounded" style={{ background: "var(--surface)", whiteSpace: "pre-wrap" }}>{s.rawReviews}</pre>
+                          </div>
+                        )}
+                        {s.rawNotes && (
+                          <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Заметки:</span> {s.rawNotes}</p>
+                        )}
+                      </div>
+
+                      {(s.slug || s.name) && (
+                        <div className="space-y-2 p-3 rounded-lg" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+                          <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                            Обработанные данные
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div><span style={{ color: "var(--text-muted)" }}>Slug:</span> {s.slug}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Город:</span> {s.city}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Метро:</span> {s.metro}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Часы:</span> {s.hours}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Широта:</span> {s.lat ?? "—"}</div>
+                            <div><span style={{ color: "var(--text-muted)" }}>Долгота:</span> {s.lng ?? "—"}</div>
+                          </div>
+                          {s.description && (
+                            <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Описание:</span> {s.description}</p>
+                          )}
+                          {s.externalSummary && (
+                            <p className="text-sm"><span style={{ color: "var(--text-muted)" }}>Резюме из отзывов:</span> {s.externalSummary}</p>
+                          )}
+                          {Array.isArray(s.externalPros) && s.externalPros.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {s.externalPros.map((p, i) => (
+                                <span key={i} className="text-xs px-2 py-1 rounded-full" style={{ background: "#d8f3dc", color: "#386641" }}>+ {p}</span>
+                              ))}
+                            </div>
+                          )}
+                          {Array.isArray(s.externalCons) && s.externalCons.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {s.externalCons.map((c, i) => (
+                                <span key={i} className="text-xs px-2 py-1 rounded-full" style={{ background: "#fee2e2", color: "#991b1b" }}>− {c}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {s.adminNotes && (
+                        <div className="p-2 rounded text-sm" style={{ background: "#fee2e2", color: "#991b1b" }}>
+                          <strong>Причина отклонения:</strong> {s.adminNotes}
+                        </div>
+                      )}
+
+                      {s.status === "pending" && (
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(s)}
+                            disabled={approve.isPending}
+                            style={{ background: "#386641", color: "#fff" }}
+                          >
+                            <Check size={16} className="mr-1" />
+                            {approve.isPending ? "Публикуем..." : "Одобрить и опубликовать"}
+                          </Button>
+                          {rejectId === s.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <Input
+                                value={rejectNote}
+                                onChange={(e) => setRejectNote(e.target.value)}
+                                placeholder="Причина отклонения..."
+                                className="text-sm"
+                              />
+                              <Button size="sm" variant="destructive" onClick={() => handleReject(s.id)} disabled={reject.isPending}>
+                                Подтвердить
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => handleReject(s.id)}>
+                              <X size={16} className="mr-1" /> Отклонить
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
