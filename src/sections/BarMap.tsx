@@ -67,14 +67,6 @@ export default function BarMap() {
   const mapInstanceRef = useRef<any>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-        <div className="w-8 h-8 border-3 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
-      </div>
-    );
-  }
-
   const venues = places ?? [];
 
   const filteredVenues = venues.filter((v) => {
@@ -91,7 +83,7 @@ export default function BarMap() {
     (v) => v.lat !== null && v.lat !== undefined && v.lng !== null && v.lng !== undefined
   );
 
-  /* ── Инициализация и обновление карты ── */
+  /* ── Инициализация и обновление карты (хук вызывается всегда, даже во время isLoading) ── */
   useEffect(() => {
     let cancelled = false;
     let map: any = null;
@@ -186,6 +178,14 @@ export default function BarMap() {
 
   function escapeHtml(str: string) {
     return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+        <div className="w-8 h-8 border-3 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+      </div>
+    );
   }
 
   return (
