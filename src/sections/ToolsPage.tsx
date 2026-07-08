@@ -817,7 +817,7 @@ function LabelConstructor({ editData }: { editData?: any }) {
         ctx.drawImage(preloaded, dx, dy, dw, dh);
         ctx.restore();
       }
-      if (guides) {
+      if (guides && !preloaded) {
         drawZoneOutline(zx, zy, zw, zh);
       }
     }
