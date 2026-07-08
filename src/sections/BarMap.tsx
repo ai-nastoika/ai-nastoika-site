@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
@@ -6,20 +6,66 @@ import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Nav
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
-const coordMap: Record<string, { top: string; left: string }> = {
-  "dymniy-kotel": { top: "25%", left: "65%" },
-  "tayga": { top: "40%", left: "30%" },
-  "izba-nastoek": { top: "60%", left: "55%" },
-  "craft-spirits-lab": { top: "35%", left: "75%" },
+const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY as string | undefined;
+
+// Дефолтный центр — Москва (используется, пока не знаем координаты заведений)
+const DEFAULT_CENTER: [number, number] = [55.751244, 37.618423];
+
+/* ═══════════════════════════════════════════════════════════════
+   Загрузка Яндекс.Карт JS API (один раз на страницу)
+   ═══════════════════════════════════════════════════════════════ */
+let ymapsLoadPromise: Promise<any> | null = null;
+
+function loadYmaps(): Promise<any> {
+  if (ymapsLoadPromise) return ymapsLoadPromise;
+
+  ymapsLoadPromise = new Promise((resolve, reject) => {
+    if (!YANDEX_MAPS_API_KEY) {
+      reject(new Error("NO_API_KEY"));
+      return;
+    }
+    const w = window as any;
+    if (w.ymaps) {
+      w.ymaps.ready(() => resolve(w.ymaps));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YANDEX_MAPS_API_KEY}&lang=ru_RU`;
+    script.async = true;
+    script.onload = () => w.ymaps.ready(() => resolve(w.ymaps));
+    script.onerror = () => reject(new Error("SCRIPT_LOAD_ERROR"));
+    document.head.appendChild(script);
+  });
+
+  return ymapsLoadPromise;
+}
+
+type Venue = {
+  id: number;
+  slug: string;
+  name: string;
+  city?: string | null;
+  address?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
+  image?: string | null;
+  rating?: string | number | null;
+  reviews?: number | null;
+  price?: string | null;
+  hours?: string | null;
+  tags?: string[] | null;
 };
 
 export default function BarMap() {
   const navigate = useNavigate();
   const { data: apiPlaces, isLoading } = trpc.place.list.useQuery();
-  const places = apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces;
+  const places = (apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces) as Venue[];
   const [activeCity, setActiveCity] = useState("Все города");
-  const [hoveredVenue, setHoveredVenue] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -39,6 +85,108 @@ export default function BarMap() {
       (v.tags ? (v.tags as string[]).some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase())) : false);
     return cityMatch && searchMatch;
   });
+
+  // Только те заведения, у которых реально есть координаты — их можно поставить на карту
+  const venuesWithCoords = filteredVenues.filter(
+    (v) => v.lat !== null && v.lat !== undefined && v.lng !== null && v.lng !== undefined
+  );
+
+  /* ── Инициализация и обновление карты ── */
+  useEffect(() => {
+    let cancelled = false;
+    let map: any = null;
+
+    async function init() {
+      if (!mapContainerRef.current) return;
+      try {
+        const ymaps = await loadYmaps();
+        if (cancelled) return;
+
+        map = new ymaps.Map(mapContainerRef.current, {
+          center: DEFAULT_CENTER,
+          zoom: 11,
+          controls: ["zoomControl"],
+        });
+        mapInstanceRef.current = map;
+
+        renderPlacemarks(ymaps, map, venuesWithCoords);
+      } catch (e) {
+        if (!cancelled) {
+          setMapError(
+            (e as Error).message === "NO_API_KEY"
+              ? "Не задан VITE_YANDEX_MAPS_API_KEY — добавьте ключ в .env и пересоберите фронтенд"
+              : "Не удалось загрузить Яндекс.Карты"
+          );
+        }
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+      if (map) map.destroy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── Перерисовка меток при смене фильтров ── */
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const w = window as any;
+    if (!w.ymaps) return;
+    renderPlacemarks(w.ymaps, mapInstanceRef.current, venuesWithCoords);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCity, searchQuery, venues.length]);
+
+  function renderPlacemarks(ymaps: any, map: any, list: Venue[]) {
+    map.geoObjects.removeAll();
+
+    if (list.length === 0) return;
+
+    const clusterer = new ymaps.Clusterer({
+      preset: "islands#redClusterIcons",
+      groupByCoordinates: false,
+      clusterDisableClickZoom: false,
+    });
+
+    const placemarks = list.map((venue) => {
+      const lat = Number(venue.lat);
+      const lng = Number(venue.lng);
+
+      const balloonContent = `
+        <div style="max-width:220px;font-family:sans-serif;">
+          ${venue.image ? `<img src="${venue.image}" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:6px;" />` : ""}
+          <div style="font-weight:700;font-size:14px;margin-bottom:2px;">${escapeHtml(venue.name)}</div>
+          <div style="font-size:12px;color:#666;margin-bottom:4px;">${escapeHtml(venue.address ?? "")}</div>
+          ${venue.hours ? `<div style="font-size:12px;color:#666;margin-bottom:4px;">🕒 ${escapeHtml(venue.hours)}</div>` : ""}
+          ${venue.rating ? `<div style="font-size:12px;margin-bottom:6px;">⭐ ${venue.rating} (${venue.reviews ?? 0} отзывов)</div>` : ""}
+          <a href="#/place/${venue.slug}" style="font-size:13px;color:#8B4513;font-weight:600;text-decoration:none;">Подробнее →</a>
+        </div>
+      `;
+
+      return new ymaps.Placemark(
+        [lat, lng],
+        {
+          balloonContent,
+          hintContent: venue.name,
+        },
+        {
+          preset: "islands#redIcon",
+        }
+      );
+    });
+
+    placemarks.forEach((pm) => clusterer.add(pm));
+    map.geoObjects.add(clusterer);
+
+    if (placemarks.length > 0) {
+      map.setBounds(clusterer.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
+    }
+  }
+
+  function escapeHtml(str: string) {
+    return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -84,55 +232,24 @@ export default function BarMap() {
         </div>
       </section>
 
-      {/* Interactive Map */}
+      {/* Настоящая карта — Яндекс.Карты */}
       <section className="py-8" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", height: 420 }}>
-            <svg viewBox="0 0 800 400" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
-              <rect width="800" height="400" fill="var(--bg-secondary)" />
-              {[...Array(8)].map((_, i) => (
-                <line key={`h${i}`} x1="0" y1={i * 50 + 50} x2="800" y2={i * 50 + 50} stroke="var(--border)" strokeWidth="0.5" opacity="0.5" />
-              ))}
-              {[...Array(16)].map((_, i) => (
-                <line key={`v${i}`} x1={i * 50 + 50} y1="0" x2={i * 50 + 50} y2="400" stroke="var(--border)" strokeWidth="0.5" opacity="0.5" />
-              ))}
-              <path d="M0,120 Q200,80 400,140 T800,100 L800,160 Q600,200 400,160 T0,200Z" fill="var(--surface)" opacity="0.5" />
-              <path d="M0,280 Q300,240 500,300 T800,260 L800,320 Q500,360 300,300 T0,340Z" fill="var(--surface)" opacity="0.3" />
-              <text x="100" y="80" fill="var(--text-muted)" fontSize="10" fontFamily="var(--font-body)" opacity="0.5">Центр</text>
-              <text x="350" y="200" fill="var(--text-muted)" fontSize="10" fontFamily="var(--font-body)" opacity="0.5">Арбат</text>
-              <text x="600" y="120" fill="var(--text-muted)" fontSize="10" fontFamily="var(--font-body)" opacity="0.5">Басманный</text>
-              <text x="200" y="340" fill="var(--text-muted)" fontSize="10" fontFamily="var(--font-body)" opacity="0.5">Замоскворечье</text>
-            </svg>
+          <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", height: 480 }}>
+            {mapError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                <MapPin size={40} style={{ color: "var(--border)" }} className="mb-3" />
+                <p className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{mapError}</p>
+              </div>
+            ) : (
+              <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
+            )}
 
-            {venues.map((venue) => {
-              const coords = coordMap[venue.slug] ?? { top: "50%", left: "50%" };
-              return (
-                <Link to={`/place/${venue.slug}`} key={venue.id} className="absolute transform -translate-x-1/2 -translate-y-full transition-all duration-300 z-10" style={{ top: coords.top, left: coords.left }} onMouseEnter={() => setHoveredVenue(venue.id)} onMouseLeave={() => setHoveredVenue(null)}>
-                  <div className="relative flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: "50% 50% 50% 0", background: hoveredVenue === venue.id ? "var(--accent-dark)" : "var(--accent)", transform: "rotate(-45deg)", boxShadow: "0 4px 12px rgba(0,0,0,0.25)", transition: "all 0.3s ease" }}>
-                    <Wine size={28} color="#fff" style={{ transform: "rotate(45deg)" }} />
-                  </div>
-                  {hoveredVenue === venue.id && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 rounded-xl overflow-hidden shadow-xl z-20" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                      <img src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-24 object-cover" />
-                      <div className="p-3">
-                        <div className="flex items-center gap-1 mb-1">
-                          <Star size={28} fill="var(--accent)" color="var(--accent)" />
-                          <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{venue.rating}</span>
-                          <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>({venue.reviews} отзывов)</span>
-                        </div>
-                        <div className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{venue.name}</div>
-                        <div className="text-base mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{venue.address}</div>
-                      </div>
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-
-            <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-              <button className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>+</button>
-              <button className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>−</button>
-            </div>
+            {!mapError && venuesWithCoords.length === 0 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-sm" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                У выбранных заведений пока нет координат
+              </div>
+            )}
           </div>
         </div>
       </section>
