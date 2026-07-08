@@ -1632,87 +1632,9 @@ function ModerationTab() {
 /* ═══════════════════════════════════════
    LabelTemplatesAdmin — CRUD шаблонов этикеток
    ═══════════════════════════════════════ */
-function TypesManager({ types, onSave, onDelete }: {
-  types: { id: number; name: string; description?: string | null; sortOrder: number }[];
-  onSave: (data: { id?: number; name: string; description?: string; sortOrder: number; isActive: number }) => void;
-  onDelete: (id: number) => void;
-}) {
-  const [editId, setEditId] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [sortOrder, setSortOrder] = useState(0);
-  const [showForm, setShowForm] = useState(false);
-
-  function startEdit(t: typeof types[0]) {
-    setEditId(t.id); setName(t.name); setDesc(t.description ?? ""); setSortOrder(t.sortOrder); setShowForm(true);
-  }
-  function reset() { setEditId(null); setName(""); setDesc(""); setSortOrder(0); setShowForm(false); }
-  function save() { onSave({ id: editId ?? undefined, name, description: desc, sortOrder, isActive: 1 }); reset(); }
-
-  return (
-    <div className="space-y-4">
-      {showForm ? (
-        <div className="p-4 rounded-xl space-y-3" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
-          <h4 className="text-sm font-bold" style={{ color: "var(--accent)" }}>{editId ? "Редактировать тип" : "Новый тип"}</h4>
-          <div>
-            <Label className="text-xs">Название</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Классика" className="mt-1" />
-          </div>
-          <div>
-            <Label className="text-xs">Описание</Label>
-            <Input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Краткое описание" className="mt-1" />
-          </div>
-          <div>
-            <Label className="text-xs">Порядок</Label>
-            <Input type="number" value={sortOrder} onChange={e => setSortOrder(Number(e.target.value))} className="mt-1 w-24" />
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={save} disabled={!name.trim()}>Сохранить</Button>
-            <Button size="sm" variant="outline" onClick={reset}>Отмена</Button>
-          </div>
-        </div>
-      ) : (
-        <Button size="sm" onClick={() => setShowForm(true)}>+ Добавить тип</Button>
-      )}
-      {types.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Типов нет. Добавьте первый.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Название</TableHead>
-              <TableHead>Описание</TableHead>
-              <TableHead>Порядок</TableHead>
-              <TableHead className="text-right">Действия</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {types.map(t => (
-              <TableRow key={t.id}>
-                <TableCell>{t.id}</TableCell>
-                <TableCell className="font-medium">{t.name}</TableCell>
-                <TableCell className="text-xs" style={{ color: "var(--text-muted)" }}>{t.description}</TableCell>
-                <TableCell>{t.sortOrder}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button size="sm" variant="outline" onClick={() => startEdit(t)}>Изменить</Button>
-                  <Button size="sm" variant="destructive" onClick={() => onDelete(t.id)}>Удалить</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </div>
-  );
-}
-
 function LabelTemplatesAdmin() {
   const utils = trpc.useUtils();
   const { data: templates, isLoading } = trpc.labelTemplate.list.useQuery();
-  const { data: typesData } = trpc.labelTemplate.listTypes.useQuery();
-  const upsertType = trpc.labelTemplate.upsertType.useMutation({ onSuccess: () => utils.labelTemplate.listTypes.invalidate() });
-  const deleteType = trpc.labelTemplate.deleteType.useMutation({ onSuccess: () => utils.labelTemplate.listTypes.invalidate() });
 
   const upsert = trpc.labelTemplate.upsert.useMutation({
     onSuccess: () => { utils.labelTemplate.list.invalidate(); setEditId(null); resetForm(); setView("list"); },
@@ -1725,8 +1647,7 @@ function LabelTemplatesAdmin() {
   });
 
   const [editId, setEditId] = useState<number | null>(null);
-  const [view, setView] = useState<"list" | "form" | "types">("list");
-  const [typeId, setTypeId] = useState<number | null>(null);
+  const [view, setView] = useState<"list" | "form">("list");
   const [isBase, setIsBase] = useState(0);
   const [name, setName] = useState("");
   const [image, setImage] = useState("");
@@ -1737,9 +1658,10 @@ function LabelTemplatesAdmin() {
   const [accent, setAccent] = useState("#8B4513");
   const [fontFamily, setFontFamily] = useState("serif");
   const [zones, setZones] = useState(`[
-  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
-  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
-  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
+  { "id": "image",    "x": 194, "y": 258, "w": 700, "h": 598 },
+  { "id": "title",    "x": 140, "y": 992, "w": 799, "h": 110, "fontSize": 77, "align": "center" },
+  { "id": "date",     "x": 230, "y": 1121, "w": 233, "h": 90,  "fontSize": 58, "align": "center" },
+  { "id": "strength", "x": 601, "y": 1121, "w": 240, "h": 90,  "fontSize": 58, "align": "center" }
 ]`);
   const [zonesError, setZonesError] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
@@ -1763,16 +1685,10 @@ function LabelTemplatesAdmin() {
   }
 
   function resetForm() {
-    setTypeId(null);
     setIsBase(0);
     setEditId(null);
     setName(""); setImage(""); setBg(""); setBorder("");
     setAccent("#8B4513"); setFontFamily("serif");
-    setZones(`[
-  { "id": "title",    "x": 450, "y": 820, "w": 620, "h": 60,  "fontSize": 28, "align": "center" },
-  { "id": "date",     "x": 220, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   },
-  { "id": "strength", "x": 620, "y": 930, "w": 200, "h": 40,  "fontSize": 22, "align": "left"   }
-]`);
     setZonesError("");
     setSortOrder(0); setIsActive(1);
   }
@@ -1784,12 +1700,23 @@ function LabelTemplatesAdmin() {
     setZones(t.zones ? JSON.stringify(t.zones, null, 2) : "[]");
     setZonesError("");
     setSortOrder(t.sortOrder); setIsActive(t.isActive);
-    setTypeId((t as any).typeId ?? null);
     setIsBase((t as any).isBase ?? 0);
     setView("form");
   }
 
   function handleSave() {
+    // Для не-базового шаблона зоны/цвет/фон/шрифт не имеют смысла — не отправляем их
+    if (isBase !== 1) {
+      upsert.mutate({
+        id: editId ?? undefined,
+        typeId: null,
+        isBase: 0,
+        name,
+        image: image || undefined,
+        sortOrder, isActive,
+      });
+      return;
+    }
     let parsedZones: unknown = null;
     try {
       parsedZones = zones.trim() ? JSON.parse(zones) : null;
@@ -1800,8 +1727,8 @@ function LabelTemplatesAdmin() {
     }
     upsert.mutate({
       id: editId ?? undefined,
-      typeId: typeId ?? null,
-      isBase,
+      typeId: null,
+      isBase: 1,
       name, image: image || undefined, bg: bg || undefined,
       border: border || undefined, accent, fontFamily,
       zones: parsedZones,
@@ -1810,7 +1737,7 @@ function LabelTemplatesAdmin() {
   }
 
   // Sort state
-  const [sortCol, setSortCol] = useState<"id" | "name" | "type" | "sortOrder" | "isActive">("id");
+  const [sortCol, setSortCol] = useState<"id" | "name" | "sortOrder" | "isActive">("id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   function toggleSort(col: typeof sortCol) {
@@ -1822,7 +1749,6 @@ function LabelTemplatesAdmin() {
     let av: string | number = "", bv: string | number = "";
     if (sortCol === "id") { av = a.id; bv = b.id; }
     else if (sortCol === "name") { av = a.name; bv = b.name; }
-    else if (sortCol === "type") { av = (a as any).typeId ?? 999; bv = (b as any).typeId ?? 999; }
     else if (sortCol === "sortOrder") { av = a.sortOrder; bv = b.sortOrder; }
     else if (sortCol === "isActive") { av = a.isActive; bv = b.isActive; }
     if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -1848,20 +1774,13 @@ function LabelTemplatesAdmin() {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>
           {view === "list" ? `Шаблоны этикеток (${templates?.length ?? 0})`
-            : view === "types" ? "Типы шаблонов"
             : editId ? "Редактировать шаблон" : "Новый шаблон"}
         </CardTitle>
         <div className="flex gap-2">
           {view === "list" && (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setView("types")}>Типы</Button>
-              <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>+ Добавить шаблон</Button>
-            </>
+            <Button size="sm" onClick={() => { resetForm(); setView("form"); }}>+ Добавить шаблон</Button>
           )}
-          {view === "types" && (
-            <Button size="sm" variant="outline" onClick={() => setView("list")}>← К шаблонам</Button>
-          )}
-          {(view === "form") && (
+          {view === "form" && (
             <Button size="sm" variant="outline" onClick={() => { resetForm(); setView("list"); }}>← Назад к списку</Button>
           )}
         </div>
@@ -1889,32 +1808,6 @@ function LabelTemplatesAdmin() {
               </div>
             </div>
             <div>
-              <Label className="text-xs">CSS фон (bg)</Label>
-              <Input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="linear-gradient(...)" className="mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">CSS рамка (border)</Label>
-              <Input value={border} onChange={(e) => setBorder(e.target.value)} placeholder="3px solid #8B4513" className="mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">Цвет акцента</Label>
-              <div className="flex gap-2 mt-1">
-                {["#8B4513","#2d2d2d","#b8860b","#ffffff","#c9a227","#9b2226","#2a9d8f","#7209b7"].map((c) => (
-                  <button key={c} onClick={() => setAccent(c)} className="w-6 h-6 rounded-full" style={{ background: c, border: accent === c ? "2px solid var(--accent)" : "1px solid var(--border)" }} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Шрифт</Label>
-              <div className="flex gap-1 mt-1">
-                {["serif","sans","mono"].map((f) => (
-                  <button key={f} onClick={() => setFontFamily(f)} className="px-2 py-1 rounded text-xs font-medium" style={{ background: fontFamily === f ? "var(--accent)" : "var(--surface)", color: fontFamily === f ? "#fff" : "var(--text-secondary)" }}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
               <Label className="text-xs">Порядок сортировки</Label>
               <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className="mt-1" />
             </div>
@@ -1926,43 +1819,67 @@ function LabelTemplatesAdmin() {
             </div>
           </div>
 
-          {/* Type selector */}
-          <div>
-            <Label className="text-xs">Тип шаблона</Label>
-            <select
-              value={typeId ?? ""}
-              onChange={(e) => setTypeId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full mt-1 rounded-lg px-3 py-2 text-sm outline-none"
-              style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
-            >
-              <option value="">— Без типа —</option>
-              {typesData?.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <div className="flex items-center gap-2 mt-2">
-              <input type="checkbox" id="isBase" checked={isBase === 1} onChange={e => setIsBase(e.target.checked ? 1 : 0)} />
-              <label htmlFor="isBase" className="text-xs" style={{ color: "var(--text-muted)" }}>Базовый шаблон типа (показывается первым)</label>
-            </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="isBase" checked={isBase === 1} onChange={e => setIsBase(e.target.checked ? 1 : 0)} />
+            <label htmlFor="isBase" className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Базовый редактируемый шаблон (название/дата/крепость/фото — вставляются пользователем)
+            </label>
           </div>
 
-          {/* Zones JSON */}
-          <div>
-            <Label className="text-xs">
-              Зоны текста (JSON) — координаты полей «Название», «Дата», «Крепость»
-            </Label>
-            <Textarea
-              value={zones}
-              onChange={(e) => { setZones(e.target.value); setZonesError(""); }}
-              className="mt-1 font-mono text-xs"
-              rows={8}
-              placeholder='[{"id":"title","x":450,"y":820,"w":620,"h":60,"fontSize":28,"align":"center"},...]'
-            />
-            {zonesError && (
-              <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{zonesError}</p>
-            )}
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              x/y — центр зоны (пиксели PNG), w — ширина, fontSize — размер шрифта, align — left/center/right. id: title = название, date = дата, strength = крепость
-            </p>
-          </div>
+          {/* Расширенные настройки — только для базового шаблона */}
+          {isBase === 1 && (
+            <div className="space-y-3 p-3 rounded-lg" style={{ background: "var(--bg-primary)", border: "1px dashed var(--border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Настройки ниже влияют на то, как вставляются фото и текст пользователя — актуально только для базового шаблона.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">CSS фон (bg)</Label>
+                  <Input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="linear-gradient(...)" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">CSS рамка (border)</Label>
+                  <Input value={border} onChange={(e) => setBorder(e.target.value)} placeholder="3px solid #8B4513" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs">Цвет акцента</Label>
+                  <div className="flex gap-2 mt-1">
+                    {["#8B4513","#2d2d2d","#b8860b","#ffffff","#c9a227","#9b2226","#2a9d8f","#7209b7"].map((c) => (
+                      <button key={c} onClick={() => setAccent(c)} className="w-6 h-6 rounded-full" style={{ background: c, border: accent === c ? "2px solid var(--accent)" : "1px solid var(--border)" }} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Шрифт</Label>
+                  <div className="flex gap-1 mt-1">
+                    {["serif","sans","mono"].map((f) => (
+                      <button key={f} onClick={() => setFontFamily(f)} className="px-2 py-1 rounded text-xs font-medium" style={{ background: fontFamily === f ? "var(--accent)" : "var(--surface)", color: fontFamily === f ? "#fff" : "var(--text-secondary)" }}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs">
+                  Зоны текста и фото (JSON)
+                </Label>
+                <Textarea
+                  value={zones}
+                  onChange={(e) => { setZones(e.target.value); setZonesError(""); }}
+                  className="mt-1 font-mono text-xs"
+                  rows={8}
+                />
+                {zonesError && (
+                  <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{zonesError}</p>
+                )}
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                  x/y/w/h — прямоугольник в пикселях PNG. id: image = зона фото, title = название, date = дата, strength = крепость. fontSize/align — только для текстовых полей.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Mini preview */}
           {(image || bg) && (
@@ -1997,17 +1914,6 @@ function LabelTemplatesAdmin() {
         </div>
         )}
 
-        {/* Types management */}
-        {view === "types" && (
-          <div className="space-y-4">
-            <TypesManager
-              types={typesData ?? []}
-              onSave={(data) => upsertType.mutate(data)}
-              onDelete={(id) => { if (confirm("Удалить тип?")) deleteType.mutate({ id }); }}
-            />
-          </div>
-        )}
-
         {/* Table */}
         {view === "list" && (isLoading ? <p>Загрузка...</p> : !templates?.length ? (
           <p className="text-muted-foreground">Нет шаблонов</p>
@@ -2018,7 +1924,6 @@ function LabelTemplatesAdmin() {
                 <SortHead col="id">ID</SortHead>
                 <TableHead style={{ minWidth: 60 }}>Превью</TableHead>
                 <SortHead col="name">Название</SortHead>
-                <SortHead col="type">Тип</SortHead>
                 <SortHead col="sortOrder">Порядок</SortHead>
                 <SortHead col="isActive">Статус</SortHead>
                 <TableHead className="text-right" style={{ minWidth: 180 }}>Действия</TableHead>
@@ -2033,9 +1938,11 @@ function LabelTemplatesAdmin() {
                       {t.image && <img src={t.image} alt="" className="w-full h-full object-cover" />}
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {typesData?.find(tp => tp.id === (t as any).typeId)?.name ?? "—"}
+                  <TableCell className="font-medium">
+                    {t.name}
+                    {(t as any).isBase === 1 && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-xs" style={{ background: "var(--accent)", color: "#fff" }}>база</span>
+                    )}
                   </TableCell>
                   <TableCell>{t.sortOrder}</TableCell>
                   <TableCell>
