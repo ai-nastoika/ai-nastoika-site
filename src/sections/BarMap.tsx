@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
 import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus } from "lucide-react";
-import AddPlaceForm from "./AddPlaceForm";
+import SuggestPlaceForm from "./SuggestPlaceForm";
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
@@ -193,7 +193,7 @@ export default function BarMap() {
   if (showAddForm) {
     return (
       <div className="min-h-screen py-12 px-4" style={{ background: "var(--bg-primary)" }}>
-        <AddPlaceForm onClose={() => setShowAddForm(false)} />
+        <SuggestPlaceForm onClose={() => setShowAddForm(false)} />
       </div>
     );
   }

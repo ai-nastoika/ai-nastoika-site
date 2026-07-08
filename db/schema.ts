@@ -124,6 +124,7 @@ export const placeSubmissions = mysqlTable("place_submissions", {
   userId: bigint("user_id", { mode: "number", unsigned: true }),
   fingerprint: varchar("fingerprint", { length: 64 }),
   authorName: varchar("author_name", { length: 100 }),
+  contactEmail: varchar("contact_email", { length: 320 }),
   status: varchar("status", { length: 20 }).notNull().default("draft"), // draft | ai_processed | pending | approved | rejected
 
   // ─ сырые данные, вставленные вручную (адрес/координаты копируются

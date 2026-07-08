@@ -388,6 +388,7 @@ function AdminPanel() {
             <TabsTrigger value="parser">Из текста</TabsTrigger>
             <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="placeParser">Импорт заведений</TabsTrigger>
             <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
@@ -607,6 +608,11 @@ function AdminPanel() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ─── Импорт заведений из текста ─── */}
+          <TabsContent value="placeParser">
+            <PlaceFromTextTab />
           </TabsContent>
 
           {/* ─── Модерация заявок ─── */}
@@ -1995,6 +2001,239 @@ function LabelTemplatesAdmin() {
             </TableBody>
           </Table>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+const SYSTEM_PROMPT_PLACE_PARSER = `Ты — эксперт по барам и заведениям, подающим домашние настойки (хреновуха, вишнёвка, наливки и т.д.).
+Тебе дан произвольный текст, скопированный со страницы заведения (Яндекс.Карты, сайт, соцсети) — там вперемешку
+могут быть название, адрес, телефон, часы работы, описание меню, отзывы посетителей и что угодно ещё.
+
+Твоя задача:
+1. Извлечь и структурировать данные о заведении: название, город, адрес, метро (если есть в тексте), телефон, часы работы.
+2. Придумать корректный slug (латиницей, через дефис) на основе названия.
+3. Если в тексте есть отзывы или упоминания настоек — проанализировать их, написать краткое резюме с акцентом
+   на настойки, выделить 2-4 плюса и 1-3 минуса (только то, что реально следует из текста, не выдумывай).
+4. Если что-то не упоминается в тексте — оставь поле пустой строкой, не выдумывай данные.
+
+Ответь ТОЛЬКО валидным JSON без markdown:
+{
+  "slug": "bar-name-city",
+  "name": "Название бара",
+  "city": "Москва",
+  "address": "ул. Примерная, 10",
+  "metro": "Пушкинская",
+  "phone": "+7 900 000-00-00",
+  "hours": "Пн-Вс 12:00–00:00",
+  "infusionsHighlight": "Большой выбор ягодных настоек собственного производства",
+  "infusionsSignature": "Хреновуха домашняя",
+  "description": "2-3 предложения общего описания заведения",
+  "externalSummary": "Краткое резюме на основе отзывов (пусто, если отзывов в тексте нет)",
+  "externalPros": ["Плюс 1", "Плюс 2"],
+  "externalCons": ["Минус 1"],
+  "tags": ["настойки", "домашние наливки"]
+}`;
+
+function PlaceFromTextTab() {
+  const utils = trpc.useUtils();
+  const [rawText, setRawText] = useState("");
+  const [rawUrl, setRawUrl] = useState("");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("moonshot-api-key") || "");
+  const [parsedForm, setParsedForm] = useState<typeof EMPTY_PLACE | null>(null);
+  const [tagsStr, setTagsStr] = useState("");
+  const [prosStr, setProsStr] = useState("");
+  const [consStr, setConsStr] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [isResolvingCoords, setIsResolvingCoords] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const resolveUrlQuery = trpc.placeSubmission.resolveUrl.useQuery({ url: rawUrl }, { enabled: false });
+
+  const upsertPlace = trpc.place.upsert.useMutation({
+    onSuccess: () => {
+      utils.place.list.invalidate();
+      setParsedForm(null);
+      setRawText("");
+      setRawUrl("");
+      setNotice("Заведение опубликовано и уже на барной карте.");
+    },
+    onError: (err) => setError(err.message || "Не удалось сохранить заведение"),
+  });
+
+  async function handleResolveCoords() {
+    if (!rawUrl.trim() || !parsedForm) return;
+    setIsResolvingCoords(true);
+    try {
+      const result = await resolveUrlQuery.refetch();
+      if (result.data?.lat != null && result.data?.lng != null) {
+        setParsedForm({ ...parsedForm, lat: String(result.data.lat), lng: String(result.data.lng) } as any);
+      } else {
+        setError("Не удалось найти координаты в этой ссылке — впишите вручную.");
+      }
+    } finally {
+      setIsResolvingCoords(false);
+    }
+  }
+
+  async function handleParse() {
+    if (rawText.trim().length < 10) return;
+    if (!apiKey.trim()) {
+      setError("Введите API-ключ Moonshot");
+      return;
+    }
+    setIsParsing(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const res = await fetch("https://api.moonshot.cn/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: "moonshot-v1-8k",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT_PLACE_PARSER },
+            { role: "user", content: rawText },
+          ],
+          temperature: 0.6,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      const content = json.choices?.[0]?.message?.content;
+      if (!content) throw new Error("Пустой ответ от API");
+      const d = JSON.parse(content);
+      setParsedForm({
+        ...EMPTY_PLACE,
+        slug: d.slug ?? "",
+        name: d.name ?? "",
+        city: d.city ?? "",
+        address: d.address ?? "",
+        metro: d.metro ?? "",
+        phone: d.phone ?? "",
+        hours: d.hours ?? "",
+        infusionsHighlight: d.infusionsHighlight ?? "",
+        infusionsSignature: d.infusionsSignature ?? "",
+        description: d.description ?? "",
+        externalSummary: d.externalSummary ?? "",
+        externalPros: Array.isArray(d.externalPros) ? d.externalPros : [],
+        externalCons: Array.isArray(d.externalCons) ? d.externalCons : [],
+        tags: Array.isArray(d.tags) ? d.tags : [],
+      });
+      setTagsStr(Array.isArray(d.tags) ? d.tags.join("\n") : "");
+      setProsStr(Array.isArray(d.externalPros) ? d.externalPros.join("\n") : "");
+      setConsStr(Array.isArray(d.externalCons) ? d.externalCons.join("\n") : "");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ошибка запроса");
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function handlePublish() {
+    if (!parsedForm) return;
+    if (!parsedForm.slug.trim() || !parsedForm.name.trim()) {
+      setError("Заполните Slug и Название перед публикацией");
+      return;
+    }
+    const latNum = (parsedForm as any).lat ? Number(String((parsedForm as any).lat).replace(",", ".")) : undefined;
+    const lngNum = (parsedForm as any).lng ? Number(String((parsedForm as any).lng).replace(",", ".")) : undefined;
+    upsertPlace.mutate({
+      slug: parsedForm.slug,
+      name: parsedForm.name,
+      city: parsedForm.city,
+      address: parsedForm.address,
+      metro: parsedForm.metro,
+      phone: parsedForm.phone,
+      website: parsedForm.website,
+      lat: Number.isFinite(latNum) ? latNum : undefined,
+      lng: Number.isFinite(lngNum) ? lngNum : undefined,
+      hours: parsedForm.hours,
+      image: parsedForm.image,
+      tags: jsonArr(tagsStr),
+      description: parsedForm.description,
+      infusionsHighlight: parsedForm.infusionsHighlight,
+      infusionsSignature: parsedForm.infusionsSignature,
+      externalSource: rawUrl || undefined,
+      externalSummary: parsedForm.externalSummary,
+      externalPros: jsonArr(prosStr),
+      externalCons: jsonArr(consStr),
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles size={20} style={{ color: "var(--accent)" }} />
+          Импорт заведения из текста
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          Скопируйте со страницы заведения (Яндекс.Карты, сайт, соцсети) всё, что найдёте — название, адрес,
+          телефон, часы, описание, отзывы — и вставьте одним куском ниже. ИИ сам разберёт и структурирует.
+        </p>
+
+        <div>
+          <Label className="text-xs">API-ключ Moonshot (Kimi)</Label>
+          <Input type="password" value={apiKey} onChange={(e) => { setApiKey(e.target.value); localStorage.setItem("moonshot-api-key", e.target.value); }} className="mt-1" placeholder="sk-..." />
+        </div>
+
+        <div>
+          <Label className="text-xs">Ссылка на Яндекс.Карты (для координат)</Label>
+          <div className="flex gap-2 mt-1">
+            <Input value={rawUrl} onChange={(e) => setRawUrl(e.target.value)} placeholder="https://yandex.ru/maps/-/..." />
+            {parsedForm && (
+              <Button type="button" variant="outline" onClick={handleResolveCoords} disabled={!rawUrl.trim() || isResolvingCoords}>
+                {isResolvingCoords ? "..." : "Координаты"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <Textarea
+          value={rawText}
+          onChange={(e) => setRawText(e.target.value)}
+          placeholder="Вставьте сюда весь скопированный текст о заведении..."
+          className="min-h-[180px] font-mono text-sm"
+        />
+
+        {error && <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>}
+        {notice && <p className="text-sm p-2 rounded" style={{ background: "#d8f3dc", color: "#386641" }}>{notice}</p>}
+
+        <Button onClick={handleParse} disabled={isParsing || rawText.trim().length < 10}>
+          <Sparkles size={16} className="mr-1" />
+          {isParsing ? "Обрабатываем..." : "Обработать с помощью ИИ"}
+        </Button>
+
+        {parsedForm && (
+          <div className="mt-6 pt-6 space-y-4" style={{ borderTop: "1px solid var(--border)" }}>
+            <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+              Проверьте и отредактируйте перед публикацией
+            </h3>
+            <PlaceForm
+              form={parsedForm as any}
+              setForm={setParsedForm as any}
+              tagsStr={tagsStr} setTagsStr={setTagsStr}
+              prosStr={prosStr} setProsStr={setProsStr}
+              consStr={consStr} setConsStr={setConsStr}
+            />
+            <Button onClick={handlePublish} disabled={upsertPlace.isPending} style={{ background: "#386641", color: "#fff" }}>
+              <Check size={16} className="mr-1" />
+              {upsertPlace.isPending ? "Публикуем..." : "Опубликовать на барной карте"}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -28,6 +28,7 @@ export const placeSubmissionRouter = createRouter({
     .input(
       z.object({
         authorName: z.string().min(1),
+        contactEmail: z.string().email().optional(),
         fingerprint: z.string().optional(),
         rawUrl: z.string().optional(),
         rawCoords: z.string().optional(),
@@ -46,6 +47,7 @@ export const placeSubmissionRouter = createRouter({
           userId: ctx.user?.id ?? null,
           fingerprint: input.fingerprint ?? null,
           authorName: input.authorName,
+          contactEmail: input.contactEmail ?? null,
           rawUrl: input.rawUrl ?? null,
           rawCoords: input.rawCoords ?? null,
           rawAddress: input.rawAddress ?? null,
