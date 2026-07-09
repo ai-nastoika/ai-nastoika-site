@@ -184,15 +184,20 @@ export default function BarMap() {
     }
   }
 
-  // Собственный пин-маркер в виде стопочки настойки — рисуется как SVG,
-  // цвет подхватывается из текущей темы сайта (var(--accent))
+  // Собственный пин-маркер в виде стопочки настойки — та же иконка, что и на превью
+  // главной страницы (BarMapPreview.tsx), но встроенная как SVG-путь для data URI.
+  // Линейная (stroke), а не сплошная заливка — чтобы выглядело легче и аккуратнее.
   function buildPinIconDataUri(color: string): string {
     const svg = `
       <svg width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
         <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28C36 8.06 27.94 0 18 0z" fill="${color}"/>
         <circle cx="18" cy="17" r="12.5" fill="#ffffff"/>
-        <path d="M11.5 11h13l-1.6 12.2a1.5 1.5 0 0 1-1.5 1.3h-6.8a1.5 1.5 0 0 1-1.5-1.3L11.5 11z" fill="${color}"/>
-        <rect x="10.5" y="9" width="15" height="2.6" rx="1.3" fill="${color}"/>
+        <g transform="translate(10.6,9.6) scale(0.62)" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3h8" />
+          <path d="M8 3c0 4 .5 6 1.5 7a2.7 2.7 0 0 0 5 0c1-1 1.5-3 1.5-7" />
+          <path d="M12 14v6" />
+          <path d="M9 20h6" />
+        </g>
       </svg>
     `.trim();
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
