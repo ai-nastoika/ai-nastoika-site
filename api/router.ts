@@ -9,6 +9,7 @@ import { recipeRouter } from "./recipeRouter";
 import { savedLabelsRouter } from "./savedLabelsRouter";
 import { placeRouter } from "./placeRouter";
 import { placeSubmissionRouter } from "./placeSubmissionRouter";
+import { favoritesRouter } from "./favoritesRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -332,6 +333,9 @@ export const appRouter = router({
   // ─── Места (барная карта) ───
   place: placeRouter,
   placeSubmission: placeSubmissionRouter,
+
+  // ─── Избранное ───
+  favorites: favoritesRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),

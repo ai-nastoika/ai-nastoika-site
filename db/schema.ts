@@ -8,6 +8,7 @@ import {
   decimal,
   bigint,
   json,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ─── Recipes ───────────────────────────────────────────────
@@ -164,6 +165,20 @@ export const placeSubmissions = mysqlTable("place_submissions", {
 
 export type PlaceSubmission = typeof placeSubmissions.$inferSelect;
 export type InsertPlaceSubmission = typeof placeSubmissions.$inferInsert;
+
+// ─── Favorites (избранное, привязанное к аккаунту) ─────────
+export const favorites = mysqlTable("favorites", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  itemType: varchar("item_type", { length: 20 }).notNull(), // 'place' | 'recipe'
+  itemId: bigint("item_id", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueFavorite: uniqueIndex("unique_favorite").on(table.userId, table.itemType, table.itemId),
+}));
+
+export type Favorite = typeof favorites.$inferSelect;
+export type InsertFavorite = typeof favorites.$inferInsert;
 
 // ─── Comments ──────────────────────────────────────────────
 export const comments = mysqlTable("comments", {

@@ -57,6 +57,9 @@ export default function ProfilePage() {
   const { user, emailVerified, phoneVerified, twoFactorEnabled } = useAuth();
   const utils = trpc.useUtils();
 
+  const { data: favoritePlacesData } = trpc.favorites.myPlaces.useQuery(undefined, { enabled: !!user });
+  const savedPlaces = favoritePlacesData || [];
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -155,12 +158,11 @@ export default function ProfilePage() {
     usedQueries: 0,
     totalQueries: 150,
     recipesViewed: 0,
-    favoritesCount: 0,
-    placesSaved: 0,
+    favoritesCount: savedPlaces.length,
+    placesSaved: savedPlaces.length,
     labelsCreated: 0,
   };
 
-  const savedPlaces: { id: number; name: string; city: string; rating: number; image: string }[] = [];
   const { data: savedLabels, refetch: refetchLabels } = trpc.savedLabels.list.useQuery();
   const deleteSavedLabel = trpc.savedLabels.delete.useMutation({ onSuccess: () => refetchLabels() });
   const aiHistory: { id: number; tool: string; query: string; date: string; model: string }[] = [];
@@ -466,10 +468,37 @@ export default function ProfilePage() {
               </div>
             )}
             {favSub === "places" && (
-              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
-              </div>
+              !savedPlaces.length ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
+                  <a href="/#/barmap" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                    Открыть барную карту
+                  </a>
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {savedPlaces.map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/place/${p.slug}`}
+                      className="rounded-xl overflow-hidden transition-all hover:shadow-lg"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                    >
+                      <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-full h-32 object-cover" />
+                      <div className="p-4">
+                        <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                          {p.name}
+                        </div>
+                        <div className="text-xs flex items-center gap-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          <span className="flex items-center gap-1"><MapPin size={12} /> {p.city || "—"}</span>
+                          <span className="flex items-center gap-1"><Star size={12} fill="var(--accent)" color="var(--accent)" /> {p.rating}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )
             )}
           </div>
         )}

@@ -6,7 +6,8 @@ import {
   Heart, Share2, Printer, ThumbsUp, MessageCircle, Send,
   AlertTriangle, Check, X, Wine,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 function findFallbackPlace(slug: string) {
   return fallbackPlaces.find((p) => p.slug === slug) ?? null;
@@ -35,31 +36,25 @@ export default function PlaceDetail() {
   });
 
   const [newComment, setNewComment] = useState("");
-  const [isFavorite, setIsFavorite] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
-  useEffect(() => {
-    if (!slug) return;
-    try {
-      const favorites: string[] = JSON.parse(localStorage.getItem("favorite-places") || "[]");
-      setIsFavorite(favorites.includes(slug));
-    } catch {
-      setIsFavorite(false);
-    }
-  }, [slug]);
+  const { isLoggedIn } = useAuth();
+  const { data: favoriteIds } = trpc.favorites.myIds.useQuery(
+    { itemType: "place" },
+    { enabled: isLoggedIn }
+  );
+  const isFavorite = !!(favoriteIds && placeId > 0 && favoriteIds.includes(placeId));
+  const toggleFavoriteMutation = trpc.favorites.toggle.useMutation({
+    onSuccess: () => utils.favorites.myIds.invalidate({ itemType: "place" }),
+  });
 
   function toggleFavorite() {
-    if (!slug) return;
-    try {
-      const favorites: string[] = JSON.parse(localStorage.getItem("favorite-places") || "[]");
-      const next = favorites.includes(slug)
-        ? favorites.filter((s) => s !== slug)
-        : [...favorites, slug];
-      localStorage.setItem("favorite-places", JSON.stringify(next));
-      setIsFavorite(next.includes(slug));
-    } catch {
-      // localStorage недоступен — молча игнорируем
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
     }
+    if (!placeId) return;
+    toggleFavoriteMutation.mutate({ itemType: "place", itemId: placeId });
   }
 
   async function handleShare() {
@@ -138,7 +133,7 @@ export default function PlaceDetail() {
             onClick={toggleFavorite}
             className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
             style={{ background: isFavorite ? "var(--accent)" : "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}
-            title={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
+            title={!isLoggedIn ? "Войдите, чтобы добавить в избранное" : isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
           >
             <Heart size={16} fill={isFavorite ? "#fff" : "none"} />
           </button>
