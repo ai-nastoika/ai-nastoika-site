@@ -40,7 +40,10 @@ export const placeRouter = createRouter({
     .input(
       z.object({
         id: z.number().optional(),
-        slug: z.string().min(1),
+        slug: z
+          .string()
+          .min(1)
+          .regex(/^[a-z0-9-]+$/, "Slug может содержать только строчные латинские буквы, цифры и дефис — без слэшей, пробелов и протокола (http://)"),
         name: z.string().min(1),
         city: z.string().optional(),
         address: z.string().optional(),

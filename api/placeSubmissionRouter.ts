@@ -141,6 +141,9 @@ export const placeSubmissionRouter = createRouter({
       if (!sub.slug || !sub.name) {
         throw new Error("Перед одобрением у заявки должны быть заполнены slug и name");
       }
+      if (!/^[a-z0-9-]+$/.test(sub.slug)) {
+        throw new Error("Slug содержит недопустимые символы (слэши/пробелы/протокол) — исправьте перед одобрением");
+      }
 
       const [{ id: placeId }] = await db
         .insert(places)
