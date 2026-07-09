@@ -6,7 +6,7 @@ import {
   Heart, Share2, Printer, ThumbsUp, MessageCircle, Send,
   AlertTriangle, Check, X, Wine,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function findFallbackPlace(slug: string) {
   return fallbackPlaces.find((p) => p.slug === slug) ?? null;
@@ -35,6 +35,59 @@ export default function PlaceDetail() {
   });
 
   const [newComment, setNewComment] = useState("");
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  useEffect(() => {
+    if (!slug) return;
+    try {
+      const favorites: string[] = JSON.parse(localStorage.getItem("favorite-places") || "[]");
+      setIsFavorite(favorites.includes(slug));
+    } catch {
+      setIsFavorite(false);
+    }
+  }, [slug]);
+
+  function toggleFavorite() {
+    if (!slug) return;
+    try {
+      const favorites: string[] = JSON.parse(localStorage.getItem("favorite-places") || "[]");
+      const next = favorites.includes(slug)
+        ? favorites.filter((s) => s !== slug)
+        : [...favorites, slug];
+      localStorage.setItem("favorite-places", JSON.stringify(next));
+      setIsFavorite(next.includes(slug));
+    } catch {
+      // localStorage недоступен — молча игнорируем
+    }
+  }
+
+  async function handleShare() {
+    const shareData = {
+      title: place?.name ?? "Ай, настойка!",
+      text: `${place?.name} — на барной карте «Ай, настойка!»`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // пользователь отменил — ничего не делаем
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // буфер обмена недоступен — молча игнорируем
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
 
   if (isLoading) {
     return (
@@ -81,13 +134,28 @@ export default function PlaceDetail() {
         </button>
 
         <div className="absolute top-4 right-4 flex gap-2">
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
-            <Heart size={16} />
+          <button
+            onClick={toggleFavorite}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+            style={{ background: isFavorite ? "var(--accent)" : "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}
+            title={isFavorite ? "Убрать из избранного" : "Добавить в избранное"}
+          >
+            <Heart size={16} fill={isFavorite ? "#fff" : "none"} />
           </button>
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
-            <Share2 size={16} />
+          <button
+            onClick={handleShare}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+            style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}
+            title="Поделиться"
+          >
+            {shareCopied ? <Check size={16} /> : <Share2 size={16} />}
           </button>
-          <button className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
+          <button
+            onClick={handlePrint}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+            style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}
+            title="Распечатать"
+          >
             <Printer size={16} />
           </button>
         </div>
