@@ -24,6 +24,7 @@ const RulesPage = lazy(() => import("./sections/RulesPage"));
 const FeedbackPage = lazy(() => import("./sections/FeedbackPage"));
 const AdminPage = lazy(() => import("./sections/AdminPage"));
 const RecipeParserPage = lazy(() => import("./sections/RecipeParserPage"));
+const PlaceParserPage = lazy(() => import("./sections/PlaceParserPage"));
 const LoginPage = lazy(() => import("./sections/LoginPage"));
 const LabelGeneratorPage = lazy(() => import("./sections/LabelGeneratorPage"));
 
@@ -116,6 +117,7 @@ const router = createHashRouter([
       { path: "/feedback", element: <Suspense fallback={<PageLoader />}><FeedbackPage /></Suspense> },
       { path: "/admin", element: <Suspense fallback={<PageLoader />}><AdminPage /></Suspense> },
       { path: "/tools/parse-recipe", element: <Suspense fallback={<PageLoader />}><RecipeParserPage /></Suspense> },
+      { path: "/tools/parse-place", element: <Suspense fallback={<PageLoader />}><PlaceParserPage /></Suspense> },
       { path: "/tools/generate-label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
       { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
     ],

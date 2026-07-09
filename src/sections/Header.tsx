@@ -75,6 +75,23 @@ export default function Header() {
               </Link>
             )}
 
+            {/* Парсер заведений — для editor и admin */}
+            {isEditor && (
+              <Link
+                to="/tools/parse-place"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/tools/parse-place") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Bot size={12} />
+                Парсер мест
+              </Link>
+            )}
+
             {/* Админка — только для admin */}
             {isAdmin && (
               <Link
@@ -203,6 +220,19 @@ export default function Header() {
             >
               <Bot size={18} />
               Парсер рецептов
+            </Link>
+          )}
+
+          {/* Парсер заведений в мобильном меню */}
+          {isEditor && (
+            <Link
+              to="/tools/parse-place"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 py-2.5 text-base font-medium"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              <Bot size={18} />
+              Парсер заведений
             </Link>
           )}
 
