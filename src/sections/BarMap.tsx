@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
-import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus } from "lucide-react";
+import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles } from "lucide-react";
 import SuggestPlaceForm from "./SuggestPlaceForm";
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
@@ -55,7 +55,28 @@ type Venue = {
   price?: string | null;
   hours?: string | null;
   tags?: string[] | null;
+  createdAt?: string | Date | null;
 };
+
+/* ── Расстояние по прямой между двумя точками (формула гаверсинуса), км ── */
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/* ── Грубая оценка времени в пути — не маршрут, а прикидка по прямой ── */
+function estimateTravel(km: number): { label: string; mode: string } {
+  if (km <= 1.5) {
+    const mins = Math.max(1, Math.round((km / 4.5) * 60));
+    return { label: `≈ ${mins} мин`, mode: "пешком" };
+  }
+  const mins = Math.max(1, Math.round((km / 25) * 60));
+  return { label: `≈ ${mins} мин`, mode: "на транспорте" };
+}
 
 export default function BarMap() {
   const navigate = useNavigate();
@@ -68,6 +89,25 @@ export default function BarMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "granted" | "denied" | "unsupported">("idle");
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  function handleLocate() {
+    if (!("geolocation" in navigator)) {
+      setGeoStatus("unsupported");
+      return;
+    }
+    setGeoStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus("granted");
+      },
+      () => setGeoStatus("denied"),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    );
+  }
 
   const venues = places ?? [];
 
@@ -84,6 +124,37 @@ export default function BarMap() {
   const venuesWithCoords = filteredVenues.filter(
     (v) => v.lat !== null && v.lat !== undefined && v.lng !== null && v.lng !== undefined
   );
+
+  // Для рекомендаций "рядом со мной" берём ВСЕ заведения с координатами,
+  // независимо от текущих фильтров по городу/поиску
+  const allVenuesWithCoords = useMemo(
+    () => venues.filter((v) => v.lat !== null && v.lat !== undefined && v.lng !== null && v.lng !== undefined),
+    [venues]
+  );
+
+  const recommendations = useMemo(() => {
+    if (!userCoords) return null;
+
+    const withDistance = allVenuesWithCoords.map((v) => ({
+      ...v,
+      distanceKm: haversineKm(userCoords.lat, userCoords.lng, Number(v.lat), Number(v.lng)),
+    }));
+
+    const nearest = [...withDistance].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 3);
+    const nearestIds = new Set(nearest.map((v) => v.id));
+
+    const bestRated = [...withDistance]
+      .filter((v) => !nearestIds.has(v.id))
+      .sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0))
+      .slice(0, 3);
+    const bestIds = new Set(bestRated.map((v) => v.id));
+
+    const fresh = [...withDistance]
+      .filter((v) => !nearestIds.has(v.id) && !bestIds.has(v.id))
+      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
+
+    return { nearest, bestRated, fresh };
+  }, [userCoords, allVenuesWithCoords]);
 
   /* ── Инициализация и обновление карты (хук вызывается всегда, даже во время isLoading) ── */
   useEffect(() => {
@@ -313,7 +384,75 @@ export default function BarMap() {
         </div>
       </section>
 
-      {/* Настоящая карта — Яндекс.Карты. Уже только на десктопе (lg+), на телефоне/планшете — во всю ширину */}
+      {/* Рекомендации "рядом со мной" — по клику, не автоматически */}
+      <section className="py-6" style={{ background: "var(--bg-primary)" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {geoStatus === "idle" && (
+            <button
+              onClick={handleLocate}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-5 py-4 text-base font-medium transition-all hover:opacity-80"
+              style={{ background: "var(--bg-card)", border: "1px dashed var(--border)", color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              <LocateFixed size={20} />
+              Показать заведения рядом со мной
+            </button>
+          )}
+
+          {geoStatus === "loading" && (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+              Определяем ваше местоположение...
+            </div>
+          )}
+
+          {geoStatus === "denied" && (
+            <div className="flex items-center justify-between gap-3 rounded-xl px-5 py-4 text-sm" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              <span>Не удалось получить доступ к геолокации — проверьте разрешения браузера для этого сайта.</span>
+              <button onClick={handleLocate} className="shrink-0 font-medium" style={{ color: "var(--accent)" }}>Повторить</button>
+            </div>
+          )}
+
+          {geoStatus === "unsupported" && (
+            <div className="rounded-xl px-5 py-4 text-sm text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Ваш браузер не поддерживает определение местоположения
+            </div>
+          )}
+
+          {geoStatus === "granted" && recommendations && (
+            <div className="space-y-8">
+              {recommendations.nearest.length > 0 && (
+                <RecommendGroup
+                  icon={<LocateFixed size={18} />}
+                  title="Ближе всего к вам"
+                  subtitle="Расстояние по прямой"
+                  items={recommendations.nearest}
+                  showDistance
+                />
+              )}
+              {recommendations.bestRated.length > 0 && (
+                <RecommendGroup
+                  icon={<TrendingUp size={18} />}
+                  title="Лучшие рядом"
+                  subtitle="По оценкам сообщества"
+                  items={recommendations.bestRated}
+                  showDistance
+                />
+              )}
+              {recommendations.fresh && (
+                <RecommendGroup
+                  icon={<Sparkles size={18} />}
+                  title="Новое место"
+                  subtitle="Недавно добавлено на карту"
+                  items={[recommendations.fresh]}
+                  showDistance
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+
       <section className="py-8" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-7xl lg:max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", height: 420 }}>
@@ -400,6 +539,59 @@ export default function BarMap() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/* ── Компактная карточка-подборка для блока "рядом со мной" ── */
+function RecommendGroup({
+  icon,
+  title,
+  subtitle,
+  items,
+  showDistance,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  items: (Venue & { distanceKm: number })[];
+  showDistance?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1" style={{ color: "var(--accent)" }}>
+        {icon}
+        <h3 className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{title}</h3>
+      </div>
+      <p className="text-sm mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{subtitle}</p>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items.map((venue) => {
+          const travel = showDistance ? estimateTravel(venue.distanceKm) : null;
+          return (
+            <Link
+              key={venue.id}
+              to={`/place/${venue.slug}`}
+              className="group flex gap-3 rounded-xl p-3 transition-all hover:shadow-md"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            >
+              <img src={venue.image || "/bar-1.jpg"} alt={venue.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  {venue.name}
+                </div>
+                <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  <Star size={12} fill="var(--accent)" color="var(--accent)" /> {venue.rating ?? "—"}
+                </div>
+                {travel && (
+                  <div className="text-xs mt-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    {venue.distanceKm.toFixed(1)} км · {travel.label} {travel.mode}
+                  </div>
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
