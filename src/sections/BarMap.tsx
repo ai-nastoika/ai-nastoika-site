@@ -137,14 +137,22 @@ export default function BarMap() {
 
     if (list.length === 0) return;
 
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8B4513";
+    const pinIcon = buildPinIconDataUri(accentColor);
+    const clusterPinIcon = buildClusterPinDataUri(accentColor);
+
     const clusterer = new ymaps.Clusterer({
-      preset: "islands#redClusterIcons",
+      // Свой пин вместо стандартного красно-белого кружка Яндекса.
+      // clusterNumbers: [0] заставляет всегда использовать одну и ту же иконку
+      // (обычно Яндекс переключает 3 размера иконки по числу объектов в кластере).
+      clusterIcons: [{ href: clusterPinIcon, size: [36, 46], offset: [-18, -46] }],
+      clusterNumbers: [0],
+      clusterIconContentLayout: ymaps.templateLayoutFactory.createClass(
+        `<div style="position:absolute;top:9px;left:0;width:36px;text-align:center;font:700 13px sans-serif;color:${accentColor};">$[properties.geoObjects.length]</div>`
+      ),
       groupByCoordinates: false,
       clusterDisableClickZoom: false,
     });
-
-    const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8B4513";
-    const pinIcon = buildPinIconDataUri(accentColor);
 
     const placemarks = list.map((venue) => {
       const lat = Number(venue.lat);
@@ -161,11 +169,28 @@ export default function BarMap() {
         </div>
       `;
 
+      // Мини-карточка при наведении — фото, название, город, рейтинг, часы, теги
+      const tags = Array.isArray(venue.tags) ? (venue.tags as string[]).slice(0, 2) : [];
+      const hintContent = `
+        <div style="width:220px;font-family:sans-serif;padding:2px;">
+          <div style="display:flex;gap:8px;">
+            ${venue.image ? `<img src="${venue.image}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
+            <div style="min-width:0;flex:1;">
+              <div style="font-weight:700;font-size:13px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(venue.name)}</div>
+              <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(venue.city ?? "")}</div>
+              ${venue.rating ? `<div style="font-size:11px;color:#333;margin-top:2px;">⭐ ${venue.rating} · ${venue.reviews ?? 0} отзывов</div>` : ""}
+            </div>
+          </div>
+          ${venue.hours ? `<div style="font-size:11px;color:#666;margin-top:6px;">🕒 ${escapeHtml(venue.hours)}</div>` : ""}
+          ${tags.length > 0 ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">${tags.map((t) => `<span style="font-size:10px;background:#f3f0ea;color:${accentColor};padding:2px 6px;border-radius:10px;">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+        </div>
+      `;
+
       return new ymaps.Placemark(
         [lat, lng],
         {
           balloonContent,
-          hintContent: venue.name,
+          hintContent,
         },
         {
           iconLayout: "default#image",
@@ -198,6 +223,18 @@ export default function BarMap() {
           <path d="M12 14v6" />
           <path d="M9 20h6" />
         </g>
+      </svg>
+    `.trim();
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+
+  // Тот же пин, но без стопочки внутри — на кружок накладывается число заведений
+  // через clusterIconContentLayout (см. renderPlacemarks)
+  function buildClusterPinDataUri(color: string): string {
+    const svg = `
+      <svg width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28C36 8.06 27.94 0 18 0z" fill="${color}"/>
+        <circle cx="18" cy="17" r="12.5" fill="#ffffff"/>
       </svg>
     `.trim();
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
