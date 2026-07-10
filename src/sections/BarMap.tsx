@@ -276,10 +276,10 @@ export default function BarMap() {
         </div>
       </section>
 
-      {/* Настоящая карта — Яндекс.Карты */}
+      {/* Настоящая карта — Яндекс.Карты. Уже только на десктопе (lg+), на телефоне/планшете — во всю ширину */}
       <section className="py-8" style={{ background: "var(--bg-primary)" }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", height: 480 }}>
+        <div className="max-w-7xl lg:max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", height: 420 }}>
             {mapError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
                 <MapPin size={40} style={{ color: "var(--border)" }} className="mb-3" />
