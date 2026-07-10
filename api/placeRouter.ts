@@ -3,6 +3,7 @@ import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { places, placeInfusions } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { normalizeText, diceCoefficient, haversineMeters } from "./lib/similarity";
 
 export const placeRouter = createRouter({
   /* ── Публичный список — только одобренные места (для барной карты) ── */
@@ -27,6 +28,49 @@ export const placeRouter = createRouter({
     }),
 
   /* ── Только админ ── */
+  /* ── Проверка на дубликаты перед сохранением: похожие по названию + близкие по координатам ── */
+  checkDuplicates: publicQuery
+    .input(
+      z.object({
+        name: z.string().min(1),
+        address: z.string().optional(),
+        lat: z.number().optional(),
+        lng: z.number().optional(),
+        excludeId: z.number().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = getDb();
+      const all = await db.query.places.findMany();
+      const candidateName = normalizeText(input.name);
+
+      const scored = all
+        .filter((p) => p.id !== input.excludeId)
+        .map((p) => {
+          const nameSim = diceCoefficient(candidateName, normalizeText(p.name));
+          let proximity = 0;
+          if (input.lat != null && input.lng != null && p.lat != null && p.lng != null) {
+            const distM = haversineMeters(input.lat, input.lng, Number(p.lat), Number(p.lng));
+            proximity = Math.max(0, 1 - distM / 500);
+          }
+          const score = nameSim * 0.6 + proximity * 0.4;
+          return { place: p, score };
+        })
+        .filter((r) => r.score > 0.35)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+      return scored.map((r) => ({
+        id: r.place.id,
+        slug: r.place.slug,
+        name: r.place.name,
+        city: r.place.city,
+        address: r.place.address,
+        image: r.place.image,
+        score: Math.round(r.score * 100),
+      }));
+    }),
+
   delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {

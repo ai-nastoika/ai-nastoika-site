@@ -3,6 +3,7 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { recipes, recipeIngredients, recipeSteps } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { normalizeText, diceCoefficient, jaccardSimilarity } from "./lib/similarity";
 
 export const recipeRouter = createRouter({
   list: publicQuery.query(async () => {
@@ -34,6 +35,51 @@ export const recipeRouter = createRouter({
       return db.query.recipes.findMany({
         where: eq(recipes.category, input.category),
       });
+    }),
+
+  /* ── Проверка на дубликаты: похожесть названия + категория + пересечение ингредиентов.
+     Способ приготовления НЕ сравнивается алгоритмически — это решает человек,
+     здесь только подсвечиваются кандидаты для сравнения. ── */
+  checkDuplicates: publicQuery
+    .input(
+      z.object({
+        title: z.string().min(1),
+        category: z.string().optional(),
+        ingredients: z.array(z.string()).optional(),
+        excludeId: z.number().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = getDb();
+      const all = await db.query.recipes.findMany({ with: { ingredients: true } });
+      const candidateTitle = normalizeText(input.title);
+      const candidateIngSet = new Set((input.ingredients ?? []).map((i) => normalizeText(i)));
+
+      const scored = all
+        .filter((r) => r.id !== input.excludeId)
+        .map((r) => {
+          const titleSim = diceCoefficient(candidateTitle, normalizeText(r.title));
+          const categoryMatch = input.category && r.category === input.category ? 1 : 0;
+          const existingIngSet = new Set(
+            (r.ingredients ?? []).map((i: { name: string }) => normalizeText(i.name))
+          );
+          const ingJaccard = jaccardSimilarity(candidateIngSet, existingIngSet);
+          const score = titleSim * 0.4 + categoryMatch * 0.2 + ingJaccard * 0.4;
+          return { recipe: r, score, ingJaccard };
+        })
+        .filter((r) => r.score > 0.3)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+      return scored.map((r) => ({
+        id: r.recipe.id,
+        slug: r.recipe.slug,
+        title: r.recipe.title,
+        category: r.recipe.category,
+        heroImage: r.recipe.heroImage,
+        score: Math.round(r.score * 100),
+        ingredientOverlapPercent: Math.round(r.ingJaccard * 100),
+      }));
     }),
 
   delete: publicQuery

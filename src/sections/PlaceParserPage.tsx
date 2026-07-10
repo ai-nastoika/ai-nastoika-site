@@ -211,16 +211,16 @@ export default function PlaceParserPage() {
     }
   };
 
-  /* ── Save ── */
-  const handleSave = () => {
-    if (!form.slug || !form.name) { alert("Slug и название обязательны!"); return; }
+  /* ── Save (с проверкой на дубликаты) ── */
+  const [duplicateMatches, setDuplicateMatches] = useState<
+    { id: number; slug: string; name: string; city: string | null; address: string | null; image: string | null; score: number }[] | null
+  >(null);
+
+  const buildPayload = (overwriteId?: number) => {
     const latNum = form.lat.trim() ? Number(form.lat.replace(",", ".")) : undefined;
     const lngNum = form.lng.trim() ? Number(form.lng.replace(",", ".")) : undefined;
-    if (form.lat.trim() && Number.isNaN(latNum)) { alert("Широта указана некорректно"); return; }
-    if (form.lng.trim() && Number.isNaN(lngNum)) { alert("Долгота указана некорректно"); return; }
-
-    setSaving(true);
-    upsertPlace.mutate({
+    return {
+      id: overwriteId,
       slug: form.slug, name: form.name,
       city: form.city || undefined, address: form.address || undefined, metro: form.metro || undefined,
       phone: form.phone || undefined, website: form.website || undefined,
@@ -234,7 +234,32 @@ export default function PlaceParserPage() {
       externalPros: form.externalPros.length > 0 ? form.externalPros : undefined,
       externalCons: form.externalCons.length > 0 ? form.externalCons : undefined,
       tags: form.tags.length > 0 ? form.tags : undefined,
-    });
+    };
+  };
+
+  const handleSave = async (opts?: { overwriteId?: number; skipCheck?: boolean }) => {
+    if (!form.slug || !form.name) { alert("Slug и название обязательны!"); return; }
+    const latNum = form.lat.trim() ? Number(form.lat.replace(",", ".")) : undefined;
+    const lngNum = form.lng.trim() ? Number(form.lng.replace(",", ".")) : undefined;
+    if (form.lat.trim() && Number.isNaN(latNum)) { alert("Широта указана некорректно"); return; }
+    if (form.lng.trim() && Number.isNaN(lngNum)) { alert("Долгота указана некорректно"); return; }
+
+    if (!opts?.skipCheck && !opts?.overwriteId) {
+      const dupes = await utils.place.checkDuplicates.fetch({
+        name: form.name,
+        address: form.address || undefined,
+        lat: Number.isFinite(latNum) ? latNum : undefined,
+        lng: Number.isFinite(lngNum) ? lngNum : undefined,
+      });
+      if (dupes.length > 0) {
+        setDuplicateMatches(dupes);
+        return;
+      }
+    }
+
+    setDuplicateMatches(null);
+    setSaving(true);
+    upsertPlace.mutate(buildPayload(opts?.overwriteId));
   };
 
   const patch = (p: Partial<PlaceForm>) => setForm((f) => ({ ...f, ...p }));
@@ -430,7 +455,7 @@ export default function PlaceParserPage() {
                 <Button variant="outline" onClick={() => setTab("json")}>← Назад к JSON</Button>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => { setForm(emptyForm()); setImagePreview(null); setTab("prompt"); }}>Новое заведение</Button>
-                  <Button onClick={handleSave} disabled={saving} size="lg">
+                  <Button onClick={() => handleSave()} disabled={saving} size="lg">
                     <Save size={18} className="mr-2" />
                     {saving ? "Сохранение..." : "Сохранить заведение"}
                   </Button>
@@ -440,6 +465,41 @@ export default function PlaceParserPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Модалка предупреждения о возможных дубликатах ── */}
+      {duplicateMatches && duplicateMatches.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-lg rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              Похоже, такое заведение уже есть
+            </h3>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+              Нашлись похожие записи по названию и координатам. Проверьте — может, это дубликат?
+            </p>
+
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {duplicateMatches.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ border: "1px solid var(--border)" }}>
+                  <img src={m.image || "/bar-1.jpg"} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</div>
+                    <div className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{m.city} {m.address}</div>
+                    <div className="text-xs" style={{ color: "var(--accent)" }}>Совпадение: {m.score}%</div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => handleSave({ overwriteId: m.id })}>
+                    Заменить
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDuplicateMatches(null)}>Отмена</Button>
+              <Button onClick={() => handleSave({ skipCheck: true })}>Это не дубль — сохранить как новое</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

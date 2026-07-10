@@ -278,27 +278,48 @@ export default function RecipeParserPage() {
     }
   };
 
-  /* ── Save ── */
-  const handleSave = () => {
+  /* ── Save (с проверкой на дубликаты) ── */
+  const [duplicateMatches, setDuplicateMatches] = useState<
+    { id: number; slug: string; title: string; category: string | null; heroImage: string | null; score: number; ingredientOverlapPercent: number }[] | null
+  >(null);
+
+  const buildRecipePayload = (overwriteId?: number) => ({
+    id: overwriteId,
+    slug: form.slug, title: form.title, subtitle: form.subtitle || undefined,
+    category: form.category, categoryLabel: form.categoryLabel || undefined,
+    heroImage: form.heroImage || undefined,
+    abv: form.abv || undefined, time: form.time || undefined, difficulty: form.difficulty || undefined,
+    year: form.year || undefined, origin: form.origin || undefined,
+    historyTitle: form.historyTitle || undefined, historyText: form.historyText || undefined,
+    tastingColor: form.tastingColor || undefined, tastingDescription: form.tastingDescription || undefined,
+    tastingPairing: form.tastingPairing.length > 0 ? form.tastingPairing : undefined,
+    tastingTemp: form.tastingTemp || undefined, tastingGlass: form.tastingGlass || undefined,
+    sweet: form.sweet || undefined, sour: form.sour || undefined, bitter: form.bitter || undefined,
+    spicy: form.spicy || undefined, fruity: form.fruity || undefined, herbal: form.herbal || undefined,
+    tips: form.tips.length > 0 ? form.tips : undefined,
+    authorName: form.authorName || undefined, authorDate: form.authorDate || undefined,
+    ingredients: form.ingredients.length > 0 ? form.ingredients : undefined,
+    steps: form.steps.length > 0 ? form.steps.map((s) => ({ stepNum: s.stepNum, title: s.title || undefined, text: s.text })) : undefined,
+  });
+
+  const handleSave = async (opts?: { overwriteId?: number; skipCheck?: boolean }) => {
     if (!form.slug || !form.title) { alert("Slug и название обязательны!"); return; }
+
+    if (!opts?.skipCheck && !opts?.overwriteId) {
+      const dupes = await utils.recipe.checkDuplicates.fetch({
+        title: form.title,
+        category: form.category || undefined,
+        ingredients: form.ingredients.map((i) => i.name).filter(Boolean),
+      });
+      if (dupes.length > 0) {
+        setDuplicateMatches(dupes);
+        return;
+      }
+    }
+
+    setDuplicateMatches(null);
     setSaving(true);
-    upsertRecipe.mutate({
-      slug: form.slug, title: form.title, subtitle: form.subtitle || undefined,
-      category: form.category, categoryLabel: form.categoryLabel || undefined,
-      heroImage: form.heroImage || undefined,
-      abv: form.abv || undefined, time: form.time || undefined, difficulty: form.difficulty || undefined,
-      year: form.year || undefined, origin: form.origin || undefined,
-      historyTitle: form.historyTitle || undefined, historyText: form.historyText || undefined,
-      tastingColor: form.tastingColor || undefined, tastingDescription: form.tastingDescription || undefined,
-      tastingPairing: form.tastingPairing.length > 0 ? form.tastingPairing : undefined,
-      tastingTemp: form.tastingTemp || undefined, tastingGlass: form.tastingGlass || undefined,
-      sweet: form.sweet || undefined, sour: form.sour || undefined, bitter: form.bitter || undefined,
-      spicy: form.spicy || undefined, fruity: form.fruity || undefined, herbal: form.herbal || undefined,
-      tips: form.tips.length > 0 ? form.tips : undefined,
-      authorName: form.authorName || undefined, authorDate: form.authorDate || undefined,
-      ingredients: form.ingredients.length > 0 ? form.ingredients : undefined,
-      steps: form.steps.length > 0 ? form.steps.map((s) => ({ stepNum: s.stepNum, title: s.title || undefined, text: s.text })) : undefined,
-    });
+    upsertRecipe.mutate(buildRecipePayload(opts?.overwriteId));
   };
 
   /* ── Form helpers ── */
@@ -656,7 +677,7 @@ export default function RecipeParserPage() {
                 <Button variant="outline" onClick={() => setTab("json")}>← Назад к JSON</Button>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => { setForm(emptyForm()); setImagePreview(null); setTab("prompt"); }}>Новый рецепт</Button>
-                  <Button onClick={handleSave} disabled={saving} size="lg">
+                  <Button onClick={() => handleSave()} disabled={saving} size="lg">
                     <Save size={18} className="mr-2" />
                     {saving ? "Сохранение..." : "Сохранить рецепт"}
                   </Button>
@@ -666,6 +687,46 @@ export default function RecipeParserPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Модалка предупреждения о возможных дубликатах ──
+          Способ приготовления мы не сравниваем алгоритмически — только
+          название/категорию/состав. Финальное решение всегда за человеком. */}
+      {duplicateMatches && duplicateMatches.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-lg rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              Похоже, такой рецепт уже есть
+            </h3>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+              Похожее название и/или состав ингредиентов. Сравните способ приготовления — если он существенно
+              отличается, это можно смело сохранить как отдельный рецепт.
+            </p>
+
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {duplicateMatches.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ border: "1px solid var(--border)" }}>
+                  <img src={m.heroImage || "/bar-1.jpg"} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.title}</div>
+                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>Категория: {m.category}</div>
+                    <div className="text-xs" style={{ color: "var(--accent)" }}>
+                      Совпадение: {m.score}% · пересечение ингредиентов: {m.ingredientOverlapPercent}%
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => handleSave({ overwriteId: m.id })}>
+                    Заменить
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDuplicateMatches(null)}>Отмена</Button>
+              <Button onClick={() => handleSave({ skipCheck: true })}>Способ другой — сохранить как новое</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
