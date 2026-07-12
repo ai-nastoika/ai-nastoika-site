@@ -224,8 +224,8 @@ export default function PlaceDetail() {
               {place.description ?? ""}
             </p>
             {place.website && (
-              <a href={`https://${place.website}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                <Globe size={16} /> {place.website}
+              <a href={/^https?:\/\//i.test(place.website) ? place.website : `https://${place.website}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                <Globe size={16} /> {place.website.replace(/^https?:\/\//i, "")}
               </a>
             )}
           </div>
