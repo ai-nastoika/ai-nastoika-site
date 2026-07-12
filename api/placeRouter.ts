@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { places, placeInfusions } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeText, diceCoefficient, haversineMeters } from "./lib/similarity";
+import { normalizeWebsite } from "./lib/normalize";
 
 export const placeRouter = createRouter({
   /* ── Публичный список — только одобренные места (для барной карты) ── */
@@ -122,7 +123,8 @@ export const placeRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
-      const { id, infusions, ...data } = input;
+      const { id, infusions, ...rest } = input;
+      const data = { ...rest, website: normalizeWebsite(rest.website) };
       let placeId: number;
 
       if (id) {

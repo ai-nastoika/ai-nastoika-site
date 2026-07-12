@@ -3,6 +3,7 @@ import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { placeSubmissions, places } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
+import { normalizeWebsite } from "./lib/normalize";
 
 export const placeSubmissionRouter = createRouter({
   /* ── Определить координаты по ссылке на Яндекс.Карты ──
@@ -154,7 +155,7 @@ export const placeSubmissionRouter = createRouter({
           address: sub.address,
           metro: sub.metro,
           phone: sub.phone,
-          website: sub.website,
+          website: normalizeWebsite(sub.website),
           lat: sub.lat,
           lng: sub.lng,
           hours: sub.hours,
