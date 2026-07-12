@@ -67,6 +67,16 @@ export default function RecipesPage() {
     );
   }
 
+  const LIMIT_OPTIONS = [10, 20, 50, 100];
+  const limit = Number(searchParams.get("n")) || 10;
+  function setLimit(n: number) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (n && n !== 10) next.set("n", String(n)); else next.delete("n");
+      return next;
+    });
+  }
+
   const [sortBy, setSortBy] = useState("popular");
   const [likedIds, setLikedIds] = useState<number[]>([2, 5]);
   const [showSort, setShowSort] = useState(false);
@@ -231,14 +241,32 @@ export default function RecipesPage() {
       {/* Recipes Grid */}
       <section className="py-12 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              {filtered.length} {filtered.length === 1 ? "рецепт" : filtered.length < 5 ? "рецепта" : "рецептов"}
+              Показано {Math.min(limit, filtered.length)} из {filtered.length} {filtered.length === 1 ? "рецепта" : filtered.length < 5 ? "рецептов" : "рецептов"}
             </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Показывать:</span>
+              {LIMIT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setLimit(n)}
+                  className="px-3 py-1 rounded-lg text-sm font-medium transition-all"
+                  style={{
+                    background: limit === n ? "var(--accent)" : "var(--bg-card)",
+                    color: limit === n ? "#fff" : "var(--text-secondary)",
+                    border: limit === n ? "none" : "1px solid var(--border)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((recipe) => (
+            {filtered.slice(0, limit).map((recipe) => (
               <div key={recipe.id} className="group rounded-2xl overflow-hidden transition-all hover:shadow-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="relative overflow-hidden">
                   <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -276,6 +304,18 @@ export default function RecipesPage() {
               </div>
             ))}
           </div>
+
+          {filtered.length > limit && (
+            <div className="text-center mt-8">
+              <button
+                onClick={() => setLimit(LIMIT_OPTIONS.find((n) => n > limit) ?? 100)}
+                className="px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                style={{ background: "var(--bg-card)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                Показать ещё
+              </button>
+            </div>
+          )}
 
           {filtered.length === 0 && (
             <div className="text-center py-20">

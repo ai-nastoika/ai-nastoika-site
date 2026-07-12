@@ -85,6 +85,8 @@ export default function BarMap() {
   const [activeCity, setActiveCity] = useState("Все города");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const GRID_LIMIT_OPTIONS = [10, 20, 50, 100];
+  const [gridLimit, setGridLimit] = useState(10);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -483,17 +485,37 @@ export default function BarMap() {
       {/* Venues Grid */}
       <section className="pb-20" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               {activeCity === "Все города" ? "Все заведения" : `Заведения в ${activeCity}`}
             </h2>
-            <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              {filteredVenues.length} мест
-            </span>
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Показано {Math.min(gridLimit, filteredVenues.length)} из {filteredVenues.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Показывать:</span>
+                {GRID_LIMIT_OPTIONS.map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setGridLimit(n)}
+                    className="px-3 py-1 rounded-lg text-sm font-medium transition-all"
+                    style={{
+                      background: gridLimit === n ? "var(--accent)" : "var(--bg-card)",
+                      color: gridLimit === n ? "#fff" : "var(--text-secondary)",
+                      border: gridLimit === n ? "none" : "1px solid var(--border)",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-6">
-            {filteredVenues.map((venue) => (
+            {filteredVenues.slice(0, gridLimit).map((venue) => (
               <Link to={`/place/${venue.slug}`} key={venue.id} className="group rounded-2xl overflow-hidden transition-all hover:shadow-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="relative overflow-hidden">
                   <img src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -535,6 +557,18 @@ export default function BarMap() {
               </Link>
             ))}
           </div>
+
+          {filteredVenues.length > gridLimit && (
+            <div className="text-center mt-8">
+              <button
+                onClick={() => setGridLimit(GRID_LIMIT_OPTIONS.find((n) => n > gridLimit) ?? 100)}
+                className="px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                style={{ background: "var(--bg-card)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                Показать ещё
+              </button>
+            </div>
+          )}
 
           {filteredVenues.length === 0 && (
             <div className="text-center py-16">
