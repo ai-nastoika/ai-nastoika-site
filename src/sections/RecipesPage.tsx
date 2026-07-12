@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 
 import {
   Search, SlidersHorizontal, Star, Clock, Heart, Flame,
   Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown, ArrowLeft,
-  Sparkles, Plus,
+  Sparkles, Plus, X,
 } from "lucide-react";
 import AddRecipeForm from "@/sections/AddRecipeForm";
 
@@ -44,8 +44,29 @@ export default function RecipesPage() {
   const navigate = useNavigate();
   const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
   const recipes = apiRecipes ?? [];
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeCategory = searchParams.get("cat") || "all";
+  const searchQuery = searchParams.get("q") || "";
+
+  function setActiveCategory(cat: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (cat && cat !== "all") next.set("cat", cat); else next.delete("cat");
+      return next;
+    });
+  }
+
+  function setSearchQuery(q: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (q) next.set("q", q); else next.delete("q");
+        return next;
+      },
+      { replace: true } // не засоряем историю переходов при каждом нажатии клавиши
+    );
+  }
+
   const [sortBy, setSortBy] = useState("popular");
   const [likedIds, setLikedIds] = useState<number[]>([2, 5]);
   const [showSort, setShowSort] = useState(false);
@@ -131,6 +152,11 @@ export default function RecipesPage() {
               <div className="flex items-center gap-3 rounded-xl px-4 py-3 w-full lg:w-auto" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", minWidth: 320 }}>
                 <Search size={22} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                 <input type="text" placeholder="Поиск по названию, ингредиентам..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent outline-none text-base w-full" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }} />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery("")} title="Очистить поиск" className="flex-shrink-0 rounded-full p-0.5 transition-opacity hover:opacity-70" style={{ color: "var(--text-muted)" }}>
+                    <X size={18} />
+                  </button>
+                )}
                 <SlidersHorizontal size={22} style={{ color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }} />
               </div>
             </div>
