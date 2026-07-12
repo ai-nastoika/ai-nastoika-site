@@ -10,6 +10,7 @@ export const recipeRouter = createRouter({
     const db = getDb();
     return db.query.recipes.findMany({
       orderBy: (recipes, { desc }) => [desc(recipes.createdAt)],
+      with: { ingredients: true },
     });
   }),
 

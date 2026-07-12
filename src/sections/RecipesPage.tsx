@@ -70,10 +70,14 @@ export default function RecipesPage() {
 
   let filtered = allRecipes.filter((r) => {
     const catMatch = activeCategory === "all" || r.category === activeCategory;
+    const q = searchQuery.toLowerCase();
     const searchMatch =
       !searchQuery ||
-      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.categoryLabel ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+      r.title.toLowerCase().includes(q) ||
+      (r.categoryLabel ?? "").toLowerCase().includes(q) ||
+      (Array.isArray((r as any).ingredients)
+        ? (r as any).ingredients.some((ing: { name: string }) => ing.name.toLowerCase().includes(q))
+        : false);
     return catMatch && searchMatch;
   });
 
