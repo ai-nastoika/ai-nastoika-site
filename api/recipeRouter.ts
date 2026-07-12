@@ -3,7 +3,7 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { recipes, recipeIngredients, recipeSteps } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { normalizeText, diceCoefficient, jaccardSimilarity } from "./lib/similarity";
+import { normalizeText, diceCoefficient, fuzzyIngredientOverlap } from "./lib/similarity";
 
 export const recipeRouter = createRouter({
   list: publicQuery.query(async () => {
@@ -53,19 +53,17 @@ export const recipeRouter = createRouter({
       const db = getDb();
       const all = await db.query.recipes.findMany({ with: { ingredients: true } });
       const candidateTitle = normalizeText(input.title);
-      const candidateIngSet = new Set((input.ingredients ?? []).map((i) => normalizeText(i)));
+      const candidateIngredients = input.ingredients ?? [];
 
       const scored = all
         .filter((r) => r.id !== input.excludeId)
         .map((r) => {
           const titleSim = diceCoefficient(candidateTitle, normalizeText(r.title));
           const categoryMatch = input.category && r.category === input.category ? 1 : 0;
-          const existingIngSet = new Set(
-            (r.ingredients ?? []).map((i: { name: string }) => normalizeText(i.name))
-          );
-          const ingJaccard = jaccardSimilarity(candidateIngSet, existingIngSet);
-          const score = titleSim * 0.4 + categoryMatch * 0.2 + ingJaccard * 0.4;
-          return { recipe: r, score, ingJaccard };
+          const existingIngredientNames = (r.ingredients ?? []).map((i: { name: string }) => i.name);
+          const ingOverlap = fuzzyIngredientOverlap(candidateIngredients, existingIngredientNames);
+          const score = titleSim * 0.4 + categoryMatch * 0.2 + ingOverlap * 0.4;
+          return { recipe: r, score, ingOverlap };
         })
         .filter((r) => r.score > 0.3)
         .sort((a, b) => b.score - a.score)
@@ -78,7 +76,7 @@ export const recipeRouter = createRouter({
         category: r.recipe.category,
         heroImage: r.recipe.heroImage,
         score: Math.round(r.score * 100),
-        ingredientOverlapPercent: Math.round(r.ingJaccard * 100),
+        ingredientOverlapPercent: Math.round(r.ingOverlap * 100),
       }));
     }),
 

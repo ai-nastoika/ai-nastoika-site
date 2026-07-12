@@ -48,13 +48,40 @@ export function diceCoefficient(a: string, b: string): number {
   return (2 * intersection) / (bigramsA.length + bigramsB.length);
 }
 
-/** Коэффициент Жаккара для двух множеств строк — доля общих элементов */
+/** Коэффициент Жаккара для двух множеств строк — доля общих элементов (точное совпадение) */
 export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 && b.size === 0) return 0;
   let intersection = 0;
   for (const item of a) if (b.has(item)) intersection++;
   const union = a.size + b.size - intersection;
   return union === 0 ? 0 : intersection / union;
+}
+
+/**
+ * Нечёткое пересечение списков ингредиентов — в отличие от jaccardSimilarity,
+ * не требует точного совпадения строк. "вишня" и "вишня свежая" или "вишни спелые"
+ * считаются одним и тем же ингредиентом, если их биграммное сходство выше порога.
+ * Возвращает долю от 0 до 1 — сколько ингредиентов кандидата нашли похожую пару.
+ */
+export function fuzzyIngredientOverlap(candidateNames: string[], existingNames: string[]): number {
+  if (candidateNames.length === 0 || existingNames.length === 0) return 0;
+  const normCandidate = candidateNames.map(normalizeText).filter(Boolean);
+  const normExisting = existingNames.map(normalizeText).filter(Boolean);
+  if (normCandidate.length === 0 || normExisting.length === 0) return 0;
+
+  const MATCH_THRESHOLD = 0.5;
+  let matched = 0;
+  for (const c of normCandidate) {
+    let best = 0;
+    for (const e of normExisting) {
+      const sim = diceCoefficient(c, e);
+      if (sim > best) best = sim;
+    }
+    if (best >= MATCH_THRESHOLD) matched++;
+  }
+
+  const denom = Math.max(normCandidate.length, normExisting.length);
+  return denom === 0 ? 0 : matched / denom;
 }
 
 /** Расстояние между двумя координатами в метрах (формула гаверсинуса) */
