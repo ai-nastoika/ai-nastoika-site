@@ -156,8 +156,13 @@ export default function BarMap() {
     return { nearest, bestRated, fresh };
   }, [userCoords, allVenuesWithCoords]);
 
-  /* ── Инициализация и обновление карты (хук вызывается всегда, даже во время isLoading) ── */
+  /* ── Инициализация и обновление карты. Зависит от isLoading: пока данные грузятся,
+     компонент рендерит только спиннер, и <div ref={mapContainerRef}> ещё не существует
+     в DOM — эффект должен перезапуститься, когда контейнер реально появится. ── */
   useEffect(() => {
+    if (isLoading) return; // контейнер карты ещё не отрендерен
+    if (mapInstanceRef.current) return; // карта уже создана — не пересоздаём повторно
+
     let cancelled = false;
     let map: any = null;
 
@@ -190,9 +195,10 @@ export default function BarMap() {
     return () => {
       cancelled = true;
       if (map) map.destroy();
+      if (mapInstanceRef.current === map) mapInstanceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoading]);
 
   /* ── Перерисовка меток при смене фильтров ── */
   useEffect(() => {
