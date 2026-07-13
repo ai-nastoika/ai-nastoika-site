@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -114,15 +114,22 @@ export default function RecipeDetail() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ===== HERO IMAGE ===== */}
-      <div className="relative h-72 sm:h-96 lg:h-[28rem]">
-        <img src={recipe.heroImage ?? ""} alt={recipe.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%)" }} />
+      <div className="relative h-72 sm:h-96 lg:h-[28rem] print:h-64 print:overflow-visible">
+        <img
+          src={recipe.heroImage ?? ""}
+          alt={recipe.title}
+          className="w-full h-full object-cover print:object-contain"
+          style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as CSSProperties}
+        />
+        {/* Затемняющий градиент — только для экрана. В печати часто рендерится сплошной заливкой
+            поверх фото (браузеры печатают CSS-градиенты по-разному), поэтому в печати скрываем. */}
+        <div className="absolute inset-0 print:hidden" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%)" }} />
 
-        <button onClick={() => navigate(-1)} className="absolute top-4 left-4 flex items-center gap-2 rounded-full px-4 py-2 text-base font-medium text-white transition-all hover:scale-105" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", fontFamily: "var(--font-body)" }}>
+        <button onClick={() => navigate(-1)} className="absolute top-4 left-4 flex items-center gap-2 rounded-full px-4 py-2 text-base font-medium text-white transition-all hover:scale-105 print:hidden" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", fontFamily: "var(--font-body)" }}>
           <ArrowLeft size={28} /> Назад
         </button>
 
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-4 right-4 flex gap-2 print:hidden">
           <button
             onClick={toggleFavorite}
             className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
@@ -149,7 +156,7 @@ export default function RecipeDetail() {
           </button>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+        <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 print:hidden">
           <div className="max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-base font-medium mb-3" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}>
               {recipe.categoryLabel ?? recipe.category}
@@ -164,8 +171,17 @@ export default function RecipeDetail() {
         </div>
       </div>
 
+      {/* Заголовок для печати — тёмный текст на белом фоне, не зависит от контраста с фото */}
+      <div className="hidden print:block px-4 py-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-sm font-medium mb-1" style={{ color: "#8B4513" }}>{recipe.categoryLabel ?? recipe.category}</div>
+          <h1 className="text-3xl font-bold mb-1" style={{ color: "#1a1a1a" }}>{recipe.title}</h1>
+          {recipe.subtitle && <p className="text-base" style={{ color: "#555" }}>{recipe.subtitle}</p>}
+        </div>
+      </div>
+
       {/* ===== META BAR ===== */}
-      <div className="sticky top-16 z-30 py-3" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
+      <div className="sticky top-16 z-30 py-3 print:static" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             {[
@@ -349,13 +365,20 @@ export default function RecipeDetail() {
           </section>
         )}
 
-        {/* --- Консультация ИИ по этому рецепту --- */}
-        <section className="mb-14">
+        {/* --- Консультация ИИ по этому рецепту (только для экрана) --- */}
+        <section className="mb-14 print:hidden">
           <RecipeAiConsult recipeId={recipe.id} />
         </section>
 
-        {/* --- Comments --- */}
-        <CommentSection recipeId={recipe.id} />
+        {/* --- Comments (только для экрана) --- */}
+        <div className="print:hidden">
+          <CommentSection recipeId={recipe.id} />
+        </div>
+
+        {/* --- Источник — только при печати, вместо ИИ-консультации и отзывов --- */}
+        <div className="hidden print:block mt-6 mb-6 pt-4 text-center text-sm" style={{ borderTop: "1px solid #ccc", color: "#555" }}>
+          Рецепт получен с сайта «Ай, настойка!» — {typeof window !== "undefined" ? `${window.location.origin}/#/recipe/${recipe.slug}` : ""}
+        </div>
 
         {/* --- Author --- */}
         {recipe.authorName && (
@@ -370,7 +393,7 @@ export default function RecipeDetail() {
                   {recipe.authorDate && <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{recipe.authorDate}</div>}
                 </div>
               </div>
-              <Link to="/recipes" className="flex items-center gap-2 rounded-xl px-4 py-2 text-base font-medium transition-all hover:scale-105" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+              <Link to="/recipes" className="flex items-center gap-2 rounded-xl px-4 py-2 text-base font-medium transition-all hover:scale-105 print:hidden" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                 <ArrowLeft size={22} /> Все рецепты
               </Link>
             </div>
