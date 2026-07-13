@@ -72,6 +72,12 @@ export const placeRouter = createRouter({
       }));
     }),
 
+  /* ── Ручной запуск проверки сайтов (не ждать ночного cron) ── */
+  checkWebsitesNow: adminQuery.mutation(async () => {
+    const { checkDueWebsites } = await import("./lib/websiteChecker");
+    return checkDueWebsites();
+  }),
+
   delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {

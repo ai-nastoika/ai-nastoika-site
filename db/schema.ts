@@ -86,6 +86,9 @@ export const places = mysqlTable("places", {
   // ─ координаты для реальной карты (Яндекс.Карты) ─
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
+  // ─ контроль актуальности сайта: раз в ~90 дней сервер сам проверяет доступность ─
+  websiteStatus: varchar("website_status", { length: 20 }).default("unknown"), // unknown | ok | unreachable
+  websiteLastCheckedAt: timestamp("website_last_checked_at"),
   // ─ модерация: admin создаёт сразу approved, заявки пользователей — pending ─
   status: varchar("status", { length: 20 }).notNull().default("approved"), // approved | pending | rejected
   submittedByUserId: bigint("submitted_by_user_id", { mode: "number", unsigned: true }),

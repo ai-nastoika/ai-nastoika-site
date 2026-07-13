@@ -213,6 +213,12 @@ function AdminPanel() {
   const deletePlace = trpc.place.delete.useMutation({
     onSuccess: () => utils.place.list.invalidate(),
   });
+  const checkWebsitesNow = trpc.place.checkWebsitesNow.useMutation({
+    onSuccess: (result) => {
+      utils.place.list.invalidate();
+      alert(`Проверено: ${result.checked}\nДоступно: ${result.ok}\nНедоступно: ${result.unreachable}`);
+    },
+  });
   const upsertRecipe = trpc.recipe.upsert.useMutation({
     onSuccess: () => { utils.recipe.list.invalidate(); setRecipeOpen(false); resetRecipe(); setSaveNotice(""); },
     onError: (_err, variables) => {
@@ -545,7 +551,11 @@ function AdminPanel() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Список мест</CardTitle>
-                <Dialog open={placeOpen} onOpenChange={(o) => { if (!o) resetPlace(); setPlaceOpen(o); }}>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => checkWebsitesNow.mutate()} disabled={checkWebsitesNow.isPending}>
+                    {checkWebsitesNow.isPending ? "Проверяю сайты..." : "Проверить сайты сейчас"}
+                  </Button>
+                  <Dialog open={placeOpen} onOpenChange={(o) => { if (!o) resetPlace(); setPlaceOpen(o); }}>
                   <DialogTrigger asChild>
                     <Button size="sm" onClick={() => { resetPlace(); setPlaceOpen(true); }}>
                       + Добавить место
@@ -569,6 +579,7 @@ function AdminPanel() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 {pLoading ? (
@@ -582,6 +593,7 @@ function AdminPanel() {
                         <TableHead>ID</TableHead>
                         <TableHead>Название</TableHead>
                         <TableHead>Город</TableHead>
+                        <TableHead>Сайт</TableHead>
                         <TableHead className="text-right">Действия</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -591,6 +603,25 @@ function AdminPanel() {
                           <TableCell>{p.id}</TableCell>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>{p.city}</TableCell>
+                          <TableCell>
+                            {!p.website ? (
+                              <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>
+                            ) : (
+                              <span
+                                className="text-xs px-2 py-0.5 rounded-full"
+                                style={
+                                  p.websiteStatus === "ok"
+                                    ? { background: "#d8f3dc", color: "#386641" }
+                                    : p.websiteStatus === "unreachable"
+                                    ? { background: "#fee2e2", color: "#991b1b" }
+                                    : { background: "#f3f4f6", color: "#6b7280" }
+                                }
+                                title={p.websiteLastCheckedAt ? `Проверено: ${new Date(p.websiteLastCheckedAt).toLocaleDateString("ru-RU")}` : "Ещё не проверялось"}
+                              >
+                                {p.websiteStatus === "ok" ? "Доступен" : p.websiteStatus === "unreachable" ? "Недоступен" : "Не проверялся"}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button size="sm" variant="outline" onClick={() => startEditPlace(p)}>
                               Изменить

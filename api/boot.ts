@@ -5,6 +5,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
+import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -245,6 +246,7 @@ const port = Number(process.env.PORT || 3000);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`Server: http://localhost:${port}`);
   seedAdmin();
+  startWebsiteCheckCron();
 });
 
 export default app;
