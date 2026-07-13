@@ -22,7 +22,7 @@ export default function Header() {
 
   return (
     <header
-      className="sticky top-0 z-40 theme-transition"
+      className="sticky top-0 z-40 theme-transition print:hidden"
       style={{
         background: "rgba(250, 246, 240, 0.85)",
         backdropFilter: "blur(16px)",
