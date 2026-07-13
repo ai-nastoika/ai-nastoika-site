@@ -1,14 +1,12 @@
-import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 
 import CommentSection from "../components/CommentSection";
+import RecipeAiConsult from "./RecipeAiConsult";
 import {
   ArrowLeft, Clock, Star, Wine, ChefHat, BookOpen, Lightbulb,
   FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check,
-  QrCode, Tag,
 } from "lucide-react";
-import QRCode from "qrcode";
 
 function FlavorBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -285,8 +283,10 @@ export default function RecipeDetail() {
           </section>
         )}
 
-        {/* --- QR Code --- */}
-        <RecipeQRCode slug={recipe.slug} title={recipe.title} />
+        {/* --- Консультация ИИ по этому рецепту --- */}
+        <section className="mb-14">
+          <RecipeAiConsult recipeId={recipe.id} />
+        </section>
 
         {/* --- Comments --- */}
         <CommentSection recipeId={recipe.id} />
@@ -312,65 +312,5 @@ export default function RecipeDetail() {
         )}
       </div>
     </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   RecipeQRCode — compact QR + link to label
-   ═══════════════════════════════════════════ */
-function RecipeQRCode({ slug, title }: { slug: string; title: string }) {
-  const [qrDataUrl, setQrDataUrl] = useState("");
-  const recipeUrl = `${window.location.origin}/#/recipe/${slug}`;
-
-  useEffect(() => {
-    QRCode.toDataURL(recipeUrl, {
-      width: 200,
-      margin: 1,
-      color: { dark: "#5a3a1a", light: "#faf6f0" },
-    }).then((url: string) => setQrDataUrl(url)).catch(() => setQrDataUrl(""));
-  }, [recipeUrl]);
-
-  function goToLabel() {
-    localStorage.setItem("label-recipe-data", JSON.stringify({ title, slug }));
-    window.location.href = "/#/tools?label";
-  }
-
-  return (
-    <section className="mb-14">
-      <div className="flex items-center gap-2 mb-4">
-        <QrCode size={22} style={{ color: "var(--accent)" }} />
-        <h2 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          QR-код рецепта
-        </h2>
-      </div>
-
-      <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <div className="flex flex-col sm:flex-row gap-5 items-center">
-          {/* QR thumbnail */}
-          {qrDataUrl && (
-            <img
-              src={qrDataUrl}
-              alt="QR"
-              className="rounded-xl shrink-0"
-              style={{ width: 100, height: 100, border: "1px solid var(--border)" }}
-            />
-          )}
-
-          <div className="flex-1 text-center sm:text-left">
-            <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              QR-код ведёт на страницу рецепта <strong>«{title}»</strong>. Разместите его на этикетке бутылки — гости отсканируют и откроют рецепт.
-            </p>
-            <button
-              onClick={goToLabel}
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all hover:scale-105"
-              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-            >
-              <Tag size={18} />
-              Разместить на этикетке
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
