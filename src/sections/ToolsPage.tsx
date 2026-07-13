@@ -818,15 +818,22 @@ function LabelConstructor({ editData }: { editData?: any }) {
     }
 
     function doRender(preloadedUser: HTMLImageElement | null) {
+      // Заливаем фон заранее — некоторые PNG-шаблоны хранят фон прозрачным
+      // (только рамка/узоры непрозрачны), без этой заливки сквозь них
+      // просвечивает страница сайта вместо кремового фона.
+      // Важно: tpl.bg может быть CSS-градиентом ("linear-gradient(...)"),
+      // а Canvas такие строки не понимает и молча оставит чёрный — поэтому
+      // здесь всегда используем гарантированно безопасный сплошной цвет.
+      ctx.fillStyle = "#faf6f0";
+      ctx.fillRect(0, 0, CW, CH);
+
       if (tpl.image) {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => { ctx.drawImage(img, 0, 0, CW, CH); drawUserImage(preloadedUser); drawZones(); };
-        img.onerror = () => { ctx.fillStyle = tpl.bg || "#faf6f0"; ctx.fillRect(0, 0, CW, CH); drawUserImage(preloadedUser); drawZones(); };
+        img.onerror = () => { drawUserImage(preloadedUser); drawZones(); };
         img.src = tpl.image;
       } else {
-        ctx.fillStyle = tpl.bg || "#faf6f0";
-        ctx.fillRect(0, 0, CW, CH);
         drawUserImage(preloadedUser);
         drawZones();
       }
