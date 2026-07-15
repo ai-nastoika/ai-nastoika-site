@@ -3,13 +3,15 @@ import { useLocation } from "react-router";
 import { ArrowUp } from "lucide-react";
 
 export default function ScrollToTop() {
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
   const [visible, setVisible] = useState(false);
 
-  // Скролл наверх при смене маршрута
+  // Скролл наверх только при переходе на другую страницу (смена pathname).
+  // Query-параметры (поиск, категория, лимит показа и т.п.) не должны дёргать скролл —
+  // иначе кнопки вроде "Показать ещё" уводят страницу наверх вместо того, чтобы оставаться на месте.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [pathname, search]);
+  }, [pathname]);
 
   // Показывать кнопку при прокрутке
   useEffect(() => {
