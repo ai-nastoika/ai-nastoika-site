@@ -9,6 +9,8 @@ import {
   comments,
   labelTemplates,
   userRecipeSubmissions,
+  infusions,
+  infusionStages,
 } from "./schema";
 
 export const recipesRelations = relations(recipes, ({ many }) => ({
@@ -44,3 +46,12 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 export const labelTemplatesRelations = relations(labelTemplates, () => ({}));
 
 export const userRecipeSubmissionsRelations = relations(userRecipeSubmissions, () => ({}));
+
+export const infusionsRelations = relations(infusions, ({ many, one }) => ({
+  stages: many(infusionStages),
+  recipe: one(recipes, { fields: [infusions.recipeId], references: [recipes.id] }),
+}));
+
+export const infusionStagesRelations = relations(infusionStages, ({ one }) => ({
+  infusion: one(infusions, { fields: [infusionStages.infusionId], references: [infusions.id] }),
+}));

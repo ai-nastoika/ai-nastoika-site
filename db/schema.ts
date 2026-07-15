@@ -364,3 +364,44 @@ export const savedLabels = mysqlTable("saved_labels", {
 
 export type SavedLabel = typeof savedLabels.$inferSelect;
 export type InsertSavedLabel = typeof savedLabels.$inferInsert;
+
+// ─── Infusion Tracker — «Трекер созревания» ─────────────────
+// Один активный процесс настаивания (банка/бутыль пользователя).
+export const infusions = mysqlTable("infusions", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  recipeId: bigint("recipe_id", { mode: "number", unsigned: true }), // null, если рецепт свой, не из базы
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  vesselDescription: varchar("vessel_description", { length: 200 }), // напр. "банка 3 л, кладовая"
+  coverImage: varchar("cover_image", { length: 255 }),
+  startDate: timestamp("start_date").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active | archived
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Infusion = typeof infusions.$inferSelect;
+export type InsertInfusion = typeof infusions.$inferInsert;
+
+// ─── Infusion Stages — этапы конкретного трекера ────────────
+// "current" не хранится отдельным статусом — вычисляется на лету
+// как ближайший по plannedDate этап со статусом upcoming.
+export const infusionStages = mysqlTable("infusion_stages", {
+  id: serial("id").primaryKey(),
+  infusionId: bigint("infusion_id", { mode: "number", unsigned: true }).notNull(),
+  type: varchar("type", { length: 20 }).notNull().default("custom"), // pour | shake | strain | rest | taste | custom
+  title: varchar("title", { length: 300 }).notNull(),
+  plannedDate: timestamp("planned_date").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("upcoming"), // upcoming | done | skipped
+  repeatIntervalDays: int("repeat_interval_days"), // если задано — при выполнении создаётся следующий такой же этап
+  completedAt: timestamp("completed_at"),
+  note: text("note"),
+  photoUrl: varchar("photo_url", { length: 255 }),
+  sortOrder: int("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type InfusionStage = typeof infusionStages.$inferSelect;
+export type InsertInfusionStage = typeof infusionStages.$inferInsert;

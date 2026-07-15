@@ -31,6 +31,12 @@ if (!fs.existsSync(placesDir)) {
   fs.mkdirSync(placesDir, { recursive: true });
 }
 
+// Папка для фото трекера созревания (обложки настоек + фото по этапам)
+const trackerDir = path.resolve(__dirname, "..", "uploads", "trackers");
+if (!fs.existsSync(trackerDir)) {
+  fs.mkdirSync(trackerDir, { recursive: true });
+}
+
 const app = new Hono();
 
 app.use(cors({
@@ -150,6 +156,41 @@ app.post("/api/upload-label", async (c) => {
     return c.json({ success: true, path: publicPath });
   } catch (err) {
     console.error("Label upload error:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── Tracker (infusion) image upload endpoint ───
+app.post("/api/upload-tracker-image", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "Only jpg, png, webp allowed" }, 400);
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return c.json({ error: "File too large (max 5MB)" }, 400);
+    }
+
+    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+    const hash = crypto.randomBytes(8).toString("hex");
+    const fileName = `tracker-${hash}${ext}`;
+    const filePath = path.join(trackerDir, fileName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    const publicPath = `/uploads/trackers/${fileName}`;
+    return c.json({ success: true, path: publicPath });
+  } catch (err) {
+    console.error("Tracker image upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
   }
 });

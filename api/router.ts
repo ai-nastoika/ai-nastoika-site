@@ -11,6 +11,8 @@ import { placeRouter } from "./placeRouter";
 import { placeSubmissionRouter } from "./placeSubmissionRouter";
 import { favoritesRouter } from "./favoritesRouter";
 import { recipeConsultRouter } from "./recipeConsultRouter";
+import { infusionRouter } from "./infusionRouter";
+import { infusionConsultRouter } from "./infusionConsultRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -340,6 +342,10 @@ export const appRouter = router({
 
   // ─── Консультация ИИ по рецепту ───
   recipeConsult: recipeConsultRouter,
+
+  // ─── Трекер созревания ───
+  infusion: infusionRouter,
+  infusionConsult: infusionConsultRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),
