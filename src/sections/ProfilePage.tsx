@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import InfusionTracker from "./InfusionTracker";
 import {
   User,
   Mail,
@@ -22,6 +23,7 @@ import {
   Lock,
   LogOut,
   FlaskConical,
+  Timer,
   X,
   MessageCircle,
   ThumbsUp,
@@ -50,7 +52,7 @@ function StatCard({ icon: Icon, value, label }: { icon: any; value: string; labe
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "history" | "settings">("overview");
+  const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "tracker" | "history" | "settings">("overview");
   const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
 
@@ -274,6 +276,7 @@ export default function ProfilePage() {
               { id: "overview", label: "Обзор", icon: User },
               { id: "favorites", label: "Избранное", icon: Heart },
               { id: "recipes", label: "Мои рецепты", icon: BookOpen },
+              { id: "tracker", label: "Трекер созревания", icon: Timer },
               { id: "history", label: "История ИИ", icon: FlaskConical },
               { id: "settings", label: "Настройки", icon: Settings },
             ] as const).map((t) => (
@@ -518,6 +521,9 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* TRACKER */}
+        {tab === "tracker" && <InfusionTracker />}
 
         {/* AI HISTORY */}
         {tab === "history" && (
