@@ -270,17 +270,15 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTab("settings")}
-                className="rounded-xl px-5 py-3 text-center transition-all hover:-translate-y-0.5"
+                className="rounded-xl w-24 py-3 text-center transition-all hover:-translate-y-0.5"
                 style={{
                   background: tab === "settings" ? "var(--accent)" : "var(--bg-card)",
                   border: tab === "settings" ? "none" : "1px solid var(--border)",
                 }}
               >
-                <div className="flex items-center justify-center gap-1.5">
-                  <Settings size={22} style={{ color: tab === "settings" ? "#fff" : "var(--accent)" }} />
-                  <span className="text-base font-medium" style={{ color: tab === "settings" ? "#fff" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    Настройки
-                  </span>
+                <Settings size={22} style={{ color: tab === "settings" ? "#fff" : "var(--accent)" }} className="mx-auto mb-1" />
+                <div className="text-sm font-medium" style={{ color: tab === "settings" ? "#fff" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Настройки
                 </div>
               </button>
               <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -343,46 +341,6 @@ export default function ProfilePage() {
         {tab === "overview" && (
           <div className="space-y-10">
 
-            {/* Мои вопросы */}
-            <div>
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                <MessageCircleQuestion size={22} style={{ color: "var(--accent)" }} /> Мои вопросы
-              </h2>
-              {myFeedback.length === 0 ? (
-                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <MessageCircleQuestion size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не задавали вопросов</div>
-                  <Link to="/feedback" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                    Написать в поддержку
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {myFeedback.map((f) => (
-                    <div key={f.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{f.topic}</span>
-                        <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                          {new Date(f.createdAt).toLocaleDateString("ru-RU")}
-                        </span>
-                      </div>
-                      <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>{f.message}</p>
-                      {f.answer ? (
-                        <div className="rounded-lg p-3" style={{ background: "var(--surface)", borderLeft: "3px solid var(--accent)" }}>
-                          <div className="text-xs font-semibold mb-1" style={{ color: "var(--accent)" }}>Ответ поддержки</div>
-                          <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: 1.6 }}>{f.answer}</p>
-                        </div>
-                      ) : (
-                        <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: "var(--surface)", color: "var(--text-muted)" }}>
-                          Ожидает ответа
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Мои оценки */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -440,6 +398,46 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-1 mt-2 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                         <ThumbsUp size={14} /> {c.likes ?? 0} лайков
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Мои вопросы */}
+            <div>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <MessageCircleQuestion size={22} style={{ color: "var(--accent)" }} /> Мои вопросы
+              </h2>
+              {myFeedback.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <MessageCircleQuestion size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не задавали вопросов</div>
+                  <Link to="/feedback" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                    Написать в поддержку
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myFeedback.map((f) => (
+                    <div key={f.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{f.topic}</span>
+                        <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          {new Date(f.createdAt).toLocaleDateString("ru-RU")}
+                        </span>
+                      </div>
+                      <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>{f.message}</p>
+                      {f.answer ? (
+                        <div className="rounded-lg p-3" style={{ background: "var(--surface)", borderLeft: "3px solid var(--accent)" }}>
+                          <div className="text-xs font-semibold mb-1" style={{ color: "var(--accent)" }}>Ответ поддержки</div>
+                          <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: 1.6 }}>{f.answer}</p>
+                        </div>
+                      ) : (
+                        <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: "var(--surface)", color: "var(--text-muted)" }}>
+                          Ожидает ответа
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

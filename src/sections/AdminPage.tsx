@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -197,6 +197,7 @@ function AdminPanel() {
   const { data: submissionsCount } = trpc.submission.listAll.useQuery();
   const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery();
   const { data: usersCount } = trpc.user.list.useQuery();
+  const { data: feedbackCount } = trpc.feedback.list.useQuery();
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -398,6 +399,7 @@ function AdminPanel() {
             <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied").length ?? 0})</TabsTrigger>
           </TabsList>
 
           {/* ─── Парсер из текста ─── */}
@@ -649,6 +651,9 @@ function AdminPanel() {
           </TabsContent>
           <TabsContent value="users">
             <UsersTab />
+          </TabsContent>
+          <TabsContent value="feedback">
+            <FeedbackTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -1408,6 +1413,135 @@ function getFingerprint(): string {
 /* ═══════════════════════════════════════
    ModerationTab — модерация заявок на рецепты
    ═══════════════════════════════════════ */
+const FEEDBACK_TOPIC_LABELS: Record<string, string> = {
+  general: "Общий вопрос",
+  recipe: "Рецепт / Ошибка",
+  bug: "Баг на сайте",
+  feature: "Предложение",
+  place: "Добавить заведение",
+  other: "Другое",
+};
+
+function FeedbackTab() {
+  const utils = trpc.useUtils();
+  const [filter, setFilter] = useState<string>("new");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [answerDraft, setAnswerDraft] = useState("");
+
+  const { data: items, isLoading } = trpc.feedback.list.useQuery();
+
+  const reply = trpc.feedback.reply.useMutation({
+    onSuccess: () => {
+      utils.feedback.list.invalidate();
+      setExpandedId(null);
+      setAnswerDraft("");
+    },
+  });
+  const setStatus = trpc.feedback.setStatus.useMutation({
+    onSuccess: () => utils.feedback.list.invalidate(),
+  });
+
+  const filtered = (items ?? []).filter((f) => {
+    if (filter === "all") return true;
+    return f.status === filter;
+  });
+
+  const statusMeta: Record<string, { label: string; bg: string; color: string }> = {
+    new: { label: "Новое", bg: "#fef3c7", color: "#92400e" },
+    read: { label: "Прочитано", bg: "#eff6ff", color: "#1e40af" },
+    replied: { label: "Отвечено", bg: "#d8f3dc", color: "#386641" },
+  };
+
+  function startReply(f: NonNullable<typeof items>[0]) {
+    setExpandedId(f.id);
+    setAnswerDraft(f.answer ?? "");
+    if (f.status === "new") setStatus.mutate({ id: f.id, status: "read" });
+  }
+
+  function submitReply(id: number) {
+    if (!answerDraft.trim()) return;
+    reply.mutate({ id, answer: answerDraft.trim() });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Mail size={20} style={{ color: "var(--accent)" }} />
+          Обращения пользователей
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "all", label: `Все (${items?.length ?? 0})` },
+            { key: "new", label: `Новые (${items?.filter((f) => f.status === "new").length ?? 0})` },
+            { key: "read", label: `Прочитаны (${items?.filter((f) => f.status === "read").length ?? 0})` },
+            { key: "replied", label: `Отвечены (${items?.filter((f) => f.status === "replied").length ?? 0})` },
+          ].map((opt) => (
+            <Button key={opt.key} size="sm" variant={filter === opt.key ? "default" : "outline"} onClick={() => setFilter(opt.key)}>
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+
+        {isLoading && <div className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузка...</div>}
+        {!isLoading && filtered.length === 0 && (
+          <div className="text-sm text-center py-8" style={{ color: "var(--text-muted)" }}>Обращений нет</div>
+        )}
+
+        <div className="space-y-3">
+          {filtered.map((f) => {
+            const meta = statusMeta[f.status] || statusMeta.new;
+            const isExpanded = expandedId === f.id;
+            return (
+              <div key={f.id} className="rounded-lg border" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-start justify-between gap-3 p-4 cursor-pointer" onClick={() => (isExpanded ? setExpandedId(null) : startReply(f))}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-medium text-sm">{FEEDBACK_TOPIC_LABELS[f.topic] ?? f.topic}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: meta.bg, color: meta.color }}>
+                        {meta.label}
+                      </span>
+                    </div>
+                    <div className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+                      {f.name} · {f.email} · {new Date(f.createdAt).toLocaleDateString("ru-RU")}
+                    </div>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{f.message}</p>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }} onClick={(e) => e.stopPropagation()}>
+                    {f.answer && (
+                      <div className="text-xs mt-3 mb-1" style={{ color: "var(--text-muted)" }}>
+                        Уже отвечено {f.answeredAt ? new Date(f.answeredAt).toLocaleDateString("ru-RU") : ""} — можно отредактировать ответ ниже.
+                      </div>
+                    )}
+                    <Textarea
+                      value={answerDraft}
+                      onChange={(e) => setAnswerDraft(e.target.value)}
+                      placeholder="Ваш ответ пользователю..."
+                      className="mt-2"
+                      rows={4}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => submitReply(f.id)} disabled={!answerDraft.trim() || reply.isPending}>
+                        <Reply size={14} className="mr-1" /> {reply.isPending ? "Отправка..." : "Отправить ответ"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setExpandedId(null)}>Закрыть</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ModerationTab() {
   const utils = trpc.useUtils();
   const [filter, setFilter] = useState<string>("all");
