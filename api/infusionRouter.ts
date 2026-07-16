@@ -5,60 +5,38 @@ import { infusions, infusionStages, recipes } from "@db/schema";
 import { eq, and, asc, count } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
-const stageTypeEnum = z.enum(["pour", "shake", "strain", "rest", "taste", "custom"]);
+const stageTypeEnum = z.enum(["pour", "shake", "strain", "rest", "taste", "add_ingredient", "custom"]);
 
-/* ── Генерация этапов трекера из структурированных шагов рецепта ──
-   Правила:
-   - Шаги без stageType — просто инструкции, в трекер не попадают.
-   - Первый шаг с заданным stageType всегда порождает ещё и стартовый
-     этап "Поставить" (день 0) — момент, когда пользователь создал трекер.
-   - Если у шага задан repeatEveryDays — это повторяющееся действие
-     (напр. взбалтывание): первое повторение через repeatEveryDays,
-     дальше drizzle сам создаёт следующие при отметке "готово".
-   - waitDays двигает "текущую дату" вперёд для следующего шага.
-   - Если последний сгенерированный этап — не дегустация, добавляем её
-     финальным шагом на той же дате. */
-function generateStagesFromRecipeSteps(
-  steps: { stepNum: number; title: string | null; stageType: string | null; waitDays: number | null; repeatEveryDays: number | null }[],
-  startDate: Date,
-  recipeName: string
+/* ── Генерация этапов трекера из отдельного плана рецепта (recipe_tracker_stages) ──
+   Этот план не связан с текстом шагов рецепта — размечается отдельно
+   (вручную в админке или через ИИ). dayOffset — день от даты старта настойки. */
+function generateStagesFromTrackerPlan(
+  plan: { stageType: string; title: string; dayOffset: number; repeatEveryDays: number | null }[],
+  startDate: Date
 ) {
-  const tagged = steps
-    .filter((s) => s.stageType)
-    .sort((a, b) => a.stepNum - b.stepNum);
+  const sorted = [...plan].sort((a, b) => a.dayOffset - b.dayOffset);
 
-  if (tagged.length === 0) return [];
-
-  const stages: { type: string; title: string; plannedDate: Date; repeatIntervalDays?: number }[] = [];
-  let runningDate = new Date(startDate);
-  let lastType = "";
-
-  tagged.forEach((step, i) => {
-    if (i === 0) {
-      stages.push({ type: "pour", title: `Поставить: ${recipeName}`, plannedDate: new Date(runningDate) });
-    }
-
-    if (step.repeatEveryDays) {
-      const firstOccurrence = new Date(runningDate);
-      firstOccurrence.setDate(firstOccurrence.getDate() + step.repeatEveryDays);
-      stages.push({
-        type: step.stageType!,
-        title: step.title || "Взболтать",
-        plannedDate: firstOccurrence,
-        repeatIntervalDays: step.repeatEveryDays,
-      });
-    } else {
-      stages.push({ type: step.stageType!, title: step.title || "Этап", plannedDate: new Date(runningDate) });
-    }
-
-    lastType = step.stageType!;
-    if (step.waitDays) runningDate.setDate(runningDate.getDate() + step.waitDays);
+  return sorted.map((s) => {
+    const plannedDate = new Date(startDate);
+    plannedDate.setDate(plannedDate.getDate() + s.dayOffset);
+    return {
+      type: s.stageType,
+      title: s.title,
+      plannedDate,
+      repeatIntervalDays: s.repeatEveryDays ?? undefined,
+    };
   });
+}
 
-  if (lastType !== "taste") {
-    stages.push({ type: "taste", title: "Дегустация", plannedDate: new Date(runningDate) });
-  }
-
+/* ── Запасной, обобщённый план — для рецептов, которые ещё не размечены ──
+   Используется, только если у рецепта совсем нет recipe_tracker_stages. */
+function genericFallbackStages(startDate: Date) {
+  const stages: { type: string; title: string; plannedDate: Date; repeatIntervalDays?: number }[] = [];
+  const day = (n: number) => { const d = new Date(startDate); d.setDate(d.getDate() + n); return d; };
+  stages.push({ type: "pour", title: "Поставить", plannedDate: day(0) });
+  stages.push({ type: "shake", title: "Взболтать", plannedDate: day(3), repeatIntervalDays: 3 });
+  stages.push({ type: "strain", title: "Слить и процедить", plannedDate: day(14) });
+  stages.push({ type: "taste", title: "Дегустация", plannedDate: day(17) });
   return stages;
 }
 
@@ -219,13 +197,16 @@ export const infusionRouter = createRouter({
       if (input.recipeId) {
         const recipe = await db.query.recipes.findFirst({
           where: eq(recipes.id, input.recipeId),
-          with: { steps: true },
+          with: { trackerStages: true },
         });
         if (!recipe) throw new TRPCError({ code: "NOT_FOUND", message: "Рецепт не найден" });
 
-        // Этапы явно не заданы — подбираем автоматически по структуре рецепта
+        // Этапы явно не заданы — подбираем автоматически по плану рецепта
+        // (или по обобщённому запасному плану, если рецепт ещё не размечен)
         if (!input.stages || input.stages.length === 0) {
-          stagesToInsert = generateStagesFromRecipeSteps(recipe.steps, input.startDate, recipe.title);
+          stagesToInsert = recipe.trackerStages.length > 0
+            ? generateStagesFromTrackerPlan(recipe.trackerStages, input.startDate)
+            : genericFallbackStages(input.startDate);
         }
       }
 

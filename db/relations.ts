@@ -11,12 +11,18 @@ import {
   userRecipeSubmissions,
   infusions,
   infusionStages,
+  recipeTrackerStages,
 } from "./schema";
 
 export const recipesRelations = relations(recipes, ({ many }) => ({
   ingredients: many(recipeIngredients),
   steps: many(recipeSteps),
   comments: many(comments),
+  trackerStages: many(recipeTrackerStages),
+}));
+
+export const recipeTrackerStagesRelations = relations(recipeTrackerStages, ({ one }) => ({
+  recipe: one(recipes, { fields: [recipeTrackerStages.recipeId], references: [recipes.id] }),
 }));
 
 export const recipeIngredientsRelations = relations(recipeIngredients, ({ one }) => ({

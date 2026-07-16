@@ -69,12 +69,21 @@ export const recipeSteps = mysqlTable("recipe_steps", {
   title: varchar("title", { length: 200 }),
   text: text("text").notNull(),
   sortOrder: int("sort_order").default(0),
-  // ─ метаданные для автогенерации этапов Трекера созревания ─
-  // stageType = null означает "это просто текст-инструкция", шаг не попадает в трекер
-  // (напр. "нарежьте лимон" — не нужно ставить пользователю напоминание об этом)
-  stageType: varchar("stage_type", { length: 20 }), // pour | shake | strain | rest | taste | null
-  waitDays: int("wait_days"), // сколько дней длится эта фаза, прежде чем наступит следующий отслеживаемый шаг
-  repeatEveryDays: int("repeat_every_days"), // если задано — действие повторяется каждые N дней в течение waitDays
+});
+
+// ─── Recipe Tracker Stages ───────────────────────────────────
+// Отдельный, не привязанный к тексту рецепта блок — план этапов для
+// Трекера созревания. Не показывается на странице рецепта, виден
+// только в редакторе админки. Один шаг рецепта в прозе может
+// объединять несколько таких этапов (или не содержать ни одного).
+export const recipeTrackerStages = mysqlTable("recipe_tracker_stages", {
+  id: serial("id").primaryKey(),
+  recipeId: bigint("recipe_id", { mode: "number", unsigned: true }).notNull(),
+  stageType: varchar("stage_type", { length: 20 }).notNull(), // pour | shake | strain | rest | taste | add_ingredient | custom
+  title: varchar("title", { length: 300 }).notNull(),
+  dayOffset: int("day_offset").notNull().default(0), // день от старта настойки (0 = день заливки)
+  repeatEveryDays: int("repeat_every_days"), // если задано — повторяется каждые N дней начиная с dayOffset
+  sortOrder: int("sort_order").default(0),
 });
 
 export type RecipeStep = typeof recipeSteps.$inferSelect;

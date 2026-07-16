@@ -29,6 +29,7 @@ const STAGE_TYPES = [
   { value: "shake", label: "Взболтать", icon: RotateCw },
   { value: "strain", label: "Слить/процедить", icon: Filter },
   { value: "rest", label: "Дать отстояться", icon: Moon },
+  { value: "add_ingredient", label: "Добавить ингредиент", icon: Plus },
   { value: "taste", label: "Дегустация", icon: Wine },
   { value: "custom", label: "Своё действие", icon: Circle },
 ] as const;

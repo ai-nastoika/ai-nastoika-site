@@ -28,7 +28,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
    Типы
    ═══════════════════════════════════════ */
 type IngredientInput = { name: string; amount?: string; note?: string };
-type StepInput = { stepNum: number; title?: string; text: string; stageType?: string; waitDays?: number; repeatEveryDays?: number };
+type StepInput = { stepNum: number; title?: string; text: string };
+type TrackerStageInput = { stageType: string; title: string; dayOffset: number; repeatEveryDays?: number };
 
 const EMPTY_RECIPE = {
   slug: "", title: "", subtitle: "", category: "sweet", categoryLabel: "",
@@ -37,7 +38,7 @@ const EMPTY_RECIPE = {
   tastingColor: "", tastingDescription: "", tastingTemp: "", tastingGlass: "",
   tastingPairing: [] as string[], sweet: 0, sour: 0, bitter: 0, spicy: 0, fruity: 0, herbal: 0,
   tips: [] as string[], authorName: "", authorDate: "",
-  ingredients: [] as IngredientInput[], steps: [] as StepInput[],
+  ingredients: [] as IngredientInput[], steps: [] as StepInput[], trackerStages: [] as TrackerStageInput[],
 };
 
 const EMPTY_PLACE = {
@@ -262,6 +263,29 @@ function AdminPanel() {
       setSaveNotice(`Рецепт «${data.title}» сохранён локально (API недоступен). На VPS с запущенным бэкендом он попадёт в базу автоматически.`);
     },
   });
+
+  /* Массовая ИИ-разметка этапов трекера для уже существующих рецептов без плана */
+  const { data: recipesWithoutTrackerStages } = trpc.recipe.listWithoutTrackerStages.useQuery();
+  const generateOneTrackerStages = trpc.recipe.generateTrackerStagesAI.useMutation();
+  const [bulkTrackerProgress, setBulkTrackerProgress] = useState<{ done: number; total: number; failed: string[] } | null>(null);
+
+  async function runBulkTrackerStagesAI() {
+    const list = recipesWithoutTrackerStages ?? [];
+    if (list.length === 0) return;
+    setBulkTrackerProgress({ done: 0, total: list.length, failed: [] });
+    const failed: string[] = [];
+    for (let i = 0; i < list.length; i++) {
+      try {
+        await generateOneTrackerStages.mutateAsync({ recipeId: list[i].id });
+      } catch {
+        failed.push(list[i].title);
+      }
+      setBulkTrackerProgress({ done: i + 1, total: list.length, failed: [...failed] });
+    }
+    utils.recipe.listWithoutTrackerStages.invalidate();
+    utils.recipe.list.invalidate();
+  }
+
   const upsertPlace = trpc.place.upsert.useMutation({
     onSuccess: () => { utils.place.list.invalidate(); setPlaceOpen(false); resetPlace(); },
   });
@@ -288,7 +312,9 @@ function AdminPanel() {
     }));
     const stps: StepInput[] = (full?.steps ?? []).map((s: any) => ({
       stepNum: s.stepNum ?? 1, title: s.title ?? "", text: s.text ?? "",
-      stageType: s.stageType ?? undefined, waitDays: s.waitDays ?? undefined, repeatEveryDays: s.repeatEveryDays ?? undefined,
+    }));
+    const trackerStgs: TrackerStageInput[] = (full?.trackerStages ?? []).map((s: any) => ({
+      stageType: s.stageType, title: s.title, dayOffset: s.dayOffset, repeatEveryDays: s.repeatEveryDays ?? undefined,
     }));
     setRForm({
       ...EMPTY_RECIPE,
@@ -305,7 +331,7 @@ function AdminPanel() {
       spicy: r.spicy ?? 0, fruity: r.fruity ?? 0, herbal: r.herbal ?? 0,
       tips: r.tips ?? [],
       authorName: r.authorName ?? "", authorDate: r.authorDate ?? "",
-      ingredients: ings, steps: stps,
+      ingredients: ings, steps: stps, trackerStages: trackerStgs,
     });
     setPairingStr(arrStr(r.tastingPairing));
     setTipsStr(arrStr(r.tips));
@@ -320,6 +346,7 @@ function AdminPanel() {
       tips: jsonArr(tipsStr),
       ingredients: rForm.ingredients.length > 0 ? rForm.ingredients : undefined,
       steps: rForm.steps.length > 0 ? rForm.steps : undefined,
+      trackerStages: rForm.trackerStages.length > 0 ? rForm.trackerStages : undefined,
     };
     upsertRecipe.mutate(data);
   }
@@ -419,22 +446,38 @@ function AdminPanel() {
           {/* ─── Рецепты ─── */}
           <TabsContent value="recipes">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
                 <CardTitle>Список рецептов</CardTitle>
-                <Dialog open={recipeOpen} onOpenChange={(o) => { if (!o) resetRecipe(); setRecipeOpen(o); }}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => { resetRecipe(); setRecipeOpen(true); }}>
-                      + Добавить рецепт
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(recipesWithoutTrackerStages?.length ?? 0) > 0 && (
+                    <Button size="sm" variant="outline" disabled={!!bulkTrackerProgress && bulkTrackerProgress.done < bulkTrackerProgress.total}
+                      onClick={runBulkTrackerStagesAI}>
+                      <Sparkles size={14} className="mr-1" />
+                      {bulkTrackerProgress && bulkTrackerProgress.done < bulkTrackerProgress.total
+                        ? `Размечаю... ${bulkTrackerProgress.done}/${bulkTrackerProgress.total}`
+                        : `Разметить этапы трекера для ${recipesWithoutTrackerStages?.length} рецептов без плана`}
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>{editRecipeId ? "Редактировать" : "Новый"} рецепт</DialogTitle>
+                  )}
+                  {bulkTrackerProgress && bulkTrackerProgress.done === bulkTrackerProgress.total && bulkTrackerProgress.failed.length > 0 && (
+                    <span className="text-xs" style={{ color: "#dc2626" }}>
+                      Не удалось: {bulkTrackerProgress.failed.join(", ")}
+                    </span>
+                  )}
+                  <Dialog open={recipeOpen} onOpenChange={(o) => { if (!o) resetRecipe(); setRecipeOpen(o); }}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" onClick={() => { resetRecipe(); setRecipeOpen(true); }}>
+                        + Добавить рецепт
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>{editRecipeId ? "Редактировать" : "Новый"} рецепт</DialogTitle>
                     </DialogHeader>
                     <RecipeForm
                       form={rForm} setForm={setRForm}
                       pairingStr={pairingStr} setPairingStr={setPairingStr}
                       tipsStr={tipsStr} setTipsStr={setTipsStr}
+                      editRecipeId={editRecipeId}
                     />
                     <div className="flex justify-end gap-2 mt-4">
                       <Button variant="outline" onClick={() => { resetRecipe(); setRecipeOpen(false); }}>Отмена</Button>
@@ -444,6 +487,7 @@ function AdminPanel() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 {/* Поиск */}
@@ -669,13 +713,23 @@ function RecipeForm({
   form, setForm,
   pairingStr, setPairingStr,
   tipsStr, setTipsStr,
+  editRecipeId,
 }: {
   form: typeof EMPTY_RECIPE; setForm: React.Dispatch<React.SetStateAction<typeof EMPTY_RECIPE>>;
   pairingStr: string; setPairingStr: (v: string) => void;
   tipsStr: string; setTipsStr: (v: string) => void;
+  editRecipeId?: number;
 }) {
   const f = form;
   const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
+  const utils = trpc.useUtils();
+  const aiTrackerStages = trpc.recipe.generateTrackerStagesAI.useMutation({
+    onSuccess: (data) => {
+      update({ trackerStages: data.stages.map((s) => ({ stageType: s.stageType, title: s.title, dayOffset: s.dayOffset, repeatEveryDays: s.repeatEveryDays })) });
+      utils.recipe.list.invalidate();
+    },
+    onError: (err) => alert("Ошибка ИИ-разметки: " + err.message),
+  });
   const num = (v: string) => (v === "" ? 0 : Number(v));
   const heroFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -872,41 +926,76 @@ function RecipeForm({
               <Trash2 size={14} />
             </Button>
           </div>
+        </div>
+      ))}
 
-          {/* ─ Для Трекера созревания: попадает ли этот шаг в список этапов и как ─ */}
-          <div className="col-span-12 grid grid-cols-4 gap-2 pl-1">
-            <div>
-              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Этап трекера</Label>
-              <select
-                value={s.stageType ?? ""}
-                onChange={(e) => {
-                  const arr = [...f.steps]; arr[i] = { ...arr[i], stageType: e.target.value || undefined }; update({ steps: arr });
-                }}
-                className="w-full rounded-md border px-2 py-1.5 text-sm"
-                style={{ borderColor: "var(--border)", background: "var(--bg-primary)" }}
-              >
-                <option value="">— не в трекере —</option>
-                <option value="pour">Поставить</option>
-                <option value="shake">Взболтать</option>
-                <option value="strain">Слить/процедить</option>
-                <option value="rest">Дать отстояться</option>
-                <option value="taste">Дегустация</option>
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Дней до следующего шага</Label>
-              <Input type="number" min={0} value={s.waitDays ?? ""} placeholder="напр. 14"
-                onChange={(e) => {
-                  const arr = [...f.steps]; arr[i] = { ...arr[i], waitDays: e.target.value ? Number(e.target.value) : undefined }; update({ steps: arr });
-                }} />
-            </div>
-            <div>
-              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Повторять каждые N дней</Label>
-              <Input type="number" min={1} value={s.repeatEveryDays ?? ""} placeholder="напр. 3"
-                onChange={(e) => {
-                  const arr = [...f.steps]; arr[i] = { ...arr[i], repeatEveryDays: e.target.value ? Number(e.target.value) : undefined }; update({ steps: arr });
-                }} />
-            </div>
+      {/* Этапы Трекера созревания — отдельный внутренний блок, НЕ показывается на странице рецепта.
+          Не привязан к шагам выше: один шаг рецепта может содержать несколько таких этапов или ни одного. */}
+      <div className="flex items-center justify-between mt-6 pt-4" style={{ borderTop: "1px dashed var(--border)" }}>
+        <div>
+          <h3 className="font-semibold" style={{ color: "var(--accent)" }}>Этапы Трекера созревания ({f.trackerStages.length})</h3>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Не отображается на странице рецепта — используется только для автозаполнения трекера</p>
+        </div>
+        <div className="flex gap-2">
+          {editRecipeId && (
+            <Button type="button" size="sm" variant="outline" disabled={aiTrackerStages.isPending}
+              onClick={() => aiTrackerStages.mutate({ recipeId: editRecipeId })}>
+              <Sparkles size={14} className="mr-1" /> {aiTrackerStages.isPending ? "Разметка..." : "Разметить через ИИ"}
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="outline"
+            onClick={() => update({ trackerStages: [...f.trackerStages, { stageType: "pour", title: "", dayOffset: 0 }] })}>
+            <Plus size={14} className="mr-1" /> Добавить
+          </Button>
+        </div>
+      </div>
+      {!editRecipeId && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Разметка через ИИ доступна после первого сохранения рецепта.</p>
+      )}
+      {f.trackerStages.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Этапов нет — трекер будет использовать обобщённый запасной план</p>}
+      {f.trackerStages.map((s, i) => (
+        <div key={i} className="grid grid-cols-12 gap-2 items-start pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="col-span-3">
+            <Label className="text-xs">Тип этапа</Label>
+            <select
+              value={s.stageType}
+              onChange={(e) => {
+                const arr = [...f.trackerStages]; arr[i] = { ...arr[i], stageType: e.target.value }; update({ trackerStages: arr });
+              }}
+              className="w-full rounded-md border px-2 py-1.5 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--bg-primary)" }}
+            >
+              <option value="pour">Поставить</option>
+              <option value="shake">Взболтать</option>
+              <option value="strain">Слить/процедить</option>
+              <option value="rest">Дать отстояться</option>
+              <option value="add_ingredient">Добавить ингредиент</option>
+              <option value="taste">Дегустация</option>
+              <option value="custom">Другое</option>
+            </select>
+          </div>
+          <div className="col-span-5">
+            <Label className="text-xs">Название</Label>
+            <Input value={s.title} onChange={(e) => {
+              const arr = [...f.trackerStages]; arr[i] = { ...arr[i], title: e.target.value }; update({ trackerStages: arr });
+            }} placeholder="напр. Взболтать" />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">День от старта</Label>
+            <Input type="number" min={0} value={s.dayOffset} onChange={(e) => {
+              const arr = [...f.trackerStages]; arr[i] = { ...arr[i], dayOffset: Number(e.target.value) }; update({ trackerStages: arr });
+            }} />
+          </div>
+          <div className="col-span-1">
+            <Label className="text-xs">Повтор, дн.</Label>
+            <Input type="number" min={1} value={s.repeatEveryDays ?? ""} placeholder="—" onChange={(e) => {
+              const arr = [...f.trackerStages]; arr[i] = { ...arr[i], repeatEveryDays: e.target.value ? Number(e.target.value) : undefined }; update({ trackerStages: arr });
+            }} />
+          </div>
+          <div className="col-span-1 pt-5">
+            <Button type="button" size="sm" variant="ghost" onClick={() => update({ trackerStages: f.trackerStages.filter((_, j) => j !== i) })}>
+              <Trash2 size={14} />
+            </Button>
           </div>
         </div>
       ))}
@@ -1023,6 +1112,12 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
   "steps": [
     { "stepNum": 1, "title": "Подготовка ягод", "text": "Промойте смородину..." },
     { "stepNum": 2, "title": "Заливка", "text": "Залейте ягоды спиртом..." }
+  ],
+  "trackerStages": [
+    { "stageType": "pour", "title": "Поставить: залить ягоды спиртом", "dayOffset": 0 },
+    { "stageType": "shake", "title": "Взболтать", "dayOffset": 3, "repeatEveryDays": 3 },
+    { "stageType": "strain", "title": "Процедить и разлить", "dayOffset": 21 },
+    { "stageType": "taste", "title": "Дегустация", "dayOffset": 25 }
   ]
 }
 
@@ -1037,7 +1132,12 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
 - Всегда предлагай историю напитка (2-3 абзаца), даже если в тексте её нет
 - Всегда предлагай вкусовой профиль на основе ингредиентов
 - Всегда предлагай подходящие закуски
-- steps должны быть подробными, с конкретными пропорциями и временем`;
+- steps должны быть подробными, с конкретными пропорциями и временем
+- trackerStages — ОТДЕЛЬНЫЙ от steps план для календаря напоминаний (Трекер созревания), не пересказ шагов:
+  stageType одно из pour/shake/strain/rest/taste/add_ingredient/custom; dayOffset — день от старта (0=день заливки);
+  repeatEveryDays указывай только для явно периодических действий ("встряхивайте каждые N дней");
+  всегда начинай с pour на dayOffset=0 и заканчивай taste на последнем дне; обычно 4-7 этапов достаточно;
+  не выдумывай сроки, которых нет в тексте и которые нельзя разумно вывести из контекста`;
 
 function RecipeFromTextTab({ onLocalSave, onNotice }: { onLocalSave: () => void; onNotice: (msg: string) => void }) {
   useAuth(); /* для инициализации токена */
@@ -1180,6 +1280,7 @@ function RecipeFromTextTab({ onLocalSave, onNotice }: { onLocalSave: () => void;
         authorDate: d.authorDate ?? "",
         ingredients: Array.isArray(d.ingredients) ? d.ingredients : [],
         steps: Array.isArray(d.steps) ? d.steps : [],
+        trackerStages: Array.isArray(d.trackerStages) ? d.trackerStages : [],
       });
       setPairingStr(Array.isArray(d.tastingPairing) ? d.tastingPairing.join("\n") : "");
       setTipsStr(Array.isArray(d.tips) ? d.tips.join("\n") : "");
@@ -1242,6 +1343,7 @@ function RecipeFromTextTab({ onLocalSave, onNotice }: { onLocalSave: () => void;
         authorDate: d.authorDate ?? "",
         ingredients: Array.isArray(d.ingredients) ? d.ingredients : [],
         steps: Array.isArray(d.steps) ? d.steps : [],
+        trackerStages: Array.isArray(d.trackerStages) ? d.trackerStages : [],
       });
       setPairingStr(Array.isArray(d.tastingPairing) ? d.tastingPairing.join("\n") : "");
       setTipsStr(Array.isArray(d.tips) ? d.tips.join("\n") : "");

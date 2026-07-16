@@ -1,9 +1,48 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { recipes, recipeIngredients, recipeSteps } from "@db/schema";
+import { recipes, recipeIngredients, recipeSteps, recipeTrackerStages } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeText, diceCoefficient, fuzzyIngredientOverlap } from "./lib/similarity";
+import { env } from "./lib/env";
+import OpenAI from "openai";
+
+const moonshotClient = env.moonshotApiKey
+  ? new OpenAI({ apiKey: env.moonshotApiKey, baseURL: "https://api.moonshot.cn/v1" })
+  : null;
+
+/* Тот же набор типов этапов, что и в самом Трекере созревания (api/infusionRouter.ts) —
+   плюс add_ingredient для случаев, когда в процессе настаивания нужно что-то досыпать/долить. */
+const TRACKER_STAGES_PROMPT = `Ты — эксперт по домашним настойкам. По тексту рецепта (ингредиенты + шаги приготовления)
+составь план этапов для трекера созревания — календаря напоминаний пользователю.
+
+ВАЖНО: это НЕ пересказ шагов рецепта. Один шаг рецепта в прозе может содержать несколько
+отслеживаемых событий (или ни одного — если шаг чисто подготовительный, напр. "нарежьте цедру").
+Твоя задача — вычленить именно ДЕЙСТВИЯ И ДАТЫ, которые нужно отследить по календарю.
+
+Ответь ТОЛЬКО валидным JSON вида:
+{
+  "stages": [
+    { "stageType": "pour", "title": "Поставить: залить вишню водкой", "dayOffset": 0 },
+    { "stageType": "shake", "title": "Взболтать", "dayOffset": 3, "repeatEveryDays": 3 },
+    { "stageType": "add_ingredient", "title": "Добавить сироп", "dayOffset": 14 },
+    { "stageType": "rest", "title": "Дать отстояться", "dayOffset": 14 },
+    { "stageType": "strain", "title": "Процедить и разлить", "dayOffset": 21 },
+    { "stageType": "taste", "title": "Дегустация", "dayOffset": 25 }
+  ]
+}
+
+Правила:
+- stageType — одно из: pour (поставить/залить), shake (взболтать/помешать), strain (слить/процедить/разлить),
+  rest (дать отстояться без действий), taste (дегустация), add_ingredient (досыпать/долить что-то в процессе),
+  custom (любое другое разовое действие).
+- dayOffset — день от даты старта настойки (0 = день заливки), считая по срокам, упомянутым в тексте.
+- repeatEveryDays — указывай ТОЛЬКО если в тексте явно сказано про периодическое действие
+  ("встряхивайте каждые 2-3 дня", "ежедневно помешивайте" и т.п.). Для разовых действий не указывай это поле.
+- Всегда начинай с этапа pour на dayOffset=0.
+- Всегда заканчивай этапом taste на последнем дне.
+- Не выдумывай сроки, которых нет в тексте и которые нельзя разумно вывести из контекста рецепта.
+- Обычно 4-7 этапов достаточно.`;
 
 export const recipeRouter = createRouter({
   list: publicQuery.query(async () => {
@@ -136,16 +175,21 @@ export const recipeRouter = createRouter({
             stepNum: z.number(),
             title: z.string().optional(),
             text: z.string().min(1),
-            stageType: z.enum(["pour", "shake", "strain", "rest", "taste"]).optional(),
-            waitDays: z.number().optional(),
-            repeatEveryDays: z.number().optional(),
+          })
+        ).optional(),
+        trackerStages: z.array(
+          z.object({
+            stageType: z.enum(["pour", "shake", "strain", "rest", "taste", "add_ingredient", "custom"]),
+            title: z.string().min(1).max(300),
+            dayOffset: z.number().min(0),
+            repeatEveryDays: z.number().min(1).max(90).optional(),
           })
         ).optional(),
       })
     )
     .mutation(async ({ input }) => {
       const db = getDb();
-      const { id, ingredients, steps, ...data } = input;
+      const { id, ingredients, steps, trackerStages, ...data } = input;
 
       let recipeId: number;
 
@@ -154,6 +198,9 @@ export const recipeRouter = createRouter({
         recipeId = id;
         await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
         await db.delete(recipeSteps).where(eq(recipeSteps.recipeId, id));
+        if (trackerStages) {
+          await db.delete(recipeTrackerStages).where(eq(recipeTrackerStages.recipeId, id));
+        }
       } else {
         const [{ id: newId }] = await db.insert(recipes).values(data).$returningId();
         recipeId = newId;
@@ -171,10 +218,69 @@ export const recipeRouter = createRouter({
         );
       }
 
+      if (trackerStages && trackerStages.length > 0) {
+        await db.insert(recipeTrackerStages).values(
+          trackerStages.map((s, i) => ({ ...s, recipeId, sortOrder: i }))
+        );
+      }
+
       const recipe = await db.query.recipes.findFirst({
         where: eq(recipes.id, recipeId),
-        with: { ingredients: true, steps: true },
+        with: { ingredients: true, steps: true, trackerStages: true },
       });
       return recipe;
+    }),
+
+  /* ── Рецепты, у которых ещё нет разметки для трекера (для массовой ИИ-обработки) ── */
+  listWithoutTrackerStages: adminQuery.query(async () => {
+    const db = getDb();
+    const all = await db.query.recipes.findMany({ with: { trackerStages: true } });
+    return all.filter((r) => r.trackerStages.length === 0).map((r) => ({ id: r.id, title: r.title }));
+  }),
+
+  /* ── Разметить этапы трекера через ИИ (для существующих рецептов без разметки) ── */
+  generateTrackerStagesAI: adminQuery
+    .input(z.object({ recipeId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const recipe = await db.query.recipes.findFirst({
+        where: eq(recipes.id, input.recipeId),
+        with: { ingredients: true, steps: true },
+      });
+      if (!recipe) throw new Error("Рецепт не найден");
+      if (!moonshotClient) throw new Error("MOONSHOT_API_KEY не настроен на сервере");
+
+      const ingredientsText = recipe.ingredients.map((i) => `${i.name} ${i.amount ?? ""}`).join(", ");
+      const stepsText = recipe.steps.map((s) => `${s.stepNum}. ${s.title ?? ""}: ${s.text}`).join("\n");
+
+      const completion = await moonshotClient.chat.completions.create({
+        model: "moonshot-v1-8k",
+        messages: [
+          { role: "system", content: TRACKER_STAGES_PROMPT },
+          { role: "user", content: `Рецепт: ${recipe.title}\nИнгредиенты: ${ingredientsText}\nШаги:\n${stepsText}` },
+        ],
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+      });
+
+      const raw = completion.choices[0]?.message?.content ?? "{}";
+      const parsed = JSON.parse(raw) as { stages: { stageType: string; title: string; dayOffset: number; repeatEveryDays?: number }[] };
+      const stages = parsed.stages ?? [];
+
+      await db.delete(recipeTrackerStages).where(eq(recipeTrackerStages.recipeId, input.recipeId));
+      if (stages.length > 0) {
+        await db.insert(recipeTrackerStages).values(
+          stages.map((s, i) => ({
+            recipeId: input.recipeId,
+            stageType: s.stageType,
+            title: s.title,
+            dayOffset: s.dayOffset,
+            repeatEveryDays: s.repeatEveryDays,
+            sortOrder: i,
+          }))
+        );
+      }
+
+      return { stages };
     }),
 });

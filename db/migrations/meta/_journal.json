@@ -43,6 +43,13 @@
       "when": 1784195358117,
       "tag": "0005_next_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1784208110246,
+      "tag": "0006_fresh_young_avengers",
+      "breakpoints": true
     }
   ]
 }
