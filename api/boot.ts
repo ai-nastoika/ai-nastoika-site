@@ -6,6 +6,7 @@ import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import { startWebsiteCheckCron } from "./lib/websiteChecker";
+import { startTrackerReminderCron } from "./lib/trackerReminders";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -329,6 +330,7 @@ serve({ fetch: app.fetch, port }, () => {
   console.log(`Server: http://localhost:${port}`);
   seedAdmin();
   startWebsiteCheckCron();
+  startTrackerReminderCron();
 });
 
 export default app;
