@@ -77,6 +77,19 @@ export const recipeRouter = createRouter({
       });
     }),
 
+  /* ── Полные данные рецепта для редактора в админке (включая trackerStages,
+     которые не показываются на публичной странице рецепта и не отдаются через bySlug) ── */
+  bySlugAdmin: adminQuery
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const recipe = await db.query.recipes.findFirst({
+        where: eq(recipes.slug, input.slug),
+        with: { ingredients: true, steps: true, trackerStages: true },
+      });
+      return recipe ?? null;
+    }),
+
   /* ── Проверка на дубликаты: похожесть названия + категория + пересечение ингредиентов.
      Способ приготовления НЕ сравнивается алгоритмически — это решает человек,
      здесь только подсвечиваются кандидаты для сравнения. ── */

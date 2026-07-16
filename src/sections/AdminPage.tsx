@@ -306,7 +306,7 @@ function AdminPanel() {
   async function startEditRecipe(r: NonNullable<typeof recipes>[0]) {
     setEditRecipeId(r.id);
     // Загружаем полный рецепт с ингредиентами и шагами
-    const full = await utils.recipe.bySlug.fetch({ slug: r.slug });
+    const full = await utils.recipe.bySlugAdmin.fetch({ slug: r.slug });
     const ings: IngredientInput[] = (full?.ingredients ?? []).map((i: any) => ({
       name: i.name ?? "", amount: i.amount ?? "", note: i.note ?? "",
     }));
