@@ -25,6 +25,7 @@ import {
   Timer,
   X,
   MessageCircle,
+  MessageCircleQuestion,
   ThumbsUp,
   ShieldCheck,
   Phone,
@@ -157,6 +158,8 @@ export default function ProfilePage() {
   const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
   const { data: recipesData } = trpc.recipe.list.useQuery();
   const { data: trackerStats } = trpc.infusion.stats.useQuery(undefined, { enabled: !!user });
+  const { data: myFeedbackData } = trpc.feedback.myFeedback.useQuery(undefined, { enabled: !!user });
+  const myFeedback = myFeedbackData || [];
 
   const myRatings = (myRatingsData || []).map((r) => ({
     recipe: (recipesData || []).find((rec) => rec.id === r.recipeId),
@@ -267,15 +270,18 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTab("settings")}
-                className="rounded-xl px-4 py-3 flex items-center gap-2 text-base font-medium transition-all"
+                className="rounded-xl px-5 py-3 text-center transition-all hover:-translate-y-0.5"
                 style={{
                   background: tab === "settings" ? "var(--accent)" : "var(--bg-card)",
-                  color: tab === "settings" ? "#fff" : "var(--text-secondary)",
                   border: tab === "settings" ? "none" : "1px solid var(--border)",
-                  fontFamily: "var(--font-body)",
                 }}
               >
-                <Settings size={20} /> Настройки
+                <div className="flex items-center justify-center gap-1.5">
+                  <Settings size={22} style={{ color: tab === "settings" ? "#fff" : "var(--accent)" }} />
+                  <span className="text-base font-medium" style={{ color: tab === "settings" ? "#fff" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Настройки
+                  </span>
+                </div>
               </button>
               <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-center gap-1.5 mb-1">
@@ -291,44 +297,41 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* NAV — объединённые счётчики и разделы одним рядом */}
-      <section className="sticky top-16 z-30 py-3" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
+      {/* NAV — объединённые счётчики и разделы, квадратные плитки как Баланс */}
+      <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {([
-              { id: "overview", label: "Обзор", icon: User, count: null },
-              { id: "tracker", label: "Трекер созревания", icon: Timer, count: trackerStats?.active ?? null },
-              { id: "recipes", label: "Рецепты", icon: BookOpen, count: savedRecipes.length || null },
-              { id: "labels", label: "Этикетки", icon: Tag, count: savedLabels?.length || null },
-              { id: "places", label: "Места", icon: MapPin, count: savedPlaces.length || null },
-              { id: "history", label: "ИИ", icon: FlaskConical, count: null },
-            ] as const).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="flex items-center gap-2 rounded-xl px-4 py-2 text-base font-medium whitespace-nowrap transition-all"
-                style={{
-                  background: tab === t.id ? "var(--accent)" : "var(--bg-card)",
-                  color: tab === t.id ? "#fff" : "var(--text-secondary)",
-                  border: tab === t.id ? "none" : "1px solid var(--border)",
-                  fontFamily: "var(--font-body)",
-                }}
-              >
-                <t.icon size={20} />
-                {t.label}
-                {!!t.count && (
-                  <span
-                    className="text-xs rounded-full px-1.5 py-0.5 font-semibold"
-                    style={{
-                      background: tab === t.id ? "rgba(255,255,255,.25)" : "var(--accent)",
-                      color: "#fff",
-                    }}
-                  >
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            ))}
+              { id: "overview", label: "Обзор", icon: User, value: null },
+              { id: "tracker", label: "Трекер созревания", icon: Timer, value: trackerStats?.active ?? 0 },
+              { id: "recipes", label: "Рецепты", icon: BookOpen, value: savedRecipes.length },
+              { id: "labels", label: "Этикетки", icon: Tag, value: savedLabels?.length ?? 0 },
+              { id: "places", label: "Места", icon: MapPin, value: savedPlaces.length },
+              { id: "history", label: "ИИ", icon: FlaskConical, value: userData.usedQueries },
+            ] as const).map((t) => {
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="rounded-lg p-2 text-center transition-all hover:-translate-y-1"
+                  style={{
+                    background: active ? "var(--accent)" : "var(--bg-card)",
+                    border: active ? "none" : "1px solid var(--border)",
+                  }}
+                >
+                  <t.icon size={18} style={{ color: active ? "#fff" : "var(--accent)" }} className="mx-auto mb-1" />
+                  {t.value !== null && (
+                    <div className="text-base font-bold" style={{ color: active ? "#fff" : "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                      {t.value}
+                    </div>
+                  )}
+                  <div className="text-xs" style={{ color: active ? "rgba(255,255,255,.85)" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    {t.label}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -339,23 +342,45 @@ export default function ProfilePage() {
         {/* OVERVIEW */}
         {tab === "overview" && (
           <div className="space-y-10">
-            <div className="grid sm:grid-cols-3 gap-4">
-              {[
-                { label: "Пополнить баланс", desc: `${userData.balance} ₽`, icon: Wallet, action: "Пополнить →" },
-                { label: "Остаток запросов", desc: `${userData.totalQueries - userData.usedQueries} из ${userData.totalQueries}`, icon: FlaskConical, action: "Смотреть →" },
-                { label: "Быстрый доступ", desc: "Рецепты, этикетки", icon: BookOpen, action: "Открыть →" },
-              ].map((card) => (
-                <div key={card.label} className="rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
-                      <card.icon size={18} style={{ color: "var(--accent)" }} />
-                    </div>
-                    <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{card.label}</span>
-                  </div>
-                  <div className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{card.desc}</div>
-                  <button className="text-base transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>{card.action}</button>
+
+            {/* Мои вопросы */}
+            <div>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <MessageCircleQuestion size={22} style={{ color: "var(--accent)" }} /> Мои вопросы
+              </h2>
+              {myFeedback.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <MessageCircleQuestion size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не задавали вопросов</div>
+                  <Link to="/feedback" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                    Написать в поддержку
+                  </Link>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {myFeedback.map((f) => (
+                    <div key={f.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{f.topic}</span>
+                        <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          {new Date(f.createdAt).toLocaleDateString("ru-RU")}
+                        </span>
+                      </div>
+                      <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>{f.message}</p>
+                      {f.answer ? (
+                        <div className="rounded-lg p-3" style={{ background: "var(--surface)", borderLeft: "3px solid var(--accent)" }}>
+                          <div className="text-xs font-semibold mb-1" style={{ color: "var(--accent)" }}>Ответ поддержки</div>
+                          <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: 1.6 }}>{f.answer}</p>
+                        </div>
+                      ) : (
+                        <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: "var(--surface)", color: "var(--text-muted)" }}>
+                          Ожидает ответа
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Мои оценки */}

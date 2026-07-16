@@ -338,6 +338,19 @@ export const appRouter = router({
         await db.update(feedback).set({ status: input.status }).where(eq(feedback.id, input.id));
         return { success: true };
       }),
+
+    /* ── Мои обращения (для личного кабинета — блок "Мои вопросы") ── */
+    myFeedback: authedProcedure.query(async ({ ctx }) => {
+      return db.select().from(feedback).where(eq(feedback.userId, ctx.userId)).orderBy(feedback.createdAt);
+    }),
+
+    /* ── Ответить на обращение (админ) ── */
+    reply: adminProcedure
+      .input(z.object({ id: z.number(), answer: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        await db.update(feedback).set({ answer: input.answer, answeredAt: new Date(), status: "replied" }).where(eq(feedback.id, input.id));
+        return { success: true };
+      }),
   }),
 
   // ─── Места (барная карта) ───

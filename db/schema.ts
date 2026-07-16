@@ -219,6 +219,8 @@ export const feedback = mysqlTable("feedback", {
   topic: varchar("topic", { length: 50 }).notNull(),
   message: text("message").notNull(),
   status: varchar("status", { length: 20 }).notNull().default("new"), // new | read | replied
+  answer: text("answer"),
+  answeredAt: timestamp("answered_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
