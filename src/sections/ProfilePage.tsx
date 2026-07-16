@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Star,
   Heart,
-  Clock,
   BookOpen,
   Wrench,
   Tag,
@@ -33,34 +32,48 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-function StatCard({ icon: Icon, value, label }: { icon: any; value: string; label: string }) {
-  return (
-    <div
-      className="rounded-lg p-2 text-center transition-transform hover:-translate-y-1"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-    >
-      <Icon size={16} style={{ color: "var(--accent)" }} className="mx-auto mb-1" />
-      <div className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-        {value}
-      </div>
-      <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"overview" | "favorites" | "recipes" | "tracker" | "history" | "settings">("overview");
-  const [favSub, setFavSub] = useState<"recipes" | "labels" | "places">("recipes");
+  const [tab, setTab] = useState<"overview" | "recipes" | "labels" | "places" | "tracker" | "history" | "settings">("overview");
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { user, emailVerified, phoneVerified, twoFactorEnabled } = useAuth();
   const utils = trpc.useUtils();
 
   const { data: favoritePlacesData } = trpc.favorites.myPlaces.useQuery(undefined, { enabled: !!user });
   const savedPlaces = favoritePlacesData || [];
+  const { data: favoriteRecipesData } = trpc.favorites.myRecipes.useQuery(undefined, { enabled: !!user });
+  const savedRecipes = favoriteRecipesData || [];
+
+  const updateAvatarMutation = trpc.auth.updateAvatar.useMutation({
+    onSuccess: () => utils.auth.me.invalidate(),
+  });
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { alert("Допустимые форматы: JPG, PNG, WebP"); return; }
+    if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер — 5 МБ"); return; }
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-avatar", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success && data.path) {
+        updateAvatarMutation.mutate({ avatar: data.path });
+      } else {
+        alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));
+      }
+    } catch {
+      alert("Ошибка загрузки файла");
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = "";
+    }
+  }
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -143,6 +156,7 @@ export default function ProfilePage() {
   const { data: myRatingsData } = trpc.rating.myRatings.useQuery(undefined, { enabled: !!user });
   const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
   const { data: recipesData } = trpc.recipe.list.useQuery();
+  const { data: trackerStats } = trpc.infusion.stats.useQuery(undefined, { enabled: !!user });
 
   const myRatings = (myRatingsData || []).map((r) => ({
     recipe: (recipesData || []).find((rec) => rec.id === r.recipeId),
@@ -155,7 +169,7 @@ export default function ProfilePage() {
   const userData = {
     name: user?.name ?? "Пользователь",
     email: user?.email ?? "",
-    avatar: null as string | null,
+    avatar: user?.avatar ?? null,
     balance: 0,
     usedQueries: 0,
     totalQueries: 150,
@@ -210,18 +224,28 @@ export default function ProfilePage() {
           </button>
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
-              <div
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl font-bold"
-                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)", border: "3px solid var(--bg-card)" }}
-              >
-                {userData.name.charAt(0)}
-              </div>
-              <button
-                className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--accent)" }}
+              {userData.avatar ? (
+                <img
+                  src={userData.avatar}
+                  alt={userData.name}
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover"
+                  style={{ border: "3px solid var(--bg-card)" }}
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-2xl font-bold"
+                  style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)", border: "3px solid var(--bg-card)" }}
+                >
+                  {userData.name.charAt(0)}
+                </div>
+              )}
+              <label
+                className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--accent)", opacity: avatarUploading ? 0.5 : 1 }}
               >
                 <Camera size={14} />
-              </button>
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
+              </label>
             </div>
             <div className="text-center sm:text-left flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -240,45 +264,44 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
-            <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Wallet size={22} style={{ color: "var(--accent)" }} />
-                <span className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Баланс</span>
-              </div>
-              <div className="text-xl font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>
-                {userData.balance} ₽
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTab("settings")}
+                className="rounded-xl px-4 py-3 flex items-center gap-2 text-base font-medium transition-all"
+                style={{
+                  background: tab === "settings" ? "var(--accent)" : "var(--bg-card)",
+                  color: tab === "settings" ? "#fff" : "var(--text-secondary)",
+                  border: tab === "settings" ? "none" : "1px solid var(--border)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                <Settings size={20} /> Настройки
+              </button>
+              <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Wallet size={22} style={{ color: "var(--accent)" }} />
+                  <span className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Баланс</span>
+                </div>
+                <div className="text-xl font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>
+                  {userData.balance} ₽
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* STATS */}
-      <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-4 lg:grid-cols-7 gap-2">
-            <StatCard icon={BookOpen} value={String(userData.recipesViewed)} label="Рецепты" />
-            <StatCard icon={Star} value={String(myRatings.length)} label="Оценки" />
-            <StatCard icon={Heart} value={String(userData.favoritesCount)} label="Избранное" />
-            <StatCard icon={FlaskConical} value={String(userData.usedQueries)} label="ИИ" />
-            <StatCard icon={Tag} value={String(userData.labelsCreated)} label="Этикетки" />
-            <StatCard icon={MapPin} value={String(userData.placesSaved)} label="Места" />
-            <StatCard icon={MessageCircle} value={String(myComments.length)} label="Комментарии" />
-          </div>
-        </div>
-      </section>
-
-      {/* TABS */}
+      {/* NAV — объединённые счётчики и разделы одним рядом */}
       <section className="sticky top-16 z-30 py-3" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {([
-              { id: "overview", label: "Обзор", icon: User },
-              { id: "favorites", label: "Избранное", icon: Heart },
-              { id: "recipes", label: "Мои рецепты", icon: BookOpen },
-              { id: "tracker", label: "Трекер созревания", icon: Timer },
-              { id: "history", label: "История ИИ", icon: FlaskConical },
-              { id: "settings", label: "Настройки", icon: Settings },
+              { id: "overview", label: "Обзор", icon: User, count: null },
+              { id: "tracker", label: "Трекер созревания", icon: Timer, count: trackerStats?.active ?? null },
+              { id: "recipes", label: "Рецепты", icon: BookOpen, count: savedRecipes.length || null },
+              { id: "labels", label: "Этикетки", icon: Tag, count: savedLabels?.length || null },
+              { id: "places", label: "Места", icon: MapPin, count: savedPlaces.length || null },
+              { id: "history", label: "ИИ", icon: FlaskConical, count: null },
             ] as const).map((t) => (
               <button
                 key={t.id}
@@ -291,8 +314,19 @@ export default function ProfilePage() {
                   fontFamily: "var(--font-body)",
                 }}
               >
-                <t.icon size={22} />
+                <t.icon size={20} />
                 {t.label}
+                {!!t.count && (
+                  <span
+                    className="text-xs rounded-full px-1.5 py-0.5 font-semibold"
+                    style={{
+                      background: tab === t.id ? "rgba(255,255,255,.25)" : "var(--accent)",
+                      color: "#fff",
+                    }}
+                  >
+                    {t.count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -389,137 +423,138 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* FAVORITES */}
-        {tab === "favorites" && (
-          <div>
-            <div className="flex gap-2 mb-6">
-              {([
-                { id: "recipes", label: "Рецепты", icon: BookOpen },
-                { id: "labels", label: "Этикетки", icon: Tag },
-                { id: "places", label: "Места", icon: MapPin },
-              ] as const).map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setFavSub(s.id)}
-                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-base font-medium transition-all"
-                  style={{
-                    background: favSub === s.id ? "var(--surface)" : "transparent",
-                    color: favSub === s.id ? "var(--accent)" : "var(--text-muted)",
-                    border: favSub === s.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-                    fontFamily: "var(--font-body)",
-                  }}
-                >
-                  <s.icon size={16} /> {s.label}
-                </button>
-              ))}
-            </div>
-
-            {favSub === "recipes" && (
-              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <Heart size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых рецептов нет</div>
-              </div>
-            )}
-            {favSub === "labels" && (
-              <div>
-                {!savedLabels?.length ? (
-                  <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                    <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
-                    <a href="/#/tools" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                      Создать этикетку
-                    </a>
-                  </div>
-                ) : (
-                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-                    {savedLabels.map(label => (
-                      <div key={label.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                        <div className="p-4">
-                          <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                            {label.labelText || "Без названия"}
-                          </div>
-                          <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                            {[label.labelDate, label.labelStrength && label.labelStrength + "%"].filter(Boolean).join(" · ") || "Поля не заполнены"}
-                          </div>
-                          <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                            {new Date(label.updatedAt).toLocaleDateString("ru-RU")}
-                          </div>
-                          {/* Preview */}
-                          {label.previewUrl && (
-                            <img src={label.previewUrl} alt="" className="w-full rounded-lg mb-3" style={{ aspectRatio: "3/4", objectFit: "cover" }} />
-                          )}
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                sessionStorage.setItem("edit-label", JSON.stringify(label));
-                                window.location.hash = "/tools";
-                              }}
-                              className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
-                              style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-                            >
-                              Редактировать
-                            </button>
-                            <button onClick={() => deleteSavedLabel.mutate({ id: label.id })} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {favSub === "places" && (
-              !savedPlaces.length ? (
+        {/* RECIPES — сохранённые (избранные) + опубликованные */}
+        {tab === "recipes" && (
+          <div className="space-y-10">
+            <div>
+              <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Сохранённые рецепты</h2>
+              {savedRecipes.length === 0 ? (
                 <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
-                  <a href="/#/barmap" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                    Открыть барную карту
-                  </a>
+                  <Heart size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых рецептов нет</div>
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {savedPlaces.map((p) => (
+                  {savedRecipes.map((r) => (
                     <Link
-                      key={p.id}
-                      to={`/place/${p.slug}`}
+                      key={r.id}
+                      to={`/recipe/${r.slug}`}
                       className="rounded-xl overflow-hidden transition-all hover:shadow-lg"
                       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                     >
-                      <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-full h-32 object-cover" />
+                      <img src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-full h-32 object-cover" />
                       <div className="p-4">
                         <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                          {p.name}
+                          {r.title}
                         </div>
-                        <div className="text-xs flex items-center gap-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                          <span className="flex items-center gap-1"><MapPin size={12} /> {p.city || "—"}</span>
-                          <span className="flex items-center gap-1"><Star size={12} fill="var(--accent)" color="var(--accent)" /> {p.rating}</span>
-                        </div>
+                        <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{r.categoryLabel}</div>
                       </div>
                     </Link>
                   ))}
                 </div>
-              )
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Опубликованные рецепты</h2>
+                <button className="flex items-center gap-2 rounded-lg px-4 py-2 text-base font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                  <Edit3 size={16} /> Добавить рецепт
+                </button>
+              </div>
+              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <BookOpen size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Опубликованных рецептов нет</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* LABELS — сохранённые этикетки */}
+        {tab === "labels" && (
+          <div>
+            {!savedLabels?.length ? (
+              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
+                <a href="/#/tools" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                  Создать этикетку
+                </a>
+              </div>
+            ) : (
+              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+                {savedLabels.map(label => (
+                  <div key={label.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    <div className="p-4">
+                      <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                        {label.labelText || "Без названия"}
+                      </div>
+                      <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        {[label.labelDate, label.labelStrength && label.labelStrength + "%"].filter(Boolean).join(" · ") || "Поля не заполнены"}
+                      </div>
+                      <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        {new Date(label.updatedAt).toLocaleDateString("ru-RU")}
+                      </div>
+                      {/* Preview */}
+                      {label.previewUrl && (
+                        <img src={label.previewUrl} alt="" className="w-full rounded-lg mb-3" style={{ aspectRatio: "3/4", objectFit: "cover" }} />
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            sessionStorage.setItem("edit-label", JSON.stringify(label));
+                            window.location.hash = "/tools";
+                          }}
+                          className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
+                          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                        >
+                          Редактировать
+                        </button>
+                        <button onClick={() => deleteSavedLabel.mutate({ id: label.id })} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {/* MY RECIPES */}
-        {tab === "recipes" && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Опубликованные рецепты</h2>
-              <button className="flex items-center gap-2 rounded-lg px-4 py-2 text-base font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                <Edit3 size={16} /> Добавить рецепт
-              </button>
-            </div>
+        {/* PLACES — сохранённые места */}
+        {tab === "places" && (
+          !savedPlaces.length ? (
             <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <BookOpen size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-              <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Опубликованных рецептов нет</div>
+              <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+              <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
+              <a href="/#/barmap" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                Открыть барную карту
+              </a>
             </div>
-          </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {savedPlaces.map((p) => (
+                <Link
+                  key={p.id}
+                  to={`/place/${p.slug}`}
+                  className="rounded-xl overflow-hidden transition-all hover:shadow-lg"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                >
+                  <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-full h-32 object-cover" />
+                  <div className="p-4">
+                    <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                      {p.name}
+                    </div>
+                    <div className="text-xs flex items-center gap-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      <span className="flex items-center gap-1"><MapPin size={12} /> {p.city || "—"}</span>
+                      <span className="flex items-center gap-1"><Star size={12} fill="var(--accent)" color="var(--accent)" /> {p.rating}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )
         )}
 
         {/* TRACKER */}

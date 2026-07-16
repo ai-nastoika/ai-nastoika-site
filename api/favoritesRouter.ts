@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { favorites, places } from "@db/schema";
+import { favorites, places, recipes } from "@db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
 export const favoritesRouter = createRouter({
@@ -58,5 +58,19 @@ export const favoritesRouter = createRouter({
     if (ids.length === 0) return [];
 
     return db.query.places.findMany({ where: inArray(places.id, ids) });
+  }),
+
+  /* ── Полные карточки избранных рецептов (для личного кабинета) ── */
+  myRecipes: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const favRows = await db
+      .select({ itemId: favorites.itemId })
+      .from(favorites)
+      .where(and(eq(favorites.userId, ctx.user.id), eq(favorites.itemType, "recipe")));
+
+    const ids = favRows.map((r) => r.itemId);
+    if (ids.length === 0) return [];
+
+    return db.query.recipes.findMany({ where: inArray(recipes.id, ids) });
   }),
 });

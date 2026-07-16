@@ -13,6 +13,7 @@ export type UserContext = {
   email: string;
   name: string | null;
   role: string;
+  avatar: string | null;
 };
 
 export type TrpcContext = {
@@ -42,6 +43,7 @@ export async function createContext(
             email: dbUser.email,
             name: dbUser.name,
             role: dbUser.role,
+            avatar: dbUser.avatar,
           };
         }
       }

@@ -153,14 +153,14 @@ export const appRouter = router({
         const { eq } = await import("drizzle-orm");
         const dbUser = await getDb().query.users.findFirst({ where: eq(usersTable.id, user.id) });
         if (!dbUser) return null;
-        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role, emailVerified: dbUser.emailVerified };
+        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role, emailVerified: dbUser.emailVerified, avatar: dbUser.avatar };
       }
       const token = (ctx as any).token;
       if (!token) return null;
       const { getAuthUser } = await import("./trpc");
       const user = await getAuthUser(token);
       if (!user) return null;
-      return { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified };
+      return { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified, avatar: user.avatar };
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
@@ -183,6 +183,13 @@ export const appRouter = router({
       .input(z.object({ name: z.string().min(1).optional() }))
       .mutation(async ({ input, ctx }) => {
         await db.update(users).set({ name: input.name }).where(eq(users.id, ctx.userId));
+        return { success: true };
+      }),
+
+    updateAvatar: authedProcedure
+      .input(z.object({ avatar: z.string().max(255) }))
+      .mutation(async ({ input, ctx }) => {
+        await db.update(users).set({ avatar: input.avatar }).where(eq(users.id, ctx.userId));
         return { success: true };
       }),
   }),

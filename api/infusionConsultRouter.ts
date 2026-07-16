@@ -133,7 +133,7 @@ export const infusionConsultRouter = createRouter({
         throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
       }
 
-      const json = await res.json();
+      const json = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number } };
       const answer: string = json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ";
       const tokensUsed: number = json.usage?.total_tokens ?? 0;
 

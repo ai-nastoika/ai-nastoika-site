@@ -336,7 +336,6 @@ export default function InfusionTracker() {
   const [completePhoto, setCompletePhoto] = useState<string | null>(null);
   const [postponingStageId, setPostponingStageId] = useState<number | null>(null);
   const [postponeDate, setPostponeDate] = useState("");
-  const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const { data: stats } = trpc.infusion.stats.useQuery(undefined, { enabled: isLoggedIn });
