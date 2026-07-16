@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
    Типы
    ═══════════════════════════════════════ */
 type IngredientInput = { name: string; amount?: string; note?: string };
-type StepInput = { stepNum: number; title?: string; text: string };
+type StepInput = { stepNum: number; title?: string; text: string; stageType?: string; waitDays?: number; repeatEveryDays?: number };
 
 const EMPTY_RECIPE = {
   slug: "", title: "", subtitle: "", category: "sweet", categoryLabel: "",
@@ -288,6 +288,7 @@ function AdminPanel() {
     }));
     const stps: StepInput[] = (full?.steps ?? []).map((s: any) => ({
       stepNum: s.stepNum ?? 1, title: s.title ?? "", text: s.text ?? "",
+      stageType: s.stageType ?? undefined, waitDays: s.waitDays ?? undefined, repeatEveryDays: s.repeatEveryDays ?? undefined,
     }));
     setRForm({
       ...EMPTY_RECIPE,
@@ -847,7 +848,7 @@ function RecipeForm({
       </div>
       {f.steps.length === 0 && <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет шагов</p>}
       {f.steps.map((s, i) => (
-        <div key={i} className="grid grid-cols-12 gap-2 items-start">
+        <div key={i} className="grid grid-cols-12 gap-2 items-start pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="col-span-1">
             <Label className="text-xs">№</Label>
             <Input type="number" value={s.stepNum} onChange={(e) => {
@@ -870,6 +871,42 @@ function RecipeForm({
             <Button type="button" size="sm" variant="ghost" onClick={() => update({ steps: f.steps.filter((_, j) => j !== i) })}>
               <Trash2 size={14} />
             </Button>
+          </div>
+
+          {/* ─ Для Трекера созревания: попадает ли этот шаг в список этапов и как ─ */}
+          <div className="col-span-12 grid grid-cols-4 gap-2 pl-1">
+            <div>
+              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Этап трекера</Label>
+              <select
+                value={s.stageType ?? ""}
+                onChange={(e) => {
+                  const arr = [...f.steps]; arr[i] = { ...arr[i], stageType: e.target.value || undefined }; update({ steps: arr });
+                }}
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+                style={{ borderColor: "var(--border)", background: "var(--bg-primary)" }}
+              >
+                <option value="">— не в трекере —</option>
+                <option value="pour">Поставить</option>
+                <option value="shake">Взболтать</option>
+                <option value="strain">Слить/процедить</option>
+                <option value="rest">Дать отстояться</option>
+                <option value="taste">Дегустация</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Дней до следующего шага</Label>
+              <Input type="number" min={0} value={s.waitDays ?? ""} placeholder="напр. 14"
+                onChange={(e) => {
+                  const arr = [...f.steps]; arr[i] = { ...arr[i], waitDays: e.target.value ? Number(e.target.value) : undefined }; update({ steps: arr });
+                }} />
+            </div>
+            <div>
+              <Label className="text-xs" style={{ color: "var(--text-muted)" }}>Повторять каждые N дней</Label>
+              <Input type="number" min={1} value={s.repeatEveryDays ?? ""} placeholder="напр. 3"
+                onChange={(e) => {
+                  const arr = [...f.steps]; arr[i] = { ...arr[i], repeatEveryDays: e.target.value ? Number(e.target.value) : undefined }; update({ steps: arr });
+                }} />
+            </div>
           </div>
         </div>
       ))}

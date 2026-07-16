@@ -270,15 +270,20 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTab("settings")}
-                className="rounded-xl w-24 py-3 text-center transition-all hover:-translate-y-0.5"
+                className="rounded-xl px-5 py-3 text-center transition-all hover:-translate-y-0.5"
                 style={{
                   background: tab === "settings" ? "var(--accent)" : "var(--bg-card)",
                   border: tab === "settings" ? "none" : "1px solid var(--border)",
                 }}
               >
-                <Settings size={22} style={{ color: tab === "settings" ? "#fff" : "var(--accent)" }} className="mx-auto mb-1" />
-                <div className="text-sm font-medium" style={{ color: tab === "settings" ? "#fff" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Настройки
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Settings size={22} style={{ color: tab === "settings" ? "#fff" : "var(--accent)" }} />
+                  <span className="text-base font-medium" style={{ color: tab === "settings" ? "#fff" : "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Настройки
+                  </span>
+                </div>
+                <div className="text-xl font-bold" style={{ color: tab === "settings" ? "#fff" : "var(--accent)", fontFamily: "var(--font-heading)" }}>
+                  →
                 </div>
               </button>
               <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>

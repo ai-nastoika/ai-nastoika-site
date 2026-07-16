@@ -69,6 +69,12 @@ export const recipeSteps = mysqlTable("recipe_steps", {
   title: varchar("title", { length: 200 }),
   text: text("text").notNull(),
   sortOrder: int("sort_order").default(0),
+  // ─ метаданные для автогенерации этапов Трекера созревания ─
+  // stageType = null означает "это просто текст-инструкция", шаг не попадает в трекер
+  // (напр. "нарежьте лимон" — не нужно ставить пользователю напоминание об этом)
+  stageType: varchar("stage_type", { length: 20 }), // pour | shake | strain | rest | taste | null
+  waitDays: int("wait_days"), // сколько дней длится эта фаза, прежде чем наступит следующий отслеживаемый шаг
+  repeatEveryDays: int("repeat_every_days"), // если задано — действие повторяется каждые N дней в течение waitDays
 });
 
 export type RecipeStep = typeof recipeSteps.$inferSelect;

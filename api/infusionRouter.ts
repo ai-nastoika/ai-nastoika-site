@@ -7,6 +7,61 @@ import { TRPCError } from "@trpc/server";
 
 const stageTypeEnum = z.enum(["pour", "shake", "strain", "rest", "taste", "custom"]);
 
+/* ── Генерация этапов трекера из структурированных шагов рецепта ──
+   Правила:
+   - Шаги без stageType — просто инструкции, в трекер не попадают.
+   - Первый шаг с заданным stageType всегда порождает ещё и стартовый
+     этап "Поставить" (день 0) — момент, когда пользователь создал трекер.
+   - Если у шага задан repeatEveryDays — это повторяющееся действие
+     (напр. взбалтывание): первое повторение через repeatEveryDays,
+     дальше drizzle сам создаёт следующие при отметке "готово".
+   - waitDays двигает "текущую дату" вперёд для следующего шага.
+   - Если последний сгенерированный этап — не дегустация, добавляем её
+     финальным шагом на той же дате. */
+function generateStagesFromRecipeSteps(
+  steps: { stepNum: number; title: string | null; stageType: string | null; waitDays: number | null; repeatEveryDays: number | null }[],
+  startDate: Date,
+  recipeName: string
+) {
+  const tagged = steps
+    .filter((s) => s.stageType)
+    .sort((a, b) => a.stepNum - b.stepNum);
+
+  if (tagged.length === 0) return [];
+
+  const stages: { type: string; title: string; plannedDate: Date; repeatIntervalDays?: number }[] = [];
+  let runningDate = new Date(startDate);
+  let lastType = "";
+
+  tagged.forEach((step, i) => {
+    if (i === 0) {
+      stages.push({ type: "pour", title: `Поставить: ${recipeName}`, plannedDate: new Date(runningDate) });
+    }
+
+    if (step.repeatEveryDays) {
+      const firstOccurrence = new Date(runningDate);
+      firstOccurrence.setDate(firstOccurrence.getDate() + step.repeatEveryDays);
+      stages.push({
+        type: step.stageType!,
+        title: step.title || "Взболтать",
+        plannedDate: firstOccurrence,
+        repeatIntervalDays: step.repeatEveryDays,
+      });
+    } else {
+      stages.push({ type: step.stageType!, title: step.title || "Этап", plannedDate: new Date(runningDate) });
+    }
+
+    lastType = step.stageType!;
+    if (step.waitDays) runningDate.setDate(runningDate.getDate() + step.waitDays);
+  });
+
+  if (lastType !== "taste") {
+    stages.push({ type: "taste", title: "Дегустация", plannedDate: new Date(runningDate) });
+  }
+
+  return stages;
+}
+
 /* ── Проверка, что трекер принадлежит текущему пользователю ── */
 async function getOwnedInfusion(infusionId: number, userId: number) {
   const db = getDb();
@@ -153,15 +208,29 @@ export const infusionRouter = createRouter({
               repeatIntervalDays: z.number().min(1).max(90).optional(),
             })
           )
-          .min(1, "Добавьте хотя бы один этап"),
+          .optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
+      let stagesToInsert = input.stages ?? [];
+
       if (input.recipeId) {
-        const recipe = await db.query.recipes.findFirst({ where: eq(recipes.id, input.recipeId) });
+        const recipe = await db.query.recipes.findFirst({
+          where: eq(recipes.id, input.recipeId),
+          with: { steps: true },
+        });
         if (!recipe) throw new TRPCError({ code: "NOT_FOUND", message: "Рецепт не найден" });
+
+        // Этапы явно не заданы — подбираем автоматически по структуре рецепта
+        if (!input.stages || input.stages.length === 0) {
+          stagesToInsert = generateStagesFromRecipeSteps(recipe.steps, input.startDate, recipe.title);
+        }
+      }
+
+      if (stagesToInsert.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Добавьте хотя бы один этап" });
       }
 
       const result = await db.insert(infusions).values({
@@ -177,7 +246,7 @@ export const infusionRouter = createRouter({
       const infusionId = Number(result[0].insertId);
 
       await db.insert(infusionStages).values(
-        input.stages.map((s, i) => ({
+        stagesToInsert.map((s, i) => ({
           infusionId,
           type: s.type,
           title: s.title,

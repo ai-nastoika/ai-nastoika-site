@@ -82,13 +82,18 @@ type DraftStage = { type: string; title: string; plannedDate: string; repeatInte
 function CreateInfusionForm({ onDone }: { onDone: () => void }) {
   const utils = trpc.useUtils();
   const { data: recipes } = trpc.recipe.list.useQuery();
+  const { data: savedRecipeIds } = trpc.favorites.myIds.useQuery({ itemType: "recipe" });
 
   const [name, setName] = useState("");
-  const [recipeId, setRecipeId] = useState<string>("");
+  const [recipeId, setRecipeId] = useState<number | null>(null);
+  const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipeDropdownOpen, setRecipeDropdownOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [vessel, setVessel] = useState("");
   const [startDate, setStartDate] = useState(toInputDate(new Date()));
   const [stages, setStages] = useState<DraftStage[]>([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()) }]);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [error, setError] = useState("");
 
   const create = trpc.infusion.create.useMutation({
@@ -100,6 +105,33 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
     onError: (err) => setError(err.message || "Не удалось создать трекер"),
   });
 
+  const savedIdSet = new Set(savedRecipeIds ?? []);
+  const matchingRecipes = (recipes ?? []).filter((r) =>
+    r.title.toLowerCase().includes(recipeSearch.toLowerCase())
+  );
+  const savedMatches = matchingRecipes.filter((r) => savedIdSet.has(r.id));
+  const otherMatches = matchingRecipes.filter((r) => !savedIdSet.has(r.id));
+
+  function pickRecipe(r: NonNullable<typeof recipes>[number]) {
+    setRecipeId(r.id);
+    setRecipeSearch(r.title);
+    setRecipeDropdownOpen(false);
+    if (!name.trim()) setName(r.title);
+    // Автозаполнение описания из ингредиентов рецепта
+    const ingSummary = (r.ingredients ?? [])
+      .map((i) => [i.name, i.amount].filter(Boolean).join(" "))
+      .join(", ");
+    if (ingSummary) setDescription(ingSummary);
+    // Этапы подберутся автоматически на сервере по рецепту — очищаем ручной список
+    setStages([]);
+  }
+
+  function clearRecipe() {
+    setRecipeId(null);
+    setRecipeSearch("");
+    setStages([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()) }]);
+  }
+
   function addStageRow() {
     setStages((s) => [...s, { type: "shake", title: "Взболтать", plannedDate: toInputDate(new Date()) }]);
   }
@@ -110,17 +142,29 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
     setStages((s) => s.filter((_, idx) => idx !== i));
   }
 
+  async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverUploading(true);
+    const path = await uploadTrackerImage(file);
+    if (path) setCoverImage(path);
+    setCoverUploading(false);
+    e.target.value = "";
+  }
+
   function submit() {
     setError("");
     if (!name.trim()) { setError("Укажите название настойки"); return; }
-    if (stages.length === 0) { setError("Добавьте хотя бы один этап"); return; }
+    if (!recipeId && stages.length === 0) { setError("Добавьте хотя бы один этап"); return; }
     create.mutate({
       name: name.trim(),
       description: description.trim() || undefined,
-      recipeId: recipeId ? Number(recipeId) : undefined,
+      recipeId: recipeId ?? undefined,
       vesselDescription: vessel.trim() || undefined,
+      coverImage: coverImage ?? undefined,
       startDate,
-      stages: stages.map((s) => ({
+      // Если выбран рецепт и этапы не тронуты вручную — сервер сам подберёт их по рецепту
+      stages: recipeId && stages.length === 0 ? undefined : stages.map((s) => ({
         type: s.type as any,
         title: s.title.trim() || STAGE_TYPES.find((t) => t.value === s.type)?.label || "Действие",
         plannedDate: s.plannedDate,
@@ -153,15 +197,55 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Вишнёвка на коньяке"
             className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
         </div>
-        <div>
+        <div className="relative">
           <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>Рецепт из базы (необязательно)</label>
-          <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle}>
-            <option value="">— Свой рецепт —</option>
-            {recipes?.map((r) => (
-              <option key={r.id} value={r.id}>{r.title}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              value={recipeSearch}
+              onChange={(e) => { setRecipeSearch(e.target.value); setRecipeDropdownOpen(true); if (recipeId) setRecipeId(null); }}
+              onFocus={() => setRecipeDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setRecipeDropdownOpen(false), 150)}
+              placeholder="Поиск по названию — свой или из базы"
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+              style={inputStyle}
+            />
+            {recipeId && (
+              <button type="button" onClick={clearRecipe}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-1.5 py-0.5 rounded"
+                style={{ color: "var(--text-muted)" }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {recipeDropdownOpen && recipeSearch.trim() && (savedMatches.length > 0 || otherMatches.length > 0) && (
+            <div className="absolute z-20 mt-1 w-full rounded-lg overflow-hidden max-h-64 overflow-y-auto"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(0,0,0,.12)" }}>
+              {savedMatches.length > 0 && (
+                <>
+                  <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Сохранённые</div>
+                  {savedMatches.map((r) => (
+                    <button key={r.id} type="button" onMouseDown={() => pickRecipe(r)}
+                      className="w-full text-left px-3 py-2 text-sm hover:opacity-80"
+                      style={{ color: "var(--text-primary)", background: "var(--surface)" }}>
+                      {r.title}
+                    </button>
+                  ))}
+                </>
+              )}
+              {otherMatches.length > 0 && (
+                <>
+                  <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Все рецепты</div>
+                  {otherMatches.slice(0, 20).map((r) => (
+                    <button key={r.id} type="button" onMouseDown={() => pickRecipe(r)}
+                      className="w-full text-left px-3 py-2 text-sm hover:opacity-80"
+                      style={{ color: "var(--text-primary)" }}>
+                      {r.title}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -174,7 +258,7 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
 
       <div className="grid sm:grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>Тара / где стоит</label>
+          <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>Тара / где стоит <span style={{ color: "var(--text-muted)" }}>(необязательно)</span></label>
           <input value={vessel} onChange={(e) => setVessel(e.target.value)} placeholder="Банка 3 л, кладовая"
             className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} />
         </div>
@@ -185,34 +269,59 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      <label className="text-xs mb-2 block" style={{ color: "var(--text-secondary)" }}>Этапы</label>
-      <div className="space-y-2 mb-3">
-        {stages.map((s, i) => (
-          <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg p-2" style={{ background: "var(--surface)" }}>
-            <select value={s.type} onChange={(e) => {
-                const t = STAGE_TYPES.find((x) => x.value === e.target.value);
-                updateStage(i, { type: e.target.value, title: t?.label ?? s.title });
-              }}
-              className="rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }}>
-              {STAGE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            <input value={s.title} onChange={(e) => updateStage(i, { title: e.target.value })}
-              placeholder="Описание действия" className="flex-1 min-w-[140px] rounded-md px-2 py-1.5 text-sm outline-none"
-              style={{ ...inputStyle, background: "var(--bg-card)" }} />
-            <input type="date" value={s.plannedDate} onChange={(e) => updateStage(i, { plannedDate: e.target.value })}
-              className="rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
-            <input type="number" min={1} max={90} placeholder="повтор, дн." value={s.repeatIntervalDays ?? ""}
-              onChange={(e) => updateStage(i, { repeatIntervalDays: e.target.value ? Number(e.target.value) : undefined })}
-              className="w-24 rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
-            <button onClick={() => removeStage(i)} className="p-1.5 rounded-md hover:opacity-60" style={{ color: "var(--text-muted)" }}>
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
+      <div className="mb-4">
+        <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>Фото тары <span style={{ color: "var(--text-muted)" }}>(необязательно — чтобы сразу узнавать банку на полке)</span></label>
+        <div className="flex items-center gap-3">
+          {coverImage ? (
+            <img src={coverImage} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+          ) : (
+            <div className="w-16 h-16 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
+              <Camera size={20} style={{ color: "var(--text-muted)" }} />
+            </div>
+          )}
+          <label className="text-sm px-3 py-2 rounded-lg cursor-pointer" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+            {coverUploading ? "Загрузка..." : coverImage ? "Заменить фото" : "Загрузить фото"}
+            <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} disabled={coverUploading} />
+          </label>
+        </div>
       </div>
-      <button onClick={addStageRow} className="text-sm flex items-center gap-1.5 mb-4" style={{ color: "var(--accent)" }}>
-        <Plus size={16} /> Добавить этап
-      </button>
+
+      {recipeId ? (
+        <div className="mb-4 text-sm px-3 py-2 rounded-lg" style={{ background: "var(--surface)", color: "var(--text-secondary)" }}>
+          Этапы будут подобраны автоматически по рецепту — их можно будет скорректировать после создания.
+        </div>
+      ) : (
+        <>
+          <label className="text-xs mb-2 block" style={{ color: "var(--text-secondary)" }}>Этапы</label>
+          <div className="space-y-2 mb-3">
+            {stages.map((s, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg p-2" style={{ background: "var(--surface)" }}>
+                <select value={s.type} onChange={(e) => {
+                    const t = STAGE_TYPES.find((x) => x.value === e.target.value);
+                    updateStage(i, { type: e.target.value, title: t?.label ?? s.title });
+                  }}
+                  className="rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }}>
+                  {STAGE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+                <input value={s.title} onChange={(e) => updateStage(i, { title: e.target.value })}
+                  placeholder="Описание действия" className="flex-1 min-w-[140px] rounded-md px-2 py-1.5 text-sm outline-none"
+                  style={{ ...inputStyle, background: "var(--bg-card)" }} />
+                <input type="date" value={s.plannedDate} onChange={(e) => updateStage(i, { plannedDate: e.target.value })}
+                  className="rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
+                <input type="number" min={1} max={90} placeholder="повтор, дн." value={s.repeatIntervalDays ?? ""}
+                  onChange={(e) => updateStage(i, { repeatIntervalDays: e.target.value ? Number(e.target.value) : undefined })}
+                  className="w-24 rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
+                <button onClick={() => removeStage(i)} className="p-1.5 rounded-md hover:opacity-60" style={{ color: "var(--text-muted)" }}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addStageRow} className="text-sm flex items-center gap-1.5 mb-4" style={{ color: "var(--accent)" }}>
+            <Plus size={16} /> Добавить этап
+          </button>
+        </>
+      )}
 
       {error && <p className="text-sm mb-3" style={{ color: "#dc2626" }}>{error}</p>}
 

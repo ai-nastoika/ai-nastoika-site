@@ -136,6 +136,9 @@ export const recipeRouter = createRouter({
             stepNum: z.number(),
             title: z.string().optional(),
             text: z.string().min(1),
+            stageType: z.enum(["pour", "shake", "strain", "rest", "taste"]).optional(),
+            waitDays: z.number().optional(),
+            repeatEveryDays: z.number().optional(),
           })
         ).optional(),
       })
