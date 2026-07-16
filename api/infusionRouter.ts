@@ -307,6 +307,30 @@ export const infusionRouter = createRouter({
       return { success: true };
     }),
 
+  /* ── Изменить дату и/или периодичность ещё не выполненного этапа ──
+     Отдельно от postponeStage: здесь можно менять оба поля сразу,
+     в том числе включать/выключать повтор. ── */
+  updateStage: authedQuery
+    .input(
+      z.object({
+        stageId: z.number(),
+        plannedDate: z.coerce.date().optional(),
+        repeatIntervalDays: z.number().min(1).max(90).nullable().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const stage = await getOwnedStage(input.stageId, ctx.user.id);
+      if (stage.status === "done") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Выполненный этап нельзя редактировать" });
+      }
+      const db = getDb();
+      const patch: Record<string, unknown> = {};
+      if (input.plannedDate) patch.plannedDate = input.plannedDate;
+      if (input.repeatIntervalDays !== undefined) patch.repeatIntervalDays = input.repeatIntervalDays;
+      await db.update(infusionStages).set(patch).where(eq(infusionStages.id, input.stageId));
+      return { success: true };
+    }),
+
   /* ── Удалить ещё не выполненный этап ── */
   deleteStage: authedQuery.input(z.object({ stageId: z.number() })).mutation(async ({ input, ctx }) => {
     await getOwnedStage(input.stageId, ctx.user.id);

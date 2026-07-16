@@ -444,8 +444,14 @@ export default function InfusionTracker() {
   const [completingStageId, setCompletingStageId] = useState<number | null>(null);
   const [completeNote, setCompleteNote] = useState("");
   const [completePhoto, setCompletePhoto] = useState<string | null>(null);
-  const [postponingStageId, setPostponingStageId] = useState<number | null>(null);
-  const [postponeDate, setPostponeDate] = useState("");
+  const [editingStageId, setEditingStageId] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editRepeat, setEditRepeat] = useState("");
+  const [addingStage, setAddingStage] = useState(false);
+  const [newStageType, setNewStageType] = useState("custom");
+  const [newStageTitle, setNewStageTitle] = useState("");
+  const [newStageDate, setNewStageDate] = useState(toInputDate(new Date()));
+  const [newStageRepeat, setNewStageRepeat] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const { data: stats } = trpc.infusion.stats.useQuery(undefined, { enabled: isLoggedIn });
@@ -462,11 +468,19 @@ export default function InfusionTracker() {
       setCompletePhoto(null);
     },
   });
-  const postponeStage = trpc.infusion.postponeStage.useMutation({
+  const updateStage = trpc.infusion.updateStage.useMutation({
     onSuccess: () => {
       utils.infusion.get.invalidate({ id: selectedId! });
       utils.infusion.list.invalidate();
-      setPostponingStageId(null);
+      setEditingStageId(null);
+    },
+  });
+  const addStage = trpc.infusion.addStage.useMutation({
+    onSuccess: () => {
+      utils.infusion.get.invalidate({ id: selectedId! });
+      setAddingStage(false);
+      setNewStageTitle("");
+      setNewStageRepeat("");
     },
   });
   const deleteStage = trpc.infusion.deleteStage.useMutation({
@@ -638,24 +652,30 @@ export default function InfusionTracker() {
                             </div>
                           )}
                         </div>
-                        {isCurrent && completingStageId !== s.id && postponingStageId !== s.id && (
-                          <div className="flex gap-2 flex-shrink-0">
-                            <button onClick={() => { setPostponingStageId(s.id); setPostponeDate(toInputDate(s.plannedDate)); }}
-                              className="text-xs px-3 py-1.5 rounded-full" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-                              Отложить
-                            </button>
+                        <div className="flex gap-2 flex-shrink-0">
+                          {isCurrent && completingStageId !== s.id && editingStageId !== s.id && (
                             <button onClick={() => setCompletingStageId(s.id)}
                               className="text-xs px-3 py-1.5 rounded-full text-white font-medium" style={{ background: "var(--accent)" }}>
                               Готово
                             </button>
-                          </div>
-                        )}
-                        {!isCurrent && !isDone && (
-                          <button onClick={() => deleteStage.mutate({ stageId: s.id })}
-                            className="text-xs p-1.5 rounded-md hover:opacity-60" style={{ color: "var(--text-muted)" }}>
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                          )}
+                          {!isDone && completingStageId !== s.id && editingStageId !== s.id && (
+                            <button onClick={() => {
+                                setEditingStageId(s.id);
+                                setEditDate(toInputDate(s.plannedDate));
+                                setEditRepeat(s.repeatIntervalDays ? String(s.repeatIntervalDays) : "");
+                              }}
+                              className="text-xs px-3 py-1.5 rounded-full" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                              Изменить
+                            </button>
+                          )}
+                          {!isDone && editingStageId !== s.id && (
+                            <button onClick={() => deleteStage.mutate({ stageId: s.id })}
+                              className="text-xs p-1.5 rounded-md hover:opacity-60" style={{ color: "var(--text-muted)" }}>
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* инлайн-форма "Готово" */}
@@ -686,19 +706,34 @@ export default function InfusionTracker() {
                         </div>
                       )}
 
-                      {/* инлайн-форма "Отложить" */}
-                      {postponingStageId === s.id && (
+                      {/* инлайн-форма "Изменить" — дата и периодичность */}
+                      {editingStageId === s.id && (
                         <div className="mt-2 p-3 rounded-lg flex items-center gap-2 flex-wrap" style={{ background: "var(--surface)" }}>
-                          <input type="date" value={postponeDate} onChange={(e) => setPostponeDate(e.target.value)}
-                            className="rounded-md px-2 py-1.5 text-sm outline-none"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
-                          <button onClick={() => setPostponingStageId(null)} className="text-xs px-3 py-1.5" style={{ color: "var(--text-muted)" }}>
+                          <div>
+                            <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Дата</label>
+                            <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
+                              className="rounded-md px-2 py-1.5 text-sm outline-none"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                          </div>
+                          <div>
+                            <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Повтор, дн.</label>
+                            <input type="number" min={1} max={90} value={editRepeat} placeholder="нет"
+                              onChange={(e) => setEditRepeat(e.target.value)}
+                              className="w-24 rounded-md px-2 py-1.5 text-sm outline-none"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                          </div>
+                          <button onClick={() => setEditingStageId(null)} className="text-xs px-3 py-1.5 self-end" style={{ color: "var(--text-muted)" }}>
                             Отмена
                           </button>
-                          <button onClick={() => postponeStage.mutate({ stageId: s.id, newDate: postponeDate })}
-                            disabled={postponeStage.isPending}
-                            className="text-xs px-3 py-1.5 rounded-full text-white font-medium" style={{ background: "var(--accent)" }}>
-                            Перенести
+                          <button
+                            onClick={() => updateStage.mutate({
+                              stageId: s.id,
+                              plannedDate: editDate,
+                              repeatIntervalDays: editRepeat ? Number(editRepeat) : null,
+                            })}
+                            disabled={updateStage.isPending}
+                            className="text-xs px-3 py-1.5 rounded-full text-white font-medium self-end" style={{ background: "var(--accent)" }}>
+                            Сохранить
                           </button>
                         </div>
                       )}
@@ -707,6 +742,63 @@ export default function InfusionTracker() {
                 );
               })}
             </div>
+
+            {/* Добавить свой этап поверх плана рецепта */}
+            {addingStage ? (
+              <div className="mt-3 p-3 rounded-lg flex flex-wrap items-end gap-2" style={{ background: "var(--surface)" }}>
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Тип</label>
+                  <select value={newStageType} onChange={(e) => {
+                      const t = STAGE_TYPES.find((x) => x.value === e.target.value);
+                      setNewStageType(e.target.value);
+                      if (!newStageTitle) setNewStageTitle(t?.label ?? "");
+                    }}
+                    className="rounded-md px-2 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                    {STAGE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Название</label>
+                  <input value={newStageTitle} onChange={(e) => setNewStageTitle(e.target.value)}
+                    className="w-full rounded-md px-2 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Дата</label>
+                  <input type="date" value={newStageDate} onChange={(e) => setNewStageDate(e.target.value)}
+                    className="rounded-md px-2 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Повтор, дн.</label>
+                  <input type="number" min={1} max={90} value={newStageRepeat} placeholder="нет"
+                    onChange={(e) => setNewStageRepeat(e.target.value)}
+                    className="w-20 rounded-md px-2 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <button onClick={() => setAddingStage(false)} className="text-xs px-3 py-1.5" style={{ color: "var(--text-muted)" }}>
+                  Отмена
+                </button>
+                <button
+                  onClick={() => addStage.mutate({
+                    infusionId: detail.id,
+                    type: newStageType as any,
+                    title: newStageTitle.trim() || (STAGE_TYPES.find(t => t.value === newStageType)?.label ?? "Этап"),
+                    plannedDate: newStageDate,
+                    repeatIntervalDays: newStageRepeat ? Number(newStageRepeat) : undefined,
+                  })}
+                  disabled={addStage.isPending}
+                  className="text-xs px-3 py-1.5 rounded-full text-white font-medium" style={{ background: "var(--accent)" }}>
+                  Добавить
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setAddingStage(true)}
+                className="mt-3 text-sm flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
+                <Plus size={16} /> Добавить свой этап
+              </button>
+            )}
           </div>
 
           {/* ЗАМЕТКИ */}
