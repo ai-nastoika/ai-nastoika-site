@@ -64,8 +64,27 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
   ],
   "steps": [
     {"stepNum": 1, "title": "Заголовок шага", "text": "Описание действия"}
+  ],
+  "trackerStages": [
+    {"stageType": "pour", "title": "Поставить: залить ягоды водкой", "dayOffset": 0},
+    {"stageType": "shake", "title": "Взболтать", "dayOffset": 3, "repeatEveryDays": 3},
+    {"stageType": "strain", "title": "Процедить и разлить", "dayOffset": 21},
+    {"stageType": "taste", "title": "Дегустация", "dayOffset": 25}
   ]
 }
+
+ВАЖНО про поле "trackerStages" — НЕ ПРОПУСКАЙ ЕГО, это отдельная обязательная часть ответа:
+Это план для календаря напоминаний (Трекер созревания), а НЕ пересказ шагов рецепта.
+Один шаг рецепта в прозе может содержать несколько отслеживаемых событий (или ни одного —
+если шаг чисто подготовительный, напр. "нарежьте цедру"). Вычлени именно ДЕЙСТВИЯ И ДАТЫ:
+- stageType — одно из: pour (поставить/залить), shake (взболтать/помешать), strain (слить/процедить/разлить),
+  rest (дать отстояться без действий), taste (дегустация), add_ingredient (досыпать/долить что-то в процессе),
+  custom (любое другое разовое действие).
+- dayOffset — день от даты старта настойки (0 = день заливки), по срокам, упомянутым в тексте.
+- repeatEveryDays — указывай ТОЛЬКО если в тексте явно сказано про периодическое действие
+  ("встряхивайте каждые 2-3 дня"). Для разовых действий это поле не указывай.
+- Всегда начинай с этапа pour на dayOffset=0 и заканчивай этапом taste на последнем дне.
+- Не выдумывай сроки, которых нет в тексте. Обычно 4-7 этапов достаточно.
 
 Вот текст рецепта:`;
 
@@ -74,6 +93,7 @@ const KIMI_PROMPT = `Ты — эксперт по домашним настой�
    ═══════════════════════════════════════════ */
 type IngredientInput = { name: string; amount: string; note: string };
 type StepInput = { stepNum: number; title: string; text: string };
+type TrackerStageInput = { stageType: string; title: string; dayOffset: number; repeatEveryDays?: number };
 
 interface RecipeForm {
   slug: string; title: string; subtitle: string;
@@ -89,7 +109,7 @@ interface RecipeForm {
   spicy: number; fruity: number; herbal: number;
   tips: string[]; authorName: string; authorDate: string;
   imagePrompt: string;
-  ingredients: IngredientInput[]; steps: StepInput[];
+  ingredients: IngredientInput[]; steps: StepInput[]; trackerStages: TrackerStageInput[];
 }
 
 function emptyForm(): RecipeForm {
@@ -102,7 +122,7 @@ function emptyForm(): RecipeForm {
     sweet: 50, sour: 30, bitter: 20, spicy: 10, fruity: 60, herbal: 15,
     tips: [], authorName: "", authorDate: "",
     imagePrompt: "",
-    ingredients: [], steps: [],
+    ingredients: [], steps: [], trackerStages: [],
   };
 }
 
@@ -269,6 +289,10 @@ export default function RecipeParserPage() {
         steps: Array.isArray(data.steps) ? data.steps.map((s: any) => ({
           stepNum: Number(s.stepNum) || 1, title: s.title || "", text: s.text || "",
         })) : [],
+        trackerStages: Array.isArray(data.trackerStages) ? data.trackerStages.map((s: any) => ({
+          stageType: s.stageType || "custom", title: s.title || "", dayOffset: Number(s.dayOffset) || 0,
+          repeatEveryDays: s.repeatEveryDays ? Number(s.repeatEveryDays) : undefined,
+        })) : [],
       };
 
       setForm(newForm);
@@ -300,6 +324,7 @@ export default function RecipeParserPage() {
     authorName: form.authorName || undefined, authorDate: form.authorDate || undefined,
     ingredients: form.ingredients.length > 0 ? form.ingredients : undefined,
     steps: form.steps.length > 0 ? form.steps.map((s) => ({ stepNum: s.stepNum, title: s.title || undefined, text: s.text })) : undefined,
+    trackerStages: form.trackerStages.length > 0 ? form.trackerStages : undefined,
   });
 
   const handleSave = async (opts?: { overwriteId?: number; skipCheck?: boolean }) => {
@@ -341,6 +366,14 @@ export default function RecipeParserPage() {
     patch({ steps: [...form.steps, { stepNum: next, title: "", text: "" }] });
   };
   const delStep = (i: number) => patch({ steps: form.steps.filter((_, j) => j !== i) });
+
+  const updateTrackerStage = (i: number, p: Partial<TrackerStageInput>) => {
+    const arr = [...form.trackerStages];
+    arr[i] = { ...arr[i], ...p };
+    patch({ trackerStages: arr });
+  };
+  const addTrackerStage = () => patch({ trackerStages: [...form.trackerStages, { stageType: "pour", title: "", dayOffset: 0 }] });
+  const delTrackerStage = (i: number) => patch({ trackerStages: form.trackerStages.filter((_, j) => j !== i) });
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
@@ -620,6 +653,45 @@ export default function RecipeParserPage() {
                       <div className="col-span-4"><Label className="text-xs">Заголовок</Label><Input value={s.title} onChange={(e) => updateStep(i, { title: e.target.value })} /></div>
                       <div className="col-span-6"><Label className="text-xs">Описание</Label><Textarea value={s.text} onChange={(e) => updateStep(i, { text: e.target.value })} className="min-h-[60px]" /></div>
                       <div className="col-span-1 pt-5"><Button size="sm" variant="ghost" onClick={() => delStep(i)}><Trash2 size={14} /></Button></div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Tracker stages — отдельный план для Трекера созревания, не показывается на странице рецепта */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Этапы Трекера созревания ({form.trackerStages.length})</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">Не отображается на странице рецепта — используется только для автозаполнения трекера</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={addTrackerStage}><Plus size={14} className="mr-1" /> Добавить</Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {form.trackerStages.length === 0 && <p className="text-sm text-muted-foreground">Этапов нет — трекер будет использовать обобщённый запасной план</p>}
+                  {form.trackerStages.map((s, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-start">
+                      <div className="col-span-3">
+                        <Label className="text-xs">Тип этапа</Label>
+                        <select
+                          value={s.stageType}
+                          onChange={(e) => updateTrackerStage(i, { stageType: e.target.value })}
+                          className="w-full rounded-md border px-2 py-1.5 text-sm"
+                          style={{ borderColor: "var(--border)", background: "var(--bg-primary)" }}
+                        >
+                          <option value="pour">Поставить</option>
+                          <option value="shake">Взболтать</option>
+                          <option value="strain">Слить/процедить</option>
+                          <option value="rest">Дать отстояться</option>
+                          <option value="add_ingredient">Добавить ингредиент</option>
+                          <option value="taste">Дегустация</option>
+                          <option value="custom">Другое</option>
+                        </select>
+                      </div>
+                      <div className="col-span-5"><Label className="text-xs">Название</Label><Input value={s.title} onChange={(e) => updateTrackerStage(i, { title: e.target.value })} placeholder="напр. Взболтать" /></div>
+                      <div className="col-span-2"><Label className="text-xs">День от старта</Label><Input type="number" min={0} value={s.dayOffset} onChange={(e) => updateTrackerStage(i, { dayOffset: Number(e.target.value) })} /></div>
+                      <div className="col-span-1"><Label className="text-xs">Повтор, дн.</Label><Input type="number" min={1} value={s.repeatEveryDays ?? ""} placeholder="—" onChange={(e) => updateTrackerStage(i, { repeatEveryDays: e.target.value ? Number(e.target.value) : undefined })} /></div>
+                      <div className="col-span-1 pt-5"><Button size="sm" variant="ghost" onClick={() => delTrackerStage(i)}><Trash2 size={14} /></Button></div>
                     </div>
                   ))}
                 </CardContent>
