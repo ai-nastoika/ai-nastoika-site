@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import InfusionTracker from "./InfusionTracker";
 import {
@@ -35,7 +35,13 @@ import {
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"overview" | "recipes" | "labels" | "places" | "tracker" | "history" | "settings">("overview");
+  const [searchParams] = useSearchParams();
+  const VALID_TABS = ["overview", "recipes", "labels", "places", "tracker", "history", "settings"] as const;
+  type TabId = typeof VALID_TABS[number];
+  const tabFromUrl = searchParams.get("tab");
+  const initialTab: TabId = (VALID_TABS as readonly string[]).includes(tabFromUrl ?? "") ? (tabFromUrl as TabId) : "overview";
+  const [tab, setTab] = useState<TabId>(initialTab);
+  const initialInfusionId = searchParams.get("infusionId") ? Number(searchParams.get("infusionId")) : undefined;
   const [notif, setNotif] = useState({ email: true, newRecipes: true, promos: false });
   const [avatarUploading, setAvatarUploading] = useState(false);
 
@@ -586,7 +592,7 @@ export default function ProfilePage() {
         )}
 
         {/* TRACKER */}
-        {tab === "tracker" && <InfusionTracker />}
+        {tab === "tracker" && <InfusionTracker initialInfusionId={initialInfusionId} />}
 
         {/* AI HISTORY */}
         {tab === "history" && (

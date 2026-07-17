@@ -7,7 +7,7 @@ import CommentSection from "../components/CommentSection";
 import RecipeAiConsult from "./RecipeAiConsult";
 import {
   ArrowLeft, Clock, Star, Wine, ChefHat, BookOpen, Lightbulb,
-  FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check,
+  FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check, Timer,
 } from "lucide-react";
 
 function FlavorBar({ label, value, color }: { label: string; value: number; color: string }) {
@@ -52,6 +52,24 @@ export default function RecipeDetail() {
     }
     if (!recipe) return;
     toggleFavoriteMutation.mutate({ itemType: "recipe", itemId: recipe.id });
+  }
+
+  const startInfusionMutation = trpc.infusion.create.useMutation({
+    onSuccess: (data) => navigate(`/profile?tab=tracker&infusionId=${data.id}`),
+  });
+
+  function handleStartInfusion() {
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
+    }
+    if (!recipe) return;
+    startInfusionMutation.mutate({
+      name: recipe.title,
+      recipeId: recipe.id,
+      startDate: new Date().toISOString().slice(0, 10),
+      coverImage: recipe.heroImage ?? undefined,
+    });
   }
 
   async function handleShare() {
@@ -364,6 +382,22 @@ export default function RecipeDetail() {
             </div>
           </section>
         )}
+
+        {/* --- Поставить настойку: создаёт трекер созревания в личном кабинете --- */}
+        <section className="mb-14 print:hidden">
+          <button
+            onClick={handleStartInfusion}
+            disabled={startInfusionMutation.isPending}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-semibold text-white disabled:opacity-60 transition-transform hover:-translate-y-0.5"
+            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <Timer size={20} />
+            {startInfusionMutation.isPending ? "Создаю трекер..." : "Поставить настойку"}
+          </button>
+          <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Создаст трекер созревания в личном кабинете с этапами по этому рецепту
+          </p>
+        </section>
 
         {/* --- Консультация ИИ по этому рецепту (только для экрана) --- */}
         <section className="mb-14 print:hidden">

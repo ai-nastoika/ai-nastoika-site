@@ -436,11 +436,11 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
 
 /* ─────────────────────────── Основной компонент ─────────────────────────── */
 
-export default function InfusionTracker() {
+export default function InfusionTracker({ initialInfusionId }: { initialInfusionId?: number }) {
   const { isLoggedIn } = useAuth();
   const utils = trpc.useUtils();
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(initialInfusionId ?? null);
   const [completingStageId, setCompletingStageId] = useState<number | null>(null);
   const [completeNote, setCompleteNote] = useState("");
   const [completePhoto, setCompletePhoto] = useState<string | null>(null);
