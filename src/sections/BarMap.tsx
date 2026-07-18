@@ -244,7 +244,10 @@ export default function BarMap() {
           <div style="font-size:12px;color:#666;margin-bottom:4px;">${escapeHtml(venue.address ?? "")}</div>
           ${venue.hours ? `<div style="font-size:12px;color:#666;margin-bottom:4px;">🕒 ${escapeHtml(venue.hours)}</div>` : ""}
           ${venue.rating ? `<div style="font-size:12px;margin-bottom:6px;">⭐ ${venue.rating} (${venue.reviews ?? 0} отзывов)</div>` : ""}
-          <a href="#/place/${venue.slug}" style="font-size:13px;color:#8B4513;font-weight:600;text-decoration:none;">Подробнее →</a>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <a href="#/place/${venue.slug}" style="font-size:13px;color:#8B4513;font-weight:600;text-decoration:none;">Подробнее →</a>
+            <a href="https://yandex.ru/maps/?rtext=~${lat},${lng}&rtt=auto" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:#666;text-decoration:none;">🧭 Маршрут</a>
+          </div>
         </div>
       `;
 

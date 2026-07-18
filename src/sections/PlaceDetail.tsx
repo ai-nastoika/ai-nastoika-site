@@ -4,7 +4,7 @@ import { fallbackPlaces } from "@/data/fallbackData";
 import {
   ArrowLeft, Star, MapPin, Clock, Phone, Globe, Train,
   Heart, Share2, Printer, ThumbsUp, MessageCircle, Send,
-  AlertTriangle, Check, X, Wine,
+  AlertTriangle, Check, X, Wine, Navigation,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -195,6 +195,19 @@ export default function PlaceDetail() {
 
       {/* ===== CONTENT ===== */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20">
+
+        {/* --- Маршрут --- */}
+        {place.lat != null && place.lng != null && (
+          <a
+            href={`https://yandex.ru/maps/?rtext=~${place.lat},${place.lng}&rtt=auto`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 mb-6 rounded-xl px-5 py-3 text-sm font-medium text-white transition-all hover:scale-105"
+            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <Navigation size={18} /> Проложить маршрут на Яндекс.Картах
+          </a>
+        )}
 
         {/* --- Quick Info Cards --- */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-10">
