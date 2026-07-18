@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq, and, avg, count } from "drizzle-orm";
+import { eq, and, avg, count, desc } from "drizzle-orm";
 import { recipeRatings, comments, feedback } from "../db/schema";
 import { sendEmail } from "./lib/email";
 import crypto from "crypto";
@@ -13,6 +13,7 @@ import { favoritesRouter } from "./favoritesRouter";
 import { recipeConsultRouter } from "./recipeConsultRouter";
 import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
+import { adminStatsRouter } from "./adminStatsRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -329,7 +330,7 @@ export const appRouter = router({
       }),
 
     list: adminProcedure.query(async () => {
-      return db.select().from(feedback).orderBy(feedback.createdAt);
+      return db.select().from(feedback).orderBy(desc(feedback.createdAt));
     }),
 
     setStatus: adminProcedure
@@ -349,7 +350,7 @@ export const appRouter = router({
 
     /* ── Мои обращения (для личного кабинета — блок "Мои вопросы") ── */
     myFeedback: authedProcedure.query(async ({ ctx }) => {
-      return db.select().from(feedback).where(eq(feedback.userId, ctx.userId)).orderBy(feedback.createdAt);
+      return db.select().from(feedback).where(eq(feedback.userId, ctx.userId)).orderBy(desc(feedback.createdAt));
     }),
 
     /* ── Ответить на обращение (админ) ── */
@@ -400,6 +401,7 @@ export const appRouter = router({
   // ─── Трекер созревания ───
   infusion: infusionRouter,
   infusionConsult: infusionConsultRouter,
+  adminStats: adminStatsRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),

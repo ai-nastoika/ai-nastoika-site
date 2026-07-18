@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { Menu, X, User, LogOut, Shield, Bot } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
+import { trpc } from "@/providers/trpc";
 
 const navItems = [
   { label: "Рецепты", href: "/recipes" },
@@ -16,16 +17,12 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { user, isLoggedIn, isAdmin, isEditor, logout } = useAuth();
+  const { data: pendingCount } = trpc.adminStats.pendingCount.useQuery(undefined, { enabled: isAdmin, refetchInterval: 60000 });
 
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
 
   return (
-    <>
-    <style>{`
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    `}</style>
     <header
       className="sticky top-0 z-40 theme-transition print:hidden"
       style={{
@@ -35,7 +32,7 @@ export default function Header() {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
-        {/* Row 1: логотип + профиль — всегда компактно, никогда не переносится */}
+        {/* Main header row */}
         <div className="flex items-center justify-between h-20 md:h-24">
           {/* Logo */}
           <Link to="/" className="shrink-0">
@@ -46,8 +43,84 @@ export default function Header() {
             />
           </Link>
 
-          {/* Donate + Auth — компактный блок, видим всегда на десктопе */}
-          <div className="hidden lg:flex items-center gap-2 shrink-0">
+          {/* Desktop navigation */}
+          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+            {navItems.map((item) => (
+              <Link
+                key={item.label}
+                to={item.href}
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
+                style={{
+                  color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive(item.href) ? "var(--surface)" : "transparent",
+                }}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            {/* Парсер — для editor и admin */}
+            {isEditor && (
+              <Link
+                to="/tools/parse-recipe"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Bot size={12} />
+                Парсер
+              </Link>
+            )}
+
+            {/* Парсер заведений — для editor и admin */}
+            {isEditor && (
+              <Link
+                to="/tools/parse-place"
+                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/tools/parse-place") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Bot size={12} />
+                Парсер мест
+              </Link>
+            )}
+
+            {/* Админка — только для admin */}
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="relative px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+                style={{
+                  color: isActive("/admin") ? "#fff" : "var(--accent)",
+                  fontFamily: "var(--font-body)",
+                  background: isActive("/admin") ? "var(--accent)" : "var(--surface)",
+                  border: "1px solid var(--accent)",
+                }}
+              >
+                <Shield size={12} />
+                Админ
+                {!!pendingCount?.total && (
+                  <span
+                    className="absolute -top-1.5 -right-1.5 flex items-center justify-center rounded-full text-white font-bold"
+                    style={{ background: "#dc2626", fontSize: "10px", minWidth: "16px", height: "16px", padding: "0 3px", lineHeight: 1 }}
+                    title={`Обращения: ${pendingCount.feedback} · Рецепты на модерации: ${pendingCount.recipes} · Заявки на заведения: ${pendingCount.places}`}
+                  >
+                    {pendingCount.total > 99 ? "99+" : pendingCount.total}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            {/* Donate — icon only on medium screens */}
             <a
               href="https://boosty.to/ainastoika"
               target="_blank"
@@ -60,6 +133,7 @@ export default function Header() {
               <span className="hidden lg:inline lg:ml-1">Поддержать</span>
             </a>
 
+            {/* Auth */}
             {isLoggedIn ? (
               <div className="flex items-center gap-1">
                 <Link
@@ -88,10 +162,10 @@ export default function Header() {
                 Вход
               </Link>
             )}
-          </div>
+          </nav>
 
           {/* Mobile: profile + hamburger */}
-          <div className="lg:hidden flex items-center gap-2">
+          <div className="md:hidden flex items-center gap-2">
             {isLoggedIn ? (
               <button
                 onClick={logout}
@@ -118,81 +192,11 @@ export default function Header() {
             </button>
           </div>
         </div>
-
-        {/* Row 2: навигация — отдельная строка, переносится сама по себе если не влезает,
-            не задевая логотип и профиль в Row 1 */}
-        <nav className="hidden lg:flex items-center flex-wrap gap-1 lg:gap-2 pb-3">
-          {navItems.map((item) => (
-            <Link
-              key={item.label}
-              to={item.href}
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
-              style={{
-                color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
-                fontFamily: "var(--font-body)",
-                background: isActive(item.href) ? "var(--surface)" : "transparent",
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-
-          {/* Парсер — для editor и admin */}
-          {isEditor && (
-            <Link
-              to="/tools/parse-recipe"
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-              style={{
-                color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
-                fontFamily: "var(--font-body)",
-                background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
-                border: "1px solid var(--accent)",
-              }}
-            >
-              <Bot size={12} />
-              Парсер
-            </Link>
-          )}
-
-          {/* Парсер заведений — для editor и admin */}
-          {isEditor && (
-            <Link
-              to="/tools/parse-place"
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-              style={{
-                color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
-                fontFamily: "var(--font-body)",
-                background: isActive("/tools/parse-place") ? "var(--accent)" : "var(--surface)",
-                border: "1px solid var(--accent)",
-              }}
-            >
-              <Bot size={12} />
-              Парсер мест
-            </Link>
-          )}
-
-          {/* Админка — только для admin */}
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-              style={{
-                color: isActive("/admin") ? "#fff" : "var(--accent)",
-                fontFamily: "var(--font-body)",
-                background: isActive("/admin") ? "var(--accent)" : "var(--surface)",
-                border: "1px solid var(--accent)",
-              }}
-            >
-              <Shield size={12} />
-              Админ
-            </Link>
-          )}
-        </nav>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden px-4 pb-4 space-y-1" style={{ background: "var(--bg-primary)" }}>
+        <div className="md:hidden px-4 pb-4 space-y-1" style={{ background: "var(--bg-primary)" }}>
           {isLoggedIn && (
             <Link
               to="/profile"
@@ -253,6 +257,14 @@ export default function Header() {
             >
               <Shield size={18} />
               Админ-панель
+              {!!pendingCount?.total && (
+                <span
+                  className="flex items-center justify-center rounded-full text-white font-bold"
+                  style={{ background: "#dc2626", fontSize: "11px", minWidth: "18px", height: "18px", padding: "0 4px", lineHeight: 1 }}
+                >
+                  {pendingCount.total > 99 ? "99+" : pendingCount.total}
+                </span>
+              )}
             </Link>
           )}
 
@@ -281,6 +293,5 @@ export default function Header() {
         </div>
       )}
     </header>
-    </>
   );
 }
