@@ -426,7 +426,7 @@ function AdminPanel() {
             <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied").length ?? 0})</TabsTrigger>
+            <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied" && f.status !== "archived").length ?? 0})</TabsTrigger>
           </TabsList>
 
           {/* ─── Уведомление о локальном сохранении ─── */}
@@ -1095,7 +1095,12 @@ function FeedbackTab() {
     new: { label: "Новое", bg: "#fef3c7", color: "#92400e" },
     read: { label: "Прочитано", bg: "#eff6ff", color: "#1e40af" },
     replied: { label: "Отвечено", bg: "#d8f3dc", color: "#386641" },
+    archived: { label: "В архиве", bg: "#f1f1f1", color: "#666" },
   };
+
+  const deleteFeedback = trpc.feedback.delete.useMutation({
+    onSuccess: () => utils.feedback.list.invalidate(),
+  });
 
   function startReply(f: NonNullable<typeof items>[0]) {
     setExpandedId(f.id);
@@ -1123,6 +1128,7 @@ function FeedbackTab() {
             { key: "new", label: `Новые (${items?.filter((f) => f.status === "new").length ?? 0})` },
             { key: "read", label: `Прочитаны (${items?.filter((f) => f.status === "read").length ?? 0})` },
             { key: "replied", label: `Отвечены (${items?.filter((f) => f.status === "replied").length ?? 0})` },
+            { key: "archived", label: `Архив (${items?.filter((f) => f.status === "archived").length ?? 0})` },
           ].map((opt) => (
             <Button key={opt.key} size="sm" variant={filter === opt.key ? "default" : "outline"} onClick={() => setFilter(opt.key)}>
               {opt.label}
@@ -1153,6 +1159,20 @@ function FeedbackTab() {
                       {f.name} · {f.email} · {new Date(f.createdAt).toLocaleDateString("ru-RU")}
                     </div>
                     <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{f.message}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {f.status === "archived" ? (
+                      <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: f.id, status: "new" })}>
+                        Вернуть
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: f.id, status: "archived" })}>
+                        В архив
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => { if (confirm("Удалить обращение насовсем? Это необратимо.")) deleteFeedback.mutate({ id: f.id }); }}>
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
                 </div>
 

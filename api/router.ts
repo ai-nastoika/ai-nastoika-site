@@ -333,9 +333,17 @@ export const appRouter = router({
     }),
 
     setStatus: adminProcedure
-      .input(z.object({ id: z.number(), status: z.enum(["new", "read", "replied"]) }))
+      .input(z.object({ id: z.number(), status: z.enum(["new", "read", "replied", "archived"]) }))
       .mutation(async ({ input }) => {
         await db.update(feedback).set({ status: input.status }).where(eq(feedback.id, input.id));
+        return { success: true };
+      }),
+
+    /* ── Удалить обращение насовсем (спам, тестовые сообщения) ── */
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.delete(feedback).where(eq(feedback.id, input.id));
         return { success: true };
       }),
 
