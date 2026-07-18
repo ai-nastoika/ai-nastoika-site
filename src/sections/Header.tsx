@@ -49,7 +49,7 @@ export default function Header() {
           {/* Desktop navigation — переключается на планшетах/узких ноутбуках (lg),
               а не на md, чтобы у админов с доп. кнопками (Парсер, Админ и т.д.)
               строка не обрезалась за краем экрана без возможности прокрутки */}
-          <nav className="hidden lg:flex items-center gap-1 lg:gap-2 overflow-x-auto no-scrollbar">
+          <nav className="hidden lg:flex items-center gap-1 lg:gap-2 overflow-x-auto no-scrollbar min-w-0">
             {navItems.map((item) => (
               <Link
                 key={item.label}
