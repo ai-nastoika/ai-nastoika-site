@@ -356,7 +356,33 @@ export const appRouter = router({
     reply: adminProcedure
       .input(z.object({ id: z.number(), answer: z.string().min(1) }))
       .mutation(async ({ input }) => {
+        const rows = await db.select().from(feedback).where(eq(feedback.id, input.id));
+        const row = rows[0];
+        if (!row) throw new Error("Обращение не найдено");
+
         await db.update(feedback).set({ answer: input.answer, answeredAt: new Date(), status: "replied" }).where(eq(feedback.id, input.id));
+
+        const topicLabels: Record<string, string> = {
+          general: "Общий вопрос",
+          recipe: "Рецепт / Ошибка",
+          bug: "Баг на сайте",
+          feature: "Предложение",
+          place: "Добавить заведение",
+          other: "Другое",
+        };
+        await sendEmail({
+          to: row.email,
+          subject: `Ответ на ваше обращение — ${topicLabels[row.topic] ?? row.topic}`,
+          html: `<div style="font-family: sans-serif; max-width: 480px;">
+            <h2>Ответ на ваше обращение</h2>
+            <p><b>Ваш вопрос:</b></p>
+            <p style="color:#555;">${row.message.replace(/\n/g, "<br/>")}</p>
+            <hr/>
+            <p><b>Ответ:</b></p>
+            <p>${input.answer.replace(/\n/g, "<br/>")}</p>
+          </div>`,
+        });
+
         return { success: true };
       }),
   }),
