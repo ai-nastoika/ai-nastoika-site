@@ -21,6 +21,11 @@ export default function Header() {
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
 
   return (
+    <>
+    <style>{`
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    `}</style>
     <header
       className="sticky top-0 z-40 theme-transition print:hidden"
       style={{
@@ -41,8 +46,10 @@ export default function Header() {
             />
           </Link>
 
-          {/* Desktop navigation */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+          {/* Desktop navigation — переключается на планшетах/узких ноутбуках (lg),
+              а не на md, чтобы у админов с доп. кнопками (Парсер, Админ и т.д.)
+              строка не обрезалась за краем экрана без возможности прокрутки */}
+          <nav className="hidden lg:flex items-center gap-1 lg:gap-2 overflow-x-auto no-scrollbar">
             {navItems.map((item) => (
               <Link
                 key={item.label}
@@ -154,7 +161,7 @@ export default function Header() {
           </nav>
 
           {/* Mobile: profile + hamburger */}
-          <div className="md:hidden flex items-center gap-2">
+          <div className="lg:hidden flex items-center gap-2">
             {isLoggedIn ? (
               <button
                 onClick={logout}
@@ -185,7 +192,7 @@ export default function Header() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden px-4 pb-4 space-y-1" style={{ background: "var(--bg-primary)" }}>
+        <div className="lg:hidden px-4 pb-4 space-y-1" style={{ background: "var(--bg-primary)" }}>
           {isLoggedIn && (
             <Link
               to="/profile"
@@ -274,5 +281,6 @@ export default function Header() {
         </div>
       )}
     </header>
+    </>
   );
 }
