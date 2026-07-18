@@ -35,8 +35,8 @@ export default function Header() {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
-        {/* Main header row */}
-        <div className="flex items-center justify-between min-h-20 md:min-h-24 py-2 flex-wrap">
+        {/* Row 1: логотип + профиль — всегда компактно, никогда не переносится */}
+        <div className="flex items-center justify-between h-20 md:h-24">
           {/* Logo */}
           <Link to="/" className="shrink-0">
             <img
@@ -46,77 +46,8 @@ export default function Header() {
             />
           </Link>
 
-          {/* Desktop navigation — переключается на планшетах/узких ноутбуках (lg),
-              а не на md, чтобы у админов с доп. кнопками (Парсер, Админ и т.д.)
-              строка не обрезалась за краем экрана без возможности прокрутки */}
-          <nav className="hidden lg:flex items-center gap-1 lg:gap-2 flex-wrap justify-end">
-            {navItems.map((item) => (
-              <Link
-                key={item.label}
-                to={item.href}
-                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
-                style={{
-                  color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
-                  fontFamily: "var(--font-body)",
-                  background: isActive(item.href) ? "var(--surface)" : "transparent",
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
-
-            {/* Парсер — для editor и admin */}
-            {isEditor && (
-              <Link
-                to="/tools/parse-recipe"
-                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-                style={{
-                  color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
-                  fontFamily: "var(--font-body)",
-                  background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
-                  border: "1px solid var(--accent)",
-                }}
-              >
-                <Bot size={12} />
-                Парсер
-              </Link>
-            )}
-
-            {/* Парсер заведений — для editor и admin */}
-            {isEditor && (
-              <Link
-                to="/tools/parse-place"
-                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-                style={{
-                  color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
-                  fontFamily: "var(--font-body)",
-                  background: isActive("/tools/parse-place") ? "var(--accent)" : "var(--surface)",
-                  border: "1px solid var(--accent)",
-                }}
-              >
-                <Bot size={12} />
-                Парсер мест
-              </Link>
-            )}
-
-            {/* Админка — только для admin */}
-            {isAdmin && (
-              <Link
-                to="/admin"
-                className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
-                style={{
-                  color: isActive("/admin") ? "#fff" : "var(--accent)",
-                  fontFamily: "var(--font-body)",
-                  background: isActive("/admin") ? "var(--accent)" : "var(--surface)",
-                  border: "1px solid var(--accent)",
-                }}
-              >
-                <Shield size={12} />
-                Админ
-              </Link>
-            )}
-
-            {/* Donate — icon only on medium screens */}
+          {/* Donate + Auth — компактный блок, видим всегда на десктопе */}
+          <div className="hidden lg:flex items-center gap-2 shrink-0">
             <a
               href="https://boosty.to/ainastoika"
               target="_blank"
@@ -129,7 +60,6 @@ export default function Header() {
               <span className="hidden lg:inline lg:ml-1">Поддержать</span>
             </a>
 
-            {/* Auth */}
             {isLoggedIn ? (
               <div className="flex items-center gap-1">
                 <Link
@@ -158,7 +88,7 @@ export default function Header() {
                 Вход
               </Link>
             )}
-          </nav>
+          </div>
 
           {/* Mobile: profile + hamburger */}
           <div className="lg:hidden flex items-center gap-2">
@@ -188,6 +118,76 @@ export default function Header() {
             </button>
           </div>
         </div>
+
+        {/* Row 2: навигация — отдельная строка, переносится сама по себе если не влезает,
+            не задевая логотип и профиль в Row 1 */}
+        <nav className="hidden lg:flex items-center flex-wrap gap-1 lg:gap-2 pb-3">
+          {navItems.map((item) => (
+            <Link
+              key={item.label}
+              to={item.href}
+              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
+              style={{
+                color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
+                fontFamily: "var(--font-body)",
+                background: isActive(item.href) ? "var(--surface)" : "transparent",
+              }}
+            >
+              {item.label}
+            </Link>
+          ))}
+
+          {/* Парсер — для editor и admin */}
+          {isEditor && (
+            <Link
+              to="/tools/parse-recipe"
+              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              style={{
+                color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
+                fontFamily: "var(--font-body)",
+                background: isActive("/tools/parse-recipe") ? "var(--accent)" : "var(--surface)",
+                border: "1px solid var(--accent)",
+              }}
+            >
+              <Bot size={12} />
+              Парсер
+            </Link>
+          )}
+
+          {/* Парсер заведений — для editor и admin */}
+          {isEditor && (
+            <Link
+              to="/tools/parse-place"
+              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              style={{
+                color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
+                fontFamily: "var(--font-body)",
+                background: isActive("/tools/parse-place") ? "var(--accent)" : "var(--surface)",
+                border: "1px solid var(--accent)",
+              }}
+            >
+              <Bot size={12} />
+              Парсер мест
+            </Link>
+          )}
+
+          {/* Админка — только для admin */}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              style={{
+                color: isActive("/admin") ? "#fff" : "var(--accent)",
+                fontFamily: "var(--font-body)",
+                background: isActive("/admin") ? "var(--accent)" : "var(--surface)",
+                border: "1px solid var(--accent)",
+              }}
+            >
+              <Shield size={12} />
+              Админ
+            </Link>
+          )}
+        </nav>
       </div>
 
       {/* Mobile menu */}
