@@ -299,26 +299,32 @@ export default function PlaceDetail() {
             )}
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: "var(--success)", fontFamily: "var(--font-body)" }}>
-                  <Check size={14} /> Что хвалят
+              <div className="rounded-xl p-4" style={{ background: "var(--success-tint)", border: "1px solid var(--success)" }}>
+                <h4 className="text-base font-bold mb-3 flex items-center gap-2" style={{ color: "var(--success)", fontFamily: "var(--font-heading)" }}>
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--success)" }}>
+                    <Check size={14} color="#fff" />
+                  </span>
+                  Что хвалят
                 </h4>
-                <ul className="space-y-1.5">
+                <ul className="space-y-2.5">
                   {pros.map((p) => (
-                    <li key={p} className="text-sm flex items-start gap-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5" style={{ background: "var(--success)" }} /> {p}
+                    <li key={p} className="text-[15px] flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                      <Check size={16} className="shrink-0 mt-0.5" style={{ color: "var(--success)" }} /> {p}
                     </li>
                   ))}
                 </ul>
               </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: "var(--danger)", fontFamily: "var(--font-body)" }}>
-                  <X size={14} /> Что не нравится
+              <div className="rounded-xl p-4" style={{ background: "var(--danger-tint)", border: "1px solid var(--danger)" }}>
+                <h4 className="text-base font-bold mb-3 flex items-center gap-2" style={{ color: "var(--danger)", fontFamily: "var(--font-heading)" }}>
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--danger)" }}>
+                    <X size={14} color="#fff" />
+                  </span>
+                  Что не нравится
                 </h4>
-                <ul className="space-y-1.5">
+                <ul className="space-y-2.5">
                   {cons.map((c) => (
-                    <li key={c} className="text-sm flex items-start gap-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5" style={{ background: "var(--danger)" }} /> {c}
+                    <li key={c} className="text-[15px] flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                      <X size={16} className="shrink-0 mt-0.5" style={{ color: "var(--danger)" }} /> {c}
                     </li>
                   ))}
                 </ul>

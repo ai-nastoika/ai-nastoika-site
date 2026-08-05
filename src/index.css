@@ -23,6 +23,10 @@
     --font-body: "Inter", system-ui, sans-serif;
     --font-heading: "Playfair Display", Georgia, serif;
     --radius: 0.75rem;
+    --success: #4f7a52;
+    --success-tint: #eaf2e9;
+    --danger: #b3503a;
+    --danger-tint: #f7e9e5;
   }
 
   html {
@@ -48,6 +52,10 @@
     --surface: #352c24;
     --surface-hover: #423830;
     --radius: 0.5rem;
+    --success: #7fae7a;
+    --success-tint: #2a3a27;
+    --danger: #d97b6c;
+    --danger-tint: #3d2622;
   }
 
   [data-theme="herbal"] {
@@ -64,6 +72,10 @@
     --surface: #f0f7ec;
     --surface-hover: #e0ecd8;
     --radius: 1rem;
+    --success: #3d5c30;
+    --success-tint: #e0ecd8;
+    --danger: #b3503a;
+    --danger-tint: #f5e6e0;
   }
 
   [data-theme="modern"] {
@@ -80,6 +92,10 @@
     --surface: #f5f5f5;
     --surface-hover: #ebebeb;
     --radius: 0.375rem;
+    --success: #1e7d32;
+    --success-tint: #e3f3e5;
+    --danger: #9a1530;
+    --danger-tint: #f7dde1;
   }
 
   body {
