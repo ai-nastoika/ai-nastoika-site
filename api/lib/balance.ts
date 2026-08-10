@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { transactions, users } from "@db/schema";
+import { donations, transactions, users } from "@db/schema";
 
 export type CreditResult = { credited: boolean; balanceKopecks: number };
 
@@ -49,4 +49,45 @@ export async function creditTopup(params: {
   await db.update(users).set({ balanceKopecks: sql`${users.balanceKopecks} + ${params.amountKopecks}` }).where(eq(users.id, params.userId));
 
   return { credited: true, balanceKopecks: newBalance };
+}
+
+export type DonationResult = { recorded: boolean };
+
+/**
+ * Записывает донат и, если он привязан к аккаунту, выставляет значок донора.
+ * Идемпотентно по `externalId` тем же способом, что и creditTopup — уникальный
+ * индекс на donations.external_id ловит повторную доставку вебхука.
+ * Донат НЕ трогает balanceKopecks/freeRequestsLeft — это отдельная сущность,
+ * не даёт дополнительных ИИ-запросов.
+ */
+export async function recordDonation(params: {
+  userId?: number;
+  amountKopecks: number;
+  externalId: string;
+  name?: string;
+  message?: string;
+}): Promise<DonationResult> {
+  const db = getDb();
+
+  try {
+    await db.insert(donations).values({
+      userId: params.userId ?? null,
+      name: params.name ?? null,
+      amountKopecks: params.amountKopecks,
+      message: params.message ?? null,
+      externalId: params.externalId,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("Duplicate entry") || (err as { code?: string })?.code === "ER_DUP_ENTRY") {
+      return { recorded: false };
+    }
+    throw err;
+  }
+
+  if (params.userId) {
+    await db.update(users).set({ isDonor: 1 }).where(eq(users.id, params.userId));
+  }
+
+  return { recorded: true };
 }

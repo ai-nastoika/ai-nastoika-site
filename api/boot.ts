@@ -7,7 +7,7 @@ import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
-import { creditTopup } from "./lib/balance";
+import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import fs from "fs";
 import path from "path";
@@ -239,12 +239,12 @@ app.post("/api/upload-avatar", async (c) => {
   }
 });
 
-// ─── ЮKassa webhook: подтверждение оплаты пополнения баланса ───
+// ─── ЮKassa webhook: подтверждение оплаты (пополнение баланса ИЛИ донат) ───
 // Настраивается в личном кабинете ЮKassa на событие payment.succeeded.
 // Телу вебхука не доверяем напрямую (его в теории можно подделать) —
 // перепроверяем статус платежа отдельным запросом к самой ЮKassa по id.
-// Зачисление идемпотентно (см. api/lib/balance.ts) — повторный вебхук
-// по уже зачисленному платежу просто ничего не сделает повторно.
+// Обработка идемпотентна (см. api/lib/balance.ts) — повторный вебхук
+// по уже обработанному платежу просто ничего не сделает повторно.
 app.post("/api/webhooks/yookassa", async (c) => {
   try {
     const body = (await c.req.json().catch(() => null)) as { object?: { id?: string } } | null;
@@ -259,13 +259,29 @@ app.post("/api/webhooks/yookassa", async (c) => {
       return c.json({ ok: true, skipped: true });
     }
 
+    const amountKopecks = Math.round(parseFloat(payment.amount.value) * 100);
+    const kind = payment.metadata?.kind;
+
+    if (kind === "donation") {
+      // Донат — можно и без userId (анонимная поддержка проекта).
+      const userId = payment.metadata?.userId ? Number(payment.metadata.userId) : undefined;
+      const result = await recordDonation({
+        userId: userId && !Number.isNaN(userId) ? userId : undefined,
+        amountKopecks,
+        externalId: payment.id,
+        name: payment.metadata?.name,
+        message: payment.metadata?.message,
+      });
+      return c.json({ ok: true, recorded: result.recorded });
+    }
+
+    // По умолчанию — пополнение баланса, для него userId обязателен.
     const userId = Number(payment.metadata?.userId);
     if (!userId || Number.isNaN(userId)) {
       console.error("YooKassa webhook: no userId in payment metadata", payment.id);
       return c.json({ error: "no userId in payment metadata" }, 400);
     }
 
-    const amountKopecks = Math.round(parseFloat(payment.amount.value) * 100);
     const result = await creditTopup({
       userId,
       amountKopecks,

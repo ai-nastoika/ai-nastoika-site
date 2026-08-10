@@ -31,12 +31,19 @@ function authHeader(): string {
 
 export type CreatePaymentResult = { paymentId: string; confirmationUrl: string };
 
-/** Создаёт платёж в ЮKassa и возвращает ссылку, куда редиректить пользователя. */
-export async function createTopupPayment(params: {
-  userId: number;
+type PaymentMetadata = {
+  kind: "topup" | "donation";
+  userId?: number;
+  name?: string;
+  message?: string;
+};
+
+async function createPayment(params: {
   amountRub: number;
   returnUrl: string;
   idempotenceKey: string;
+  description: string;
+  metadata: PaymentMetadata;
 }): Promise<CreatePaymentResult> {
   if (!isPaymentsConfigured()) {
     throw new Error("Приём платежей временно не настроен на сервере (нет YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY)");
@@ -53,8 +60,8 @@ export async function createTopupPayment(params: {
       amount: { value: params.amountRub.toFixed(2), currency: "RUB" },
       capture: true,
       confirmation: { type: "redirect", return_url: params.returnUrl },
-      description: `Пополнение баланса «Ай, настойка», пользователь #${params.userId}`,
-      metadata: { userId: params.userId },
+      description: params.description,
+      metadata: params.metadata,
     }),
   });
 
@@ -71,12 +78,56 @@ export async function createTopupPayment(params: {
   return { paymentId: json.id, confirmationUrl: json.confirmation.confirmation_url };
 }
 
+/** Создаёт платёж на пополнение баланса и возвращает ссылку, куда редиректить пользователя. */
+export async function createTopupPayment(params: {
+  userId: number;
+  amountRub: number;
+  returnUrl: string;
+  idempotenceKey: string;
+}): Promise<CreatePaymentResult> {
+  return createPayment({
+    amountRub: params.amountRub,
+    returnUrl: params.returnUrl,
+    idempotenceKey: params.idempotenceKey,
+    description: `Пополнение баланса «Ай, настойка», пользователь #${params.userId}`,
+    metadata: { kind: "topup", userId: params.userId },
+  });
+}
+
+/**
+ * Создаёт платёж-донат. В отличие от пополнения баланса, не требует userId —
+ * поддержать проект можно и без регистрации. Если donorUserId передан
+ * (человек залогинен), после подтверждения оплаты вебхук выставит ему
+ * значок донора (users.isDonor) — см. api/boot.ts.
+ */
+export async function createDonationPayment(params: {
+  amountRub: number;
+  returnUrl: string;
+  idempotenceKey: string;
+  donorUserId?: number;
+  name?: string;
+  message?: string;
+}): Promise<CreatePaymentResult> {
+  return createPayment({
+    amountRub: params.amountRub,
+    returnUrl: params.returnUrl,
+    idempotenceKey: params.idempotenceKey,
+    description: `Донат на развитие проекта «Ай, настойка»`,
+    metadata: {
+      kind: "donation",
+      userId: params.donorUserId,
+      name: params.name?.slice(0, 100),
+      message: params.message?.slice(0, 500),
+    },
+  });
+}
+
 export type YookassaPaymentStatus = {
   id: string;
   status: "pending" | "waiting_for_capture" | "succeeded" | "canceled";
   paid: boolean;
   amount: { value: string; currency: string };
-  metadata?: { userId?: string | number };
+  metadata?: PaymentMetadata;
 };
 
 /**

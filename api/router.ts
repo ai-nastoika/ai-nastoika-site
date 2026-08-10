@@ -15,6 +15,7 @@ import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
 import { balanceRouter } from "./balanceRouter";
+import { donationRouter } from "./donationRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -155,14 +156,18 @@ export const appRouter = router({
         const { eq } = await import("drizzle-orm");
         const dbUser = await getDb().query.users.findFirst({ where: eq(usersTable.id, user.id) });
         if (!dbUser) return null;
-        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role, emailVerified: dbUser.emailVerified, avatar: dbUser.avatar };
+        return { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role, emailVerified: dbUser.emailVerified, avatar: dbUser.avatar, isDonor: dbUser.isDonor };
       }
       const token = (ctx as any).token;
       if (!token) return null;
       const { getAuthUser } = await import("./trpc");
       const user = await getAuthUser(token);
       if (!user) return null;
-      return { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified, avatar: user.avatar };
+      // Легаси-ветка (старый контекст по строковому token) — legacy-схема users
+      // в ./trpc не знает про isDonor, поэтому здесь безопасное значение по
+      // умолчанию; в реальности этот путь не используется — createContext
+      // (api/context.ts) всегда выставляет ctx.user, см. первую ветку выше.
+      return { id: user.id, name: user.name, email: user.email, role: user.role, emailVerified: user.emailVerified, avatar: user.avatar, isDonor: false };
     }),
 
     logout: publicProcedure.mutation(() => ({ success: true })),
@@ -404,6 +409,7 @@ export const appRouter = router({
   infusionConsult: infusionConsultRouter,
   adminStats: adminStatsRouter,
   balance: balanceRouter,
+  donation: donationRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),

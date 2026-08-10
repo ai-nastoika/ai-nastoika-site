@@ -11,8 +11,11 @@ import {
   Clock,
   Wallet,
   ArrowLeft,
+  Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useState } from "react";
+import { trpc } from "@/providers/trpc";
 
 const rules = [
   {
@@ -66,6 +69,74 @@ const rules = [
     text: "Рецепты, комментарии и профильные данные хранятся на сервере до удаления аккаунта. История ИИ-запросов хранится 90 дней. Если вы хотите удалить аккаунт и все связанные данные — напишите на info@ai-nastoika.ru с темой 'Удаление аккаунта'. Мы удалим всё в течение 7 рабочих дней.",
   },
 ];
+
+/* ── Донат через ЮKassa прямо на сайте, без ухода на Boosty и без обязательной авторизации ── */
+function DonateWidget() {
+  const { data: info } = trpc.donation.info.useQuery();
+  const [amount, setAmount] = useState<number | null>(null);
+  const [name, setName] = useState("");
+
+  const createDonation = trpc.donation.create.useMutation({
+    onSuccess: (data) => {
+      window.location.href = data.confirmationUrl;
+    },
+  });
+
+  // Пока на сервере не настроены ключи ЮKassa — не показываем виджет, чтобы
+  // не путать людей нерабочей кнопкой. Boosty-ссылка рядом продолжает работать.
+  if (!info?.paymentsConfigured) return null;
+
+  return (
+    <div
+      className="mt-6 rounded-xl p-5 max-w-sm mx-auto text-left"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+    >
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {info.presetsRub.map((v) => (
+          <button
+            key={v}
+            onClick={() => setAmount(v)}
+            className="rounded-lg py-2 text-sm font-medium transition-all"
+            style={{
+              background: amount === v ? "var(--accent)" : "var(--bg-primary)",
+              color: amount === v ? "#fff" : "var(--text-primary)",
+              border: "1px solid var(--border)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            {v} ₽
+          </button>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Имя для списка благодарности (необязательно)"
+        maxLength={100}
+        className="w-full rounded-lg px-3 py-2 text-sm mb-3 outline-none"
+        style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+      />
+      <button
+        onClick={() => amount && createDonation.mutate({ amountRub: amount, name: name.trim() || undefined })}
+        disabled={!amount || createDonation.isPending}
+        className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-opacity disabled:opacity-50"
+        style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+      >
+        {createDonation.isPending ? (
+          <><Loader2 size={16} className="animate-spin" /> Переходим к оплате...</>
+        ) : (
+          <><Heart size={16} /> Задонатить через ЮKassa</>
+        )}
+      </button>
+      {createDonation.isError && (
+        <p className="text-sm mt-2 text-center" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+          {createDonation.error.message}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function RulesPage() {
   const navigate = useNavigate();
@@ -278,6 +349,9 @@ export default function RulesPage() {
             <Heart size={20} />
             Поддержать на Boosty
           </a>
+
+          <DonateWidget />
+
           <p className="text-sm mt-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             Другие способы: <span style={{ color: "var(--accent)" }}>info@ai-nastoika.ru</span> или кнопка в шапке сайта
           </p>

@@ -339,6 +339,9 @@ export const users = mysqlTable("users", {
   // AI_REQUEST_COST_KOPECKS (см. api/lib/aiAccess.ts) и списывается с balanceKopecks.
   freeRequestsLeft: int("free_requests_left").default(5).notNull(),
   balanceKopecks: int("balance_kopecks").default(0).notNull(),
+  // Значок донора в профиле — выставляется после первого успешного доната
+  // (см. donations ниже и вебхук в api/boot.ts). Не влияет на лимиты ИИ-запросов.
+  isDonor: int("is_donor").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -394,6 +397,26 @@ export const transactions = mysqlTable("transactions", {
 
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = typeof transactions.$inferInsert;
+
+// ─── Донаты (поддержка проекта) ─────────────────────────────
+// Отдельно от transactions/баланса: донат не зачисляется на счёт пользователя
+// и не даёт дополнительных ИИ-запросов, только значок донора (users.isDonor).
+// Может быть анонимным (userId = null) — авторизация для доната не обязательна.
+export const donations = mysqlTable("donations", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }), // null — анонимный донат
+  name: varchar("name", { length: 100 }), // как подписать в публичном списке благодарности, если укажет
+  amountKopecks: int("amount_kopecks").notNull(),
+  message: text("message"),
+  // id платежа в ЮKassa — идемпотентность обработки вебхука, как и у transactions.externalId
+  externalId: varchar("external_id", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  externalIdIdx: uniqueIndex("donations_external_id_idx").on(table.externalId),
+}));
+
+export type Donation = typeof donations.$inferSelect;
+export type InsertDonation = typeof donations.$inferInsert;
 
 // ─── Saved Labels ───────────────────────────────────────────
 export const savedLabels = mysqlTable("saved_labels", {
