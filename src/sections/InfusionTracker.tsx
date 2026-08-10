@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -21,6 +22,7 @@ import {
   X,
   CalendarClock,
   CheckCircle2,
+  Wallet,
 } from "lucide-react";
 
 /* ── Типы этапов: иконка + подпись, используются и в таймлайне, и в форме создания ── */
@@ -351,7 +353,10 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       refetchLimit();
     },
-    onError: (err) => setError(err.message || "Не удалось получить ответ"),
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
+      refetchLimit();
+    },
   });
 
   function handleAsk() {
@@ -363,7 +368,9 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
     ask.mutate({ infusionId, question: q, history: messages.slice(-10) });
   }
 
-  const limitReached = limitInfo && limitInfo.remaining <= 0;
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
   return (
     <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -373,8 +380,12 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
           Спросить консультанта
         </h3>
         {limitInfo && (
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Осталось сегодня: {limitInfo.remaining} из {limitInfo.limit}
+          <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+            {limitInfo.freeRequestsLeft > 0 ? (
+              <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+            ) : (
+              <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+            )}
           </span>
         )}
       </div>
@@ -412,9 +423,12 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
       {error && <p className="text-sm mb-3" style={{ color: "#dc2626" }}>{error}</p>}
 
       {limitReached ? (
-        <p className="text-sm text-center py-2" style={{ color: "var(--text-muted)" }}>
-          Лимит консультаций на сегодня исчерпан — заходите завтра.
-        </p>
+        <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)" }}>
+          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+            Пополнить баланс
+          </Link>
+        </div>
       ) : (
         <div className="flex gap-2">
           <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)}

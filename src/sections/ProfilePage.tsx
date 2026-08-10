@@ -48,6 +48,18 @@ export default function ProfilePage() {
   const { user, emailVerified, phoneVerified, twoFactorEnabled } = useAuth();
   const utils = trpc.useUtils();
 
+  const { data: balanceData } = trpc.balance.me.useQuery(undefined, { enabled: !!user });
+  const { data: transactionsData } = trpc.balance.history.useQuery(
+    { limit: 30 },
+    { enabled: !!user && tab === "history" }
+  );
+  const [topupAmount, setTopupAmount] = useState<number | null>(null);
+  const createTopupMutation = trpc.balance.createTopup.useMutation({
+    onSuccess: (data) => {
+      window.location.href = data.confirmationUrl;
+    },
+  });
+
   const { data: favoritePlacesData } = trpc.favorites.myPlaces.useQuery(undefined, { enabled: !!user });
   const savedPlaces = favoritePlacesData || [];
   const { data: favoriteRecipesData } = trpc.favorites.myRecipes.useQuery(undefined, { enabled: !!user });
@@ -179,8 +191,10 @@ export default function ProfilePage() {
     name: user?.name ?? "Пользователь",
     email: user?.email ?? "",
     avatar: user?.avatar ?? null,
-    balance: 0,
-    usedQueries: 0,
+    balance: (balanceData?.balanceKopecks ?? 0) / 100,
+    freeRequestsLeft: balanceData?.freeRequestsLeft ?? 0,
+    costRub: (balanceData?.costKopecks ?? 200) / 100,
+    usedQueries: Math.max(0, 5 - (balanceData?.freeRequestsLeft ?? 5)),
     totalQueries: 150,
     recipesViewed: 0,
     favoritesCount: savedPlaces.length,
@@ -190,7 +204,13 @@ export default function ProfilePage() {
 
   const { data: savedLabels, refetch: refetchLabels } = trpc.savedLabels.list.useQuery();
   const deleteSavedLabel = trpc.savedLabels.delete.useMutation({ onSuccess: () => refetchLabels() });
-  const aiHistory: { id: number; tool: string; query: string; date: string; model: string }[] = [];
+
+  const TX_LABELS: Record<string, { label: string; color: string }> = {
+    topup: { label: "Пополнение баланса", color: "#16a34a" },
+    debit: { label: "Списание за ИИ-запрос", color: "#dc2626" },
+    refund: { label: "Возврат за неудавшийся запрос", color: "#16a34a" },
+    topup_pending: { label: "Пополнение (ожидает оплаты)", color: "var(--text-muted)" },
+  };
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -292,7 +312,11 @@ export default function ProfilePage() {
                   →
                 </div>
               </button>
-              <div className="rounded-xl px-5 py-3 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <button
+                onClick={() => setTab("history")}
+                className="rounded-xl px-5 py-3 text-center transition-all hover:-translate-y-0.5"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <Wallet size={22} style={{ color: "var(--accent)" }} />
                   <span className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Баланс</span>
@@ -300,7 +324,7 @@ export default function ProfilePage() {
                 <div className="text-xl font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>
                   {userData.balance} ₽
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -594,31 +618,113 @@ export default function ProfilePage() {
         {/* TRACKER */}
         {tab === "tracker" && <InfusionTracker initialInfusionId={initialInfusionId} />}
 
-        {/* AI HISTORY */}
+        {/* AI + BALANCE */}
         {tab === "history" && (
-          <div>
-            <h2 className="text-xl font-bold mb-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>История ИИ-запросов</h2>
-            {aiHistory.length === 0 ? (
-              <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <Wrench size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>История запросов пуста</div>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>ИИ-запросы и баланс</h2>
+
+            {/* Текущее состояние */}
+            <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Баланс</span>
+                <span className="text-2xl font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>{userData.balance} ₽</span>
               </div>
-            ) : (
-              <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                {aiHistory.map((h, i) => (
-                  <div key={h.id} className="flex items-center gap-4 px-5 py-3.5" style={{ borderBottom: i < aiHistory.length - 1 ? "1px solid var(--border)" : "none" }}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
-                      <Wrench size={16} style={{ color: "var(--accent)" }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{h.tool}</div>
-                      <div className="text-base truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{h.query}</div>
-                    </div>
-                    <div className="text-base shrink-0" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{h.date}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  {userData.freeRequestsLeft > 0 ? "Бесплатных запросов осталось" : `Цена запроса после бесплатных`}
+                </span>
+                <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                  {userData.freeRequestsLeft > 0 ? `${userData.freeRequestsLeft} из 5` : `${userData.costRub} ₽`}
+                </span>
+              </div>
+              {userData.freeRequestsLeft === 0 && userData.balance < userData.costRub && (
+                <div
+                  className="mt-4 rounded-lg px-4 py-3 text-base"
+                  style={{ background: "#fef3c7", color: "#92400e", fontFamily: "var(--font-body)" }}
+                >
+                  Бесплатные запросы закончились, а баланса не хватает на новый ({userData.costRub} ₽). Пополните баланс ниже, чтобы продолжить пользоваться ИИ-консультантом.
+                </div>
+              )}
+            </div>
+
+            {/* Пополнение */}
+            <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <h3 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Пополнить баланс</h3>
+              {balanceData?.paymentsConfigured === false ? (
+                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Приём платежей сейчас настраивается, скоро будет доступен.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {(balanceData?.topupPresetsRub ?? [100, 300, 500, 1000]).map((amount) => (
+                      <button
+                        key={amount}
+                        onClick={() => setTopupAmount(amount)}
+                        className="rounded-lg py-2.5 text-base font-medium transition-all"
+                        style={{
+                          background: topupAmount === amount ? "var(--accent)" : "var(--bg-primary)",
+                          color: topupAmount === amount ? "#fff" : "var(--text-primary)",
+                          border: "1px solid var(--border)",
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {amount} ₽
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                  <button
+                    onClick={() => topupAmount && createTopupMutation.mutate({ amountRub: topupAmount })}
+                    disabled={!topupAmount || createTopupMutation.isPending}
+                    className="w-full rounded-lg py-3 text-base font-medium transition-opacity disabled:opacity-50"
+                    style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+                  >
+                    {createTopupMutation.isPending ? "Переходим к оплате..." : "Оплатить"}
+                  </button>
+                  {createTopupMutation.isError && (
+                    <div className="mt-3 text-base" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                      {createTopupMutation.error.message}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* История операций */}
+            <div>
+              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>История операций</h3>
+              {!transactionsData || transactionsData.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <Wrench size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Операций пока нет</div>
+                </div>
+              ) : (
+                <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  {transactionsData.map((tx, i) => {
+                    const meta = TX_LABELS[tx.type] ?? { label: tx.type, color: "var(--text-muted)" };
+                    const amountRub = tx.amountKopecks / 100;
+                    return (
+                      <div key={tx.id} className="flex items-center gap-4 px-5 py-3.5" style={{ borderBottom: i < transactionsData.length - 1 ? "1px solid var(--border)" : "none" }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
+                          <Wallet size={16} style={{ color: "var(--accent)" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{meta.label}</div>
+                          <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                            {new Date(tx.createdAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                        {amountRub !== 0 && (
+                          <div className="text-base font-medium shrink-0" style={{ color: meta.color, fontFamily: "var(--font-body)" }}>
+                            {amountRub > 0 ? "+" : ""}{amountRub} ₽
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

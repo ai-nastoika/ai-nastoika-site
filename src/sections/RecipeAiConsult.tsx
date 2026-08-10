@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Send, Loader2, MessageCircleQuestion, LogIn } from "lucide-react";
+import { Sparkles, Send, Loader2, MessageCircleQuestion, LogIn, Wallet } from "lucide-react";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -24,11 +24,14 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
   });
 
   const ask = trpc.recipeConsult.ask.useMutation({
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       refetchLimit();
     },
-    onError: (err) => setError(err.message || "Не удалось получить ответ"),
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
+      refetchLimit();
+    },
   });
 
   function handleAsk(text?: string) {
@@ -67,7 +70,9 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
     );
   }
 
-  const limitReached = limitInfo && limitInfo.remaining <= 0;
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
   return (
     <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -77,8 +82,12 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
           Консультация ИИ по рецепту
         </h3>
         {limitInfo && (
-          <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Осталось сегодня: {limitInfo.remaining} из {limitInfo.limit}
+          <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            {limitInfo.freeRequestsLeft > 0 ? (
+              <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+            ) : (
+              <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+            )}
           </span>
         )}
       </div>
@@ -135,9 +144,12 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
       {error && <p className="text-sm mb-3" style={{ color: "#dc2626" }}>{error}</p>}
 
       {limitReached ? (
-        <p className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Лимит бесплатных консультаций на сегодня исчерпан — заходите завтра.
-        </p>
+        <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+            Пополнить баланс
+          </Link>
+        </div>
       ) : (
         <div className="flex gap-2">
           <input

@@ -33,12 +33,12 @@ const rules = [
   {
     icon: Wallet,
     title: "Лимиты и стоимость",
-    text: "Без регистрации доступно 2 бесплатных запроса — чтобы оценить качество. После регистрации вы получаете 5 запросов в день бесплатно. Если лимит исчерпан, каждый следующий запрос стоит 2 рубля. Дополнительно платные запросы дают более развёрнутый и подробный ответ с детальным анализом каждого компонента.",
+    text: "Незарегистрированным пользователям ИИ-консультант недоступен. После регистрации вы получаете 5 бесплатных запросов на аккаунт — разово, не сгорают по дням. Когда бесплатные запросы закончатся, каждый следующий стоит 2 ₽ и списывается с баланса личного кабинета — пополнить баланс можно в любой момент прямо в профиле.",
   },
   {
     icon: Lock,
     title: "Конфиденциальность",
-    text: "Мы не передаём персональные данные третьим лицам. Email используется только для входа и важных уведомлений. Пароли хранятся в зашифрованном виде (bcrypt). История ваших запросов видна только вам. Мы не используем cookie для отслеживания — только анонимный fingerprint для подсчёта лимитов незарегистрированных пользователей.",
+    text: "Мы не передаём персональные данные третьим лицам. Email используется только для входа и важных уведомлений. Пароли хранятся в зашифрованном виде (bcrypt). История ваших ИИ-запросов и операций по балансу видна только вам.",
   },
   {
     icon: Heart,
@@ -173,10 +173,10 @@ export default function RulesPage() {
             {/* Without registration */}
             <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Без регистрации</h3>
-              <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>2 запроса</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Бесплатно, навсегда</p>
+              <div className="text-3xl font-bold mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-heading)" }}>Недоступно</div>
+              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>ИИ-консультант только для аккаунтов</p>
               <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                Два пробных запроса, чтобы оценить качество ИИ-консультанта.
+                Рецепты, барная карта и комментарии доступны без регистрации — а вот вопросы ИИ-консультанту только после входа в аккаунт.
               </p>
             </div>
 
@@ -186,10 +186,10 @@ export default function RulesPage() {
                 <Zap size={14} /> Рекомендуем
               </div>
               <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>После регистрации</h3>
-              <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>5 / день</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Бесплатно, обновляется каждый день</p>
+              <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>5 запросов</div>
+              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Бесплатно, разово на аккаунт</p>
               <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                Пять запросов в день — достаточно для планирования экспериментов.
+                Пять бесплатных вопросов ИИ-консультанту сразу после регистрации — не сгорают по дням, тратьте когда удобно.
               </p>
             </div>
 
@@ -197,9 +197,9 @@ export default function RulesPage() {
             <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Сверх лимита</h3>
               <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>2 ₽</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Запрос</p>
+              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>За запрос, с баланса</p>
               <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                После исчерпания дневного лимита — 2 рубля за запрос. Также платные запросы дают более развёрнутый и подробный ответ.
+                После пяти бесплатных — 2 ₽ за запрос, списываются с баланса личного кабинета. Баланс пополняется в профиле в любой момент.
               </p>
             </div>
           </div>
@@ -298,7 +298,7 @@ export default function RulesPage() {
             {[
               {
                 q: "Обязательна ли регистрация?",
-                a: "Нет. Все рецепты, барная карта, комментарии и часть инструментов доступны без регистрации. Регистрация нужна только для ИИ-консультанта (5 запросов в день) и личного кабинета с избранным.",
+                a: "Для рецептов, барной карты, комментариев и части инструментов — нет, они доступны без регистрации. А вот ИИ-консультант доступен только после регистрации: 5 бесплатных запросов на аккаунт, дальше 2 ₽ за запрос с баланса. Личный кабинет с избранным тоже требует регистрации.",
               },
               {
                 q: "Что такое ИИ-запрос?",
@@ -306,7 +306,7 @@ export default function RulesPage() {
               },
               {
                 q: "Чем платный запрос отличается от бесплатного?",
-                a: "Платный запрос (2 ₽) даёт более развёрнутый и детальный ответ с углубленным анализом каждого компонента рецепта, дополнительными рекомендациями и более точным вкусовым профилем.",
+                a: "Ничем, кроме оплаты — ИИ отвечает одинаково подробно в обоих случаях. 2 ₽ списываются только после того, как закончатся пять бесплатных запросов, выданных при регистрации.",
               },
               {
                 q: "Откуда рецепты в базе?",
@@ -314,7 +314,7 @@ export default function RulesPage() {
               },
               {
                 q: "Где посмотреть остаток запросов?",
-                a: "В личном кабинете, в разделе 'Баланс и лимиты'. Там отображается, сколько запросов вы использовали сегодня и сколько осталось.",
+                a: "В личном кабинете, на вкладке «ИИ» — там показан баланс, сколько бесплатных запросов осталось и история операций.",
               },
               {
                 q: "Что даёт донат?",

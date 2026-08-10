@@ -7,6 +7,8 @@ import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
+import { creditTopup } from "./lib/balance";
+import { fetchPaymentStatus } from "./lib/payments";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -234,6 +236,47 @@ app.post("/api/upload-avatar", async (c) => {
   } catch (err) {
     console.error("Avatar upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── ЮKassa webhook: подтверждение оплаты пополнения баланса ───
+// Настраивается в личном кабинете ЮKassa на событие payment.succeeded.
+// Телу вебхука не доверяем напрямую (его в теории можно подделать) —
+// перепроверяем статус платежа отдельным запросом к самой ЮKassa по id.
+// Зачисление идемпотентно (см. api/lib/balance.ts) — повторный вебхук
+// по уже зачисленному платежу просто ничего не сделает повторно.
+app.post("/api/webhooks/yookassa", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => null)) as { object?: { id?: string } } | null;
+    const paymentId = body?.object?.id;
+    if (!paymentId) {
+      return c.json({ error: "no payment id in webhook body" }, 400);
+    }
+
+    const payment = await fetchPaymentStatus(paymentId);
+    if (payment.status !== "succeeded" || !payment.paid) {
+      // Платёж отменён/ещё не завершён — не ошибка, просто нечего зачислять.
+      return c.json({ ok: true, skipped: true });
+    }
+
+    const userId = Number(payment.metadata?.userId);
+    if (!userId || Number.isNaN(userId)) {
+      console.error("YooKassa webhook: no userId in payment metadata", payment.id);
+      return c.json({ error: "no userId in payment metadata" }, 400);
+    }
+
+    const amountKopecks = Math.round(parseFloat(payment.amount.value) * 100);
+    const result = await creditTopup({
+      userId,
+      amountKopecks,
+      externalId: payment.id,
+      meta: { source: "yookassa_webhook" },
+    });
+
+    return c.json({ ok: true, credited: result.credited });
+  } catch (err) {
+    console.error("YooKassa webhook error:", err);
+    return c.json({ error: "internal error" }, 500);
   }
 });
 

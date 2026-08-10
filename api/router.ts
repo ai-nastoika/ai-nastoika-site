@@ -14,6 +14,7 @@ import { recipeConsultRouter } from "./recipeConsultRouter";
 import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
+import { balanceRouter } from "./balanceRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -402,6 +403,7 @@ export const appRouter = router({
   infusion: infusionRouter,
   infusionConsult: infusionConsultRouter,
   adminStats: adminStatsRouter,
+  balance: balanceRouter,
 
   recipeParser: router({
     checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),
