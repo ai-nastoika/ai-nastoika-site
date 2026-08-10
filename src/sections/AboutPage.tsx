@@ -287,7 +287,7 @@ export default function AboutPage() {
             style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
           >
             Регистрация занимает 30 секунд. После неё открывается доступ ко всем рецептам,
-            история запросов и 5 ИИ-запросов в день.
+            история запросов и 5 бесплатных ИИ-запросов на аккаунт.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <a

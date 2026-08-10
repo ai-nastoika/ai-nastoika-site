@@ -1652,8 +1652,8 @@ export default function ToolsPage() {
             className="text-lg max-w-xl"
             style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
           >
-            Базовые инструменты бесплатны. Без регистрации — 2 пробных запроса к ИИ.
-            После регистрации — 5 запросов в день.
+            Базовые инструменты бесплатны. ИИ-консультант доступен после регистрации —
+            5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса.
           </p>
         </div>
       </section>
@@ -1741,8 +1741,8 @@ export default function ToolsPage() {
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
                   <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    Без регистрации — 2 пробных запроса. После регистрации — 5 запросов/день к базовой модели.
-                    Для продвинутых моделей — оплата за запрос, без подписки.
+                    ИИ-консультант доступен после регистрации: 5 бесплатных запросов на аккаунт,
+                    дальше 2 ₽ за запрос с баланса личного кабинета.
                   </p>
                 </div>
               </div>
