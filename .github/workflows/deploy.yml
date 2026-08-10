@@ -13,10 +13,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            set -e
             systemctl stop pm2-deploy.service || true
             fuser -k 3000/tcp || true
             cd /var/www/ai-nastoika-site
             git pull origin main
             npm ci
+            npm run db:migrate
             npm run build
             pm2 restart /var/www/ai-nastoika-site/ecosystem.config.cjs --update-env
