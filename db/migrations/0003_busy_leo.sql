@@ -1,0 +1,1 @@
+ALTER TABLE `label_templates` ADD `zones` json;
