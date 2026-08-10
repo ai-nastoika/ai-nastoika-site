@@ -333,6 +333,12 @@ export const users = mysqlTable("users", {
   phone: varchar("phone", { length: 20 }),
   phoneVerified: int("phone_verified").default(0).notNull(),
   twoFactorEnabled: int("two_factor_enabled").default(0).notNull(),
+  // ─── Тарификация ИИ-запросов ───
+  // Новый пользователь получает 5 бесплатных запросов к ИИ-консультанту (разово,
+  // не сгорают по дням). После того как счётчик обнулился, каждый запрос стоит
+  // AI_REQUEST_COST_KOPECKS (см. api/lib/aiAccess.ts) и списывается с balanceKopecks.
+  freeRequestsLeft: int("free_requests_left").default(5).notNull(),
+  balanceKopecks: int("balance_kopecks").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -361,8 +367,33 @@ export const aiUsage = mysqlTable("ai_usage", {
   fingerprint: varchar("fingerprint", { length: 64 }),
   requestType: varchar("request_type", { length: 20 }).notNull(),
   tokensUsed: int("tokens_used").default(0),
+  // 0, если списан бесплатный запрос; иначе — сколько реально списано с баланса (в копейках)
+  costKopecks: int("cost_kopecks").default(0).notNull(),
+  wasFree: int("was_free").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export type AiUsage = typeof aiUsage.$inferSelect;
+
+// ─── Транзакции по балансу (пополнения и списания за ИИ-запросы) ─────
+export const transactions = mysqlTable("transactions", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  // topup_pending — платёж создан, ждём подтверждения от шлюза; topup — зачислено;
+  // debit — списание за платный ИИ-запрос; refund — возврат за неудавшийся запрос
+  type: varchar("type", { length: 20 }).notNull(),
+  amountKopecks: int("amount_kopecks").notNull(), // положительное для topup/refund, отрицательное для debit
+  balanceAfter: int("balance_after").notNull(),
+  // id платежа в ЮKassa — для идемпотентной обработки вебхука (не зачислить дважды)
+  externalId: varchar("external_id", { length: 128 }),
+  meta: json("meta").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  externalIdIdx: uniqueIndex("transactions_external_id_idx").on(table.externalId),
+}));
+
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = typeof transactions.$inferInsert;
 
 // ─── Saved Labels ───────────────────────────────────────────
 export const savedLabels = mysqlTable("saved_labels", {

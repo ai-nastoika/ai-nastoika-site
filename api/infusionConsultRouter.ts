@@ -1,20 +1,15 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { infusions, infusionStages, aiUsage } from "@db/schema";
-import { eq, and, gte, count } from "drizzle-orm";
+import { infusions, infusionStages } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 
-/* Дневной лимит бесплатных консультаций на одного пользователя — общий счётчик
-   с recipeConsult, но отдельный requestType, чтобы можно было настроить лимиты раздельно. */
-const DAILY_LIMIT = 5;
+/* Тарификация общая с recipeConsult (см. api/lib/aiAccess.ts): 5 бесплатных
+   запросов на аккаунт, дальше — 2 ₽ за запрос с баланса. requestType отдельный,
+   чтобы в истории/статистике было видно, откуда пришёл запрос. */
 const REQUEST_TYPE = "infusion_consultation";
-
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 const stageLabels: Record<string, string> = {
   pour: "Поставить",
@@ -66,15 +61,9 @@ ${stagesText || "(этапы ещё не заданы)"}`;
 }
 
 export const infusionConsultRouter = createRouter({
-  /* ── Сколько консультаций по трекеру осталось сегодня ── */
+  /* ── Текущий доступ: сколько бесплатных осталось и хватает ли баланса ── */
   checkLimit: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const rows = await db
-      .select({ value: count() })
-      .from(aiUsage)
-      .where(and(eq(aiUsage.userId, ctx.user.id), eq(aiUsage.requestType, REQUEST_TYPE), gte(aiUsage.createdAt, startOfToday())));
-    const used = Number(rows[0]?.value ?? 0);
-    return { used, limit: DAILY_LIMIT, remaining: Math.max(0, DAILY_LIMIT - used) };
+    return getAiAccessState(ctx.user.id);
   }),
 
   /* ── Задать вопрос по конкретному трекеру ── */
@@ -92,17 +81,13 @@ export const infusionConsultRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
-      const usedRows = await db
-        .select({ value: count() })
-        .from(aiUsage)
-        .where(and(eq(aiUsage.userId, ctx.user.id), eq(aiUsage.requestType, REQUEST_TYPE), gte(aiUsage.createdAt, startOfToday())));
-      const usedToday = Number(usedRows[0]?.value ?? 0);
-      if (usedToday >= DAILY_LIMIT) {
-        throw new Error(`Достигнут дневной лимит консультаций (${DAILY_LIMIT}). Попробуйте завтра.`);
-      }
+      // Списываем бесплатный запрос или 2 ₽ с баланса ДО обращения к ИИ.
+      // Бросает TRPCError('FORBIDDEN'), если ни бесплатных, ни денег не осталось.
+      const charge = await chargeAiRequest(ctx.user.id);
 
       const infusion = await db.query.infusions.findFirst({ where: eq(infusions.id, input.infusionId) });
       if (!infusion || infusion.userId !== ctx.user.id) {
+        await refundAiRequest(ctx.user.id, charge);
         throw new TRPCError({ code: "NOT_FOUND", message: "Трекер не найден" });
       }
 
@@ -113,6 +98,7 @@ export const infusionConsultRouter = createRouter({
       const model = process.env.AI_MODEL || "gpt-4o-mini";
 
       if (!apiKey) {
+        await refundAiRequest(ctx.user.id, charge);
         throw new Error("ИИ-консультация временно недоступна: не задан AI_API_KEY на сервере");
       }
 
@@ -122,27 +108,31 @@ export const infusionConsultRouter = createRouter({
         { role: "user", content: input.question },
       ];
 
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, temperature: 0.6, max_tokens: 500 }),
-      });
+      let answer: string;
+      let tokensUsed = 0;
+      try {
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, messages, temperature: 0.6, max_tokens: 500 }),
+        });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
+        }
+
+        const json = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number } };
+        answer = json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ";
+        tokensUsed = json.usage?.total_tokens ?? 0;
+      } catch (err) {
+        await refundAiRequest(ctx.user.id, charge);
+        throw err;
       }
 
-      const json = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number } };
-      const answer: string = json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ";
-      const tokensUsed: number = json.usage?.total_tokens ?? 0;
+      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
 
-      await db.insert(aiUsage).values({
-        userId: ctx.user.id,
-        requestType: REQUEST_TYPE,
-        tokensUsed,
-      });
-
-      return { answer, remaining: Math.max(0, DAILY_LIMIT - usedToday - 1) };
+      const access = await getAiAccessState(ctx.user.id);
+      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access };
     }),
 });

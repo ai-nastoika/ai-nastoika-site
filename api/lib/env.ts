@@ -14,4 +14,8 @@ export const env = {
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
   moonshotApiKey: process.env.MOONSHOT_API_KEY ?? "",
+  // ЮKassa (пополнение баланса личного кабинета) — не required(), т.к. без них
+  // сайт должен продолжать работать, просто пополнение будет недоступно.
+  yookassaShopId: process.env.YOOKASSA_SHOP_ID ?? "",
+  yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY ?? "",
 };
