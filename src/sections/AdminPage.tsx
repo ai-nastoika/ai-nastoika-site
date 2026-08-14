@@ -2082,22 +2082,136 @@ function Area({ label, value, onChange, placeholder }: { label: string; value: s
     </div>
   );
 }
+const roleLabels: Record<string, string> = {
+  user: "Пользователь",
+  editor: "Редактор",
+  admin: "Админ",
+};
+
+const roleColors: Record<string, string> = {
+  user: "#6b7280",
+  editor: "#2563eb",
+  admin: "#dc2626",
+};
+
+/* Строка таблицы пользователей вынесена в отдельный компонент, чтобы у полей
+   ввода "выдать запросы" / "начислить баланс" было своё локальное состояние —
+   иначе один инпут на всю таблицу путал бы значения между строками. */
+function UserRow({
+  u,
+  busy,
+  onRoleChange,
+  onDelete,
+  onGrantRequests,
+  onGrantBalance,
+}: {
+  u: { id: number; name: string | null; email: string; role: string; createdAt: Date | string; freeRequestsLeft: number; balanceKopecks: number };
+  busy: boolean;
+  onRoleChange: (role: string) => void;
+  onDelete: () => void;
+  onGrantRequests: (amount: number) => void;
+  onGrantBalance: (amountRub: number) => void;
+}) {
+  const [requestsAmount, setRequestsAmount] = useState(5);
+  const [balanceAmount, setBalanceAmount] = useState(100);
+
+  return (
+    <TableRow>
+      <TableCell>{u.id}</TableCell>
+      <TableCell>{u.name ?? "—"}</TableCell>
+      <TableCell>{u.email}</TableCell>
+      <TableCell>
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+          style={{ background: roleColors[u.role] ?? "#6b7280" }}
+        >
+          {roleLabels[u.role] ?? u.role}
+        </span>
+      </TableCell>
+      <TableCell>
+        {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <span className="text-sm" style={{ minWidth: 16 }}>{u.freeRequestsLeft}</span>
+          <input
+            type="number"
+            min={1}
+            value={requestsAmount}
+            onChange={(e) => setRequestsAmount(Number(e.target.value))}
+            className="w-14 text-sm rounded px-1 py-0.5"
+            style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+          />
+          <button
+            disabled={busy || requestsAmount < 1}
+            onClick={() => onGrantRequests(requestsAmount)}
+            className="text-xs px-2 py-1 rounded transition-opacity hover:opacity-70 disabled:opacity-40"
+            style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}
+          >
+            Выдать
+          </button>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <span className="text-sm" style={{ minWidth: 40 }}>{(u.balanceKopecks / 100).toFixed(0)} ₽</span>
+          <input
+            type="number"
+            min={1}
+            value={balanceAmount}
+            onChange={(e) => setBalanceAmount(Number(e.target.value))}
+            className="w-16 text-sm rounded px-1 py-0.5"
+            style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+          />
+          <button
+            disabled={busy || balanceAmount < 1}
+            onClick={() => onGrantBalance(balanceAmount)}
+            className="text-xs px-2 py-1 rounded transition-opacity hover:opacity-70 disabled:opacity-40"
+            style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}
+          >
+            Начислить
+          </button>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-2">
+          <select
+            value={u.role}
+            onChange={(e) => onRoleChange(e.target.value)}
+            className="text-sm rounded px-2 py-1"
+            style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+          >
+            <option value="user">Пользователь</option>
+            <option value="editor">Редактор</option>
+            <option value="admin">Админ</option>
+          </select>
+          <button
+            onClick={onDelete}
+            className="text-sm px-2 py-1 rounded transition-opacity hover:opacity-70"
+            style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
+          >
+            Удалить
+          </button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function UsersTab() {
   const { data: usersList, refetch } = trpc.user.list.useQuery();
   const setRoleMutation = trpc.user.setRole.useMutation({ onSuccess: () => refetch() });
   const deleteMutation = trpc.user.delete.useMutation({ onSuccess: () => refetch() });
+  const grantRequestsMutation = trpc.user.grantFreeRequests.useMutation({
+    onSuccess: () => refetch(),
+    onError: (err) => alert("Ошибка: " + err.message),
+  });
+  const grantBalanceMutation = trpc.user.grantBalance.useMutation({
+    onSuccess: () => refetch(),
+    onError: (err) => alert("Ошибка: " + err.message),
+  });
 
-  const roleLabels: Record<string, string> = {
-    user: "Пользователь",
-    editor: "Редактор",
-    admin: "Админ",
-  };
-
-  const roleColors: Record<string, string> = {
-    user: "#6b7280",
-    editor: "#2563eb",
-    admin: "#dc2626",
-  };
+  const busy = grantRequestsMutation.isPending || grantBalanceMutation.isPending;
 
   return (
     <div>
@@ -2113,48 +2227,22 @@ function UsersTab() {
               <TableHead>Email</TableHead>
               <TableHead>Роль</TableHead>
               <TableHead>Дата регистрации</TableHead>
+              <TableHead>Бесплатные запросы</TableHead>
+              <TableHead>Баланс</TableHead>
               <TableHead>Действия</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(usersList ?? []).map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>{u.id}</TableCell>
-                <TableCell>{u.name ?? "—"}</TableCell>
-                <TableCell>{u.email}</TableCell>
-                <TableCell>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                    style={{ background: roleColors[u.role] ?? "#6b7280" }}
-                  >
-                    {roleLabels[u.role] ?? u.role}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {new Date(u.createdAt).toLocaleDateString("ru-RU")}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <select
-                      value={u.role}
-                      onChange={(e) => setRoleMutation.mutate({ userId: Number(u.id), role: e.target.value as any })}
-                      className="text-sm rounded px-2 py-1"
-                      style={{ border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
-                    >
-                      <option value="user">Пользователь</option>
-                      <option value="editor">Редактор</option>
-                      <option value="admin">Админ</option>
-                    </select>
-                    <button
-                      onClick={() => { if (confirm(`Удалить ${u.email}?`)) deleteMutation.mutate({ userId: Number(u.id) }); }}
-                      className="text-sm px-2 py-1 rounded transition-opacity hover:opacity-70"
-                      style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </TableCell>
-              </TableRow>
+              <UserRow
+                key={u.id}
+                u={u}
+                busy={busy}
+                onRoleChange={(role) => setRoleMutation.mutate({ userId: Number(u.id), role: role as "user" | "editor" | "admin" })}
+                onDelete={() => { if (confirm(`Удалить ${u.email}?`)) deleteMutation.mutate({ userId: Number(u.id) }); }}
+                onGrantRequests={(amount) => grantRequestsMutation.mutate({ userId: Number(u.id), amount })}
+                onGrantBalance={(amountRub) => grantBalanceMutation.mutate({ userId: Number(u.id), amountRub })}
+              />
             ))}
           </TableBody>
         </Table>

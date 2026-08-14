@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import QRCode from "qrcode";
 import {
   Wand2,
@@ -14,42 +14,84 @@ import {
   Download,
   ArrowLeft,
   Star,
+  LogIn,
+  Wallet,
 } from "lucide-react";
 
 /* ============================================================
    SUB-COMPONENT: AI Taste Calculator
+   Требует логина — тарификация общая с recipeConsult/infusionConsult
+   (5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса). См. api/tasteCalculatorRouter.ts.
    ============================================================ */
 function TasteCalculator() {
+  const { isLoggedIn } = useAuth();
   const [ingredients, setIngredients] = useState("");
-  const [result, setResult] = useState<null | {
-    recipe: string;
-    taste: string;
-    color: string;
-  }>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { data: limitInfo, refetch: refetchLimit } = trpc.tasteCalculator.checkLimit.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
+
+  const generate = trpc.tasteCalculator.generate.useMutation({
+    onSuccess: () => {
+      setError("");
+      refetchLimit();
+    },
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
+      refetchLimit();
+    },
+  });
+
+  const result = generate.data?.answer ?? null;
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
   const handleSubmit = () => {
-    if (!ingredients.trim()) return;
-    setLoading(true);
-    setTimeout(() => {
-      setResult({
-        recipe: `${ingredients} — настойка на водке, 21 день. Сахар: 150 г/л, лимонная цедра: 10 г.`,
-        taste: "Сладковатый, с лёгкой кислинкой и ярким ароматом. Послевкусие — тёплое, пряное.",
-        color: "Янтарно-рубиновый, прозрачный.",
-      });
-      setLoading(false);
-    }, 1200);
+    if (!ingredients.trim() || generate.isPending || limitReached) return;
+    setError("");
+    generate.mutate({ description: ingredients.trim() });
   };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Опишите идею или ингредиенты — ИИ составит рецептуру и расскажет о вкусовом профиле. Доступно после входа в аккаунт.
+        </p>
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
+          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+        >
+          <LogIn size={16} /> Войти, чтобы попробовать
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="mb-6">
-        <label
-          className="block text-base font-medium mb-2"
-          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-        >
-          Опишите идею или перечислите ингредиенты
-        </label>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label
+            className="text-base font-medium"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+          >
+            Опишите идею или перечислите ингредиенты
+          </label>
+          {limitInfo && (
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              {limitInfo.freeRequestsLeft > 0 ? (
+                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+              ) : (
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+              )}
+            </span>
+          )}
+        </div>
         <textarea
           value={ingredients}
           onChange={(e) => setIngredients(e.target.value)}
@@ -65,24 +107,39 @@ function TasteCalculator() {
         />
       </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !ingredients.trim()}
-        className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-        style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-      >
-        {loading ? (
-          <>
-            <Sparkles size={22} className="animate-spin" />
-            Думаю...
-          </>
-        ) : (
-          <>
-            <Wand2 size={22} />
-            Составить рецептуру
-          </>
-        )}
-      </button>
+      {error && (
+        <p className="text-sm mb-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+          {error}
+        </p>
+      )}
+
+      {limitReached ? (
+        <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+            Пополнить баланс
+          </Link>
+        </div>
+      ) : (
+        <button
+          onClick={handleSubmit}
+          disabled={generate.isPending || !ingredients.trim()}
+          className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+        >
+          {generate.isPending ? (
+            <>
+              <Sparkles size={22} className="animate-spin" />
+              Думаю...
+            </>
+          ) : (
+            <>
+              <Wand2 size={22} />
+              Составить рецептуру
+            </>
+          )}
+        </button>
+      )}
 
       {result && (
         <div
@@ -121,6 +178,12 @@ function TasteCalculator() {
             <div className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
               {result.color}
             </div>
+          </div>
+          <div
+            className="text-xs pt-3"
+            style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", borderTop: "1px solid var(--border)" }}
+          >
+            Это ориентировочная идея от ИИ, а не проверенный рецепт — сверьте пропорции перед использованием.
           </div>
         </div>
       )}

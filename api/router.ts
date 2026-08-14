@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq, and, avg, count, desc } from "drizzle-orm";
-import { recipeRatings, comments, feedback } from "../db/schema";
+import { eq, and, avg, count, desc, sql } from "drizzle-orm";
+import { recipeRatings, comments, feedback, transactions, users as usersFull } from "../db/schema";
+// ^ users из "./trpc" — устаревшая копия схемы без free_requests_left/balance_kopecks
+//   (см. api/trpc.ts). usersFull — актуальная таблица из db/schema.ts, с этими полями.
+//   Используется ниже только там, где эти поля реально нужны (list/grant*).
 import { sendEmail } from "./lib/email";
 import crypto from "crypto";
 import { labelTemplateRouter } from "./labelTemplateRouter";
@@ -13,6 +16,7 @@ import { favoritesRouter } from "./favoritesRouter";
 import { recipeConsultRouter } from "./recipeConsultRouter";
 import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
+import { tasteCalculatorRouter } from "./tasteCalculatorRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
 import { balanceRouter } from "./balanceRouter";
 import { donationRouter } from "./donationRouter";
@@ -205,12 +209,14 @@ export const appRouter = router({
   user: router({
     list: adminProcedure.query(async () => {
       return db.select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        role: users.role,
-        createdAt: users.createdAt,
-      }).from(users);
+        id: usersFull.id,
+        email: usersFull.email,
+        name: usersFull.name,
+        role: usersFull.role,
+        createdAt: usersFull.createdAt,
+        freeRequestsLeft: usersFull.freeRequestsLeft,
+        balanceKopecks: usersFull.balanceKopecks,
+      }).from(usersFull);
     }),
 
     setRole: adminProcedure
@@ -226,6 +232,46 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         if (input.userId === ctx.userId) throw new Error("Нельзя удалить себя");
         await db.delete(users).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
+
+    /* ── Выдать пользователю N бесплатных ИИ-запросов (админ) ── */
+    grantFreeRequests: adminProcedure
+      .input(z.object({ userId: z.number(), amount: z.number().int().min(1).max(1000) }))
+      .mutation(async ({ input }) => {
+        await db
+          .update(usersFull)
+          .set({ freeRequestsLeft: sql`${usersFull.freeRequestsLeft} + ${input.amount}` })
+          .where(eq(usersFull.id, input.userId));
+        return { success: true };
+      }),
+
+    /* ── Начислить пользователю баланс в рублях (админ) ──
+       Пишет запись в transactions, чтобы начисление было видно в истории
+       баланса личного кабинета — так же, как обычное пополнение через ЮKassa. */
+    grantBalance: adminProcedure
+      .input(z.object({ userId: z.number(), amountRub: z.number().min(1).max(100000) }))
+      .mutation(async ({ input, ctx }) => {
+        const amountKopecks = Math.round(input.amountRub * 100);
+
+        await db
+          .update(usersFull)
+          .set({ balanceKopecks: sql`${usersFull.balanceKopecks} + ${amountKopecks}` })
+          .where(eq(usersFull.id, input.userId));
+
+        const [updated] = await db
+          .select({ balanceKopecks: usersFull.balanceKopecks })
+          .from(usersFull)
+          .where(eq(usersFull.id, input.userId));
+
+        await db.insert(transactions).values({
+          userId: input.userId,
+          type: "admin_topup",
+          amountKopecks,
+          balanceAfter: updated?.balanceKopecks ?? 0,
+          meta: { reason: "admin_grant", grantedBy: ctx.userId },
+        });
+
         return { success: true };
       }),
   }),
@@ -403,6 +449,9 @@ export const appRouter = router({
 
   // ─── Консультация ИИ по рецепту ───
   recipeConsult: recipeConsultRouter,
+
+  // ─── Калькулятор вкуса с ИИ (требует логина, тарификация как у recipeConsult) ───
+  tasteCalculator: tasteCalculatorRouter,
 
   // ─── Трекер созревания ───
   infusion: infusionRouter,

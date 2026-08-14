@@ -8,8 +8,9 @@ import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "
 
 /* Тарификация общая с recipeConsult (см. api/lib/aiAccess.ts): 5 бесплатных
    запросов на аккаунт, дальше — 2 ₽ за запрос с баланса. requestType отдельный,
-   чтобы в истории/статистике было видно, откуда пришёл запрос. */
-const REQUEST_TYPE = "infusion_consultation";
+   чтобы в истории/статистике было видно, откуда пришёл запрос.
+   ВАЖНО: колонка ai_usage.request_type — varchar(20), значение должно влезать. */
+const REQUEST_TYPE = "infusion_consult";
 
 const stageLabels: Record<string, string> = {
   pour: "Поставить",
