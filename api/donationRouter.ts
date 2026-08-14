@@ -50,7 +50,10 @@ export const donationRouter = createRouter({
         throw new Error("Приём платежей пока не настроен на сервере. Попробуйте позже.");
       }
 
-      const returnUrl = "https://dev.ai-nastoika.ru/about?donation=done";
+      // SITE_URL — та же переменная, что и в balanceRouter.ts/api/router.ts.
+      // Если не задана — фоллбэк на dev-домен, чтобы не ломать текущую разработку.
+      const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
+      const returnUrl = `${siteUrl}/about?donation=done`;
 
       const payment = await createDonationPayment({
         amountRub: input.amountRub,

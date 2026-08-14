@@ -44,7 +44,11 @@ export const balanceRouter = createRouter({
         throw new Error("Приём платежей пока не настроен на сервере. Попробуйте позже.");
       }
 
-      const returnUrl = "https://dev.ai-nastoika.ru/profile?topup=done";
+      // SITE_URL — та же переменная, что использует email-верификация (api/router.ts)
+      // и трекер-напоминания (api/lib/trackerReminders.ts). Если не задана — фоллбэк
+      // на dev-домен, чтобы не ломать текущую разработку.
+      const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
+      const returnUrl = `${siteUrl}/profile?topup=done`;
 
       const payment = await createTopupPayment({
         userId: ctx.user.id,
