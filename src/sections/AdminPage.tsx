@@ -199,6 +199,7 @@ function AdminPanel() {
   const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery();
   const { data: usersCount } = trpc.user.list.useQuery();
   const { data: feedbackCount } = trpc.feedback.list.useQuery();
+  const { data: commentsCount } = trpc.comment.listAll.useQuery();
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -427,6 +428,7 @@ function AdminPanel() {
             <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied" && f.status !== "archived").length ?? 0})</TabsTrigger>
+            <TabsTrigger value="comments">Комментарии ({commentsCount?.length ?? 0})</TabsTrigger>
           </TabsList>
 
           {/* ─── Уведомление о локальном сохранении ─── */}
@@ -693,6 +695,9 @@ function AdminPanel() {
           </TabsContent>
           <TabsContent value="feedback">
             <FeedbackTab />
+          </TabsContent>
+          <TabsContent value="comments">
+            <CommentsModerationTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -2195,6 +2200,56 @@ function UserRow({
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+/* ── Модерация комментариев: список всех, с автором и рецептом, удаление любого ── */
+function CommentsModerationTab() {
+  const utils = trpc.useUtils();
+  const { data: items, isLoading } = trpc.comment.listAll.useQuery();
+
+  const deleteComment = trpc.comment.delete.useMutation({
+    onSuccess: () => utils.comment.listAll.invalidate(),
+    onError: (err) => alert("Не удалось удалить: " + err.message),
+  });
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+        Комментарии ({items?.length ?? 0})
+      </h2>
+      {isLoading && <p style={{ color: "var(--text-muted)" }}>Загрузка...</p>}
+      <div className="space-y-3">
+        {(items ?? []).map((c) => (
+          <div key={c.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap text-sm mb-1" style={{ color: "var(--text-muted)" }}>
+                  <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                    {c.authorName ?? "Аноним"}
+                  </span>
+                  <span>· {c.recipeTitle ?? `рецепт #${c.recipeId}`}</span>
+                  <span>· {c.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU") : ""}</span>
+                </div>
+                <p className="text-base" style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                  {c.text}
+                </p>
+              </div>
+              <button
+                onClick={() => { if (confirm("Удалить комментарий?")) deleteComment.mutate({ id: c.id }); }}
+                className="shrink-0 text-sm px-3 py-1.5 rounded transition-opacity hover:opacity-70"
+                style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        ))}
+        {!isLoading && (items ?? []).length === 0 && (
+          <p style={{ color: "var(--text-muted)" }}>Комментариев пока нет.</p>
+        )}
+      </div>
+    </div>
   );
 }
 

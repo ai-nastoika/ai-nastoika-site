@@ -326,7 +326,19 @@ export const appRouter = router({
     list: publicProcedure
       .input(z.object({ recipeId: z.number() }))
       .query(async ({ input }) => {
-        return db.select().from(comments).where(eq(comments.recipeId, input.recipeId));
+        return db
+          .select({
+            id: comments.id,
+            text: comments.text,
+            createdAt: comments.createdAt,
+            likes: comments.likes,
+            userId: comments.userId,
+            authorName: users.name,
+          })
+          .from(comments)
+          .leftJoin(users, eq(comments.userId, users.id))
+          .where(eq(comments.recipeId, input.recipeId))
+          .orderBy(desc(comments.createdAt));
       }),
 
     myComments: authedProcedure.query(async ({ ctx }) => {
@@ -339,6 +351,51 @@ export const appRouter = router({
         await db.insert(comments).values({ recipeId: input.recipeId, userId: ctx.userId, text: input.text });
         return { success: true };
       }),
+
+    /* ── Редактировать свой комментарий (только автор, не админ —
+       модерация правкой чужого текста без ведома автора недопустима) ── */
+    update: authedProcedure
+      .input(z.object({ id: z.number(), text: z.string().min(1).max(2000) }))
+      .mutation(async ({ input, ctx }) => {
+        const [existing] = await db.select().from(comments).where(eq(comments.id, input.id));
+        if (!existing) throw new Error("Комментарий не найден");
+        if (existing.userId !== ctx.userId) throw new Error("Нельзя редактировать чужой комментарий");
+        await db.update(comments).set({ text: input.text }).where(eq(comments.id, input.id));
+        return { success: true };
+      }),
+
+    /* ── Удалить: свой комментарий (автор) или любой (админ, модерация) ── */
+    delete: authedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const [existing] = await db.select().from(comments).where(eq(comments.id, input.id));
+        if (!existing) return { success: true }; // уже удалён — не ошибка
+        const isOwner = existing.userId === ctx.userId;
+        const isAdmin = ctx.user.role === "admin";
+        if (!isOwner && !isAdmin) throw new Error("Недостаточно прав для удаления этого комментария");
+        await db.delete(comments).where(eq(comments.id, input.id));
+        return { success: true };
+      }),
+
+    /* ── Для админ-панели: все комментарии сайта, новые сверху, с автором и рецептом ── */
+    listAll: adminProcedure.query(async () => {
+      return db
+        .select({
+          id: comments.id,
+          text: comments.text,
+          createdAt: comments.createdAt,
+          recipeId: comments.recipeId,
+          recipeTitle: recipes.title,
+          userId: comments.userId,
+          authorName: users.name,
+          authorEmail: users.email,
+        })
+        .from(comments)
+        .leftJoin(recipes, eq(comments.recipeId, recipes.id))
+        .leftJoin(users, eq(comments.userId, users.id))
+        .orderBy(desc(comments.createdAt))
+        .limit(300);
+    }),
   }),
 
   // ─── Обратная связь ───
