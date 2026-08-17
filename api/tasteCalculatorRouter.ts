@@ -46,7 +46,7 @@ async function callDeepSeek(userText: string): Promise<{ result: TasteResult; to
         { role: "user", content: userText },
       ],
       temperature: 0.8,
-      max_tokens: 500,
+      max_tokens: 2500,
       response_format: { type: "json_object" },
     }),
   });

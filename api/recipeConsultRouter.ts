@@ -95,7 +95,7 @@ export const recipeConsultRouter = createRouter({
         const res = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 500 }),
+          body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2500 }),
         });
 
         if (!res.ok) {
