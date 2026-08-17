@@ -5,6 +5,7 @@ import { infusions, infusionStages } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
+import { callChatCompletion } from "./lib/aiClient";
 
 /* Тарификация общая с recipeConsult (см. api/lib/aiAccess.ts): 5 бесплатных
    запросов на аккаунт, дальше — 2 ₽ за запрос с баланса. requestType отдельный,
@@ -94,38 +95,18 @@ export const infusionConsultRouter = createRouter({
 
       const stages = await db.select().from(infusionStages).where(eq(infusionStages.infusionId, input.infusionId));
 
-      const apiKey = process.env.AI_API_KEY;
-      const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
-      const model = process.env.AI_MODEL || "gpt-4o-mini";
-
-      if (!apiKey) {
-        await refundAiRequest(ctx.user.id, charge);
-        throw new Error("ИИ-консультация временно недоступна: не задан AI_API_KEY на сервере");
-      }
-
       const messages = [
-        { role: "system", content: buildSystemPrompt(infusion, stages) },
+        { role: "system" as const, content: buildSystemPrompt(infusion, stages) },
         ...(input.history ?? []),
-        { role: "user", content: input.question },
+        { role: "user" as const, content: input.question },
       ];
 
       let answer: string;
       let tokensUsed = 0;
       try {
-        const res = await fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: 0.6, max_tokens: 2500 }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
-        }
-
-        const json = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number } };
-        answer = json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ";
-        tokensUsed = json.usage?.total_tokens ?? 0;
+        const res = await callChatCompletion(messages, { temperature: 0.6, maxTokens: 2500 });
+        answer = res.answer;
+        tokensUsed = res.tokensUsed;
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
         throw err;

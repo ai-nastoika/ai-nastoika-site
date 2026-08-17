@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
+import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 
 /* Тарификация общая с recipeConsult/infusionConsult (см. api/lib/aiAccess.ts):
    5 бесплатных запросов на аккаунт (разово, при регистрации), дальше — 2 ₽ за
@@ -27,39 +28,6 @@ const SYSTEM_PROMPT = `Ты — опытный и дружелюбный бар�
   и не повторяй то, что уже сказал раньше.
 - Если сообщение не про еду/напитки/ингредиенты — мягко верни разговор к теме настоек.`;
 
-async function callDeepSeek(
-  messages: { role: "system" | "user" | "assistant"; content: string }[]
-): Promise<{ answer: string; tokensUsed: number }> {
-  const apiKey = process.env.AI_API_KEY;
-  const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
-  const model = process.env.AI_MODEL || "gpt-4o-mini";
-
-  if (!apiKey) {
-    throw new Error("Калькулятор вкуса временно недоступен: не задан AI_API_KEY на сервере");
-  }
-
-  const res = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature: 0.8, max_tokens: 2500 }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
-  }
-
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    usage?: { total_tokens?: number };
-  };
-
-  return {
-    answer: json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ",
-    tokensUsed: json.usage?.total_tokens ?? 0,
-  };
-}
-
 export const tasteCalculatorRouter = createRouter({
   /* ── Текущий доступ: сколько бесплатных осталось и хватает ли баланса ── */
   checkLimit: authedQuery.query(async ({ ctx }) => {
@@ -82,7 +50,7 @@ export const tasteCalculatorRouter = createRouter({
       // Бросает TRPCError('FORBIDDEN'), если ни бесплатных, ни денег не осталось.
       const charge = await chargeAiRequest(ctx.user.id);
 
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      const messages: ChatMessage[] = [
         { role: "system", content: SYSTEM_PROMPT },
         ...(input.history ?? []),
         { role: "user", content: input.message },
@@ -91,7 +59,7 @@ export const tasteCalculatorRouter = createRouter({
       let answer: string;
       let tokensUsed: number;
       try {
-        const res = await callDeepSeek(messages);
+        const res = await callChatCompletion(messages, { temperature: 0.8, maxTokens: 2500 });
         answer = res.answer;
         tokensUsed = res.tokensUsed;
       } catch (err) {

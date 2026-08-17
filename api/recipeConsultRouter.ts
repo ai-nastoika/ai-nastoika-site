@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { recipes, recipeIngredients, recipeSteps } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
+import { callChatCompletion } from "./lib/aiClient";
 
 /* Тарификация: 5 бесплатных запросов на аккаунт (разово), дальше — 2 ₽ за
    запрос с баланса. Вся логика списания — в api/lib/aiAccess.ts, общая
@@ -74,38 +75,18 @@ export const recipeConsultRouter = createRouter({
       const ingredients = await db.select().from(recipeIngredients).where(eq(recipeIngredients.recipeId, input.recipeId));
       const steps = await db.select().from(recipeSteps).where(eq(recipeSteps.recipeId, input.recipeId));
 
-      const apiKey = process.env.AI_API_KEY;
-      const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
-      const model = process.env.AI_MODEL || "gpt-4o-mini";
-
-      if (!apiKey) {
-        await refundAiRequest(ctx.user.id, charge);
-        throw new Error("ИИ-консультация временно недоступна: не задан AI_API_KEY на сервере");
-      }
-
       const messages = [
-        { role: "system", content: buildSystemPrompt(recipe, ingredients, steps) },
+        { role: "system" as const, content: buildSystemPrompt(recipe, ingredients, steps) },
         ...(input.history ?? []),
-        { role: "user", content: input.question },
+        { role: "user" as const, content: input.question },
       ];
 
       let answer: string;
       let tokensUsed = 0;
       try {
-        const res = await fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 2500 }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          throw new Error(`Ошибка ИИ-сервиса (${res.status}): ${errText.slice(0, 200)}`);
-        }
-
-        const json = await res.json();
-        answer = json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ";
-        tokensUsed = json.usage?.total_tokens ?? 0;
+        const res = await callChatCompletion(messages, { temperature: 0.7, maxTokens: 2500 });
+        answer = res.answer;
+        tokensUsed = res.tokensUsed;
       } catch (err) {
         // Вызов не удался — возвращаем списанный бесплатный запрос/деньги пользователю.
         await refundAiRequest(ctx.user.id, charge);
