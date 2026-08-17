@@ -9,25 +9,27 @@ import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "
    ai_usage.request_type — varchar(20), значение ниже (16 симв.) укладывается. */
 const REQUEST_TYPE = "taste_calculator";
 
-const SYSTEM_PROMPT = `Ты — опытный бармен-настойщик сайта «Ай, настойка!». Пользователь описывает идею
-напитка (ингредиенты или просто желаемый вкус) — предложи ему ориентировочный рецепт домашней настойки.
+const SYSTEM_PROMPT = `Ты — опытный и дружелюбный бармен-настойщик сайта «Ай, настойка!». Пользователь описывает
+идею напитка (ингредиенты, которые есть под рукой, или просто желаемый вкус) — помоги ему живым, разговорным
+языком, а не сухой карточкой характеристик.
 
 Правила:
-- Отвечай ТОЛЬКО валидным JSON, без markdown и пояснений вокруг, строго такой структуры:
-  {"recipe": "...", "taste": "...", "color": "..."}
-- "recipe": один компактный абзац — база (водка/самогон/спирт), количество основного ингредиента,
-  сахар/мёд при необходимости, ориентировочный срок настаивания. Указывай конкретные пропорции на 1 литр.
-- "taste": описание вкусового профиля — сладость/кислинка/горчинка, аромат, послевкусие. 1-2 предложения.
-- "color": ожидаемый цвет и прозрачность напитка. Одно предложение.
-- Это ориентировочная идея, а не проверенный рецепт — не выдумывай неправдоподобные пропорции
-  (крепость итогового напитка должна получаться реалистичной, обычно 18-40%).
-- Не давай советов о дозировках употребления алкоголя или влиянии на здоровье — только про сам напиток.
-- Если сообщение пользователя не про еду/напитки/ингредиенты — всё равно верни JSON той же структуры,
-  мягко предложив в поле "recipe" начать с описания ингредиентов или вкуса, который хочется получить.`;
+- Отвечай как человек в разговоре, а не как генератор карточек: без жёсткой структуры "вкус/нос/послевкусие"
+  и без обязательного разбиения на пункты, если пользователь сам не просит списком.
+- Дай мягкое, основанное на опыте предположение о том, что может получиться — вкус, цвет, аромат — с оговоркой,
+  что это ориентир, а не гарантия (результат варьируется от партии к партии, от качества сырья и т.п.).
+- Обязательно закончи конкретной практической рекомендацией: с чего начать, какие пропорции взять за основу,
+  на что обратить внимание при настаивании, как понять, что напиток готов.
+- Не выдумывай точные цифры (крепость, граммы) с ложной уверенностью — если это грубая прикидка, так и скажи.
+- Не давай советов о безопасных дозировках употребления алкоголя или влиянии на здоровье — только про сам напиток.
+- Пиши компактно: 4-7 предложений, без длинных вступлений.
+- Поддерживай диалог: если пользователь уточняет или продолжает предыдущий вопрос — учитывай контекст переписки
+  и не повторяй то, что уже сказал раньше.
+- Если сообщение не про еду/напитки/ингредиенты — мягко верни разговор к теме настоек.`;
 
-type TasteResult = { recipe: string; taste: string; color: string };
-
-async function callDeepSeek(userText: string): Promise<{ result: TasteResult; tokensUsed: number }> {
+async function callDeepSeek(
+  messages: { role: "system" | "user" | "assistant"; content: string }[]
+): Promise<{ answer: string; tokensUsed: number }> {
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
   const model = process.env.AI_MODEL || "gpt-4o-mini";
@@ -39,16 +41,7 @@ async function callDeepSeek(userText: string): Promise<{ result: TasteResult; to
   const res = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userText },
-      ],
-      temperature: 0.8,
-      max_tokens: 2500,
-      response_format: { type: "json_object" },
-    }),
+    body: JSON.stringify({ model, messages, temperature: 0.8, max_tokens: 2500 }),
   });
 
   if (!res.ok) {
@@ -60,21 +53,9 @@ async function callDeepSeek(userText: string): Promise<{ result: TasteResult; to
     choices?: { message?: { content?: string } }[];
     usage?: { total_tokens?: number };
   };
-  const raw = json.choices?.[0]?.message?.content ?? "{}";
-
-  let parsed: Partial<TasteResult>;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("ИИ вернул ответ в неожиданном формате, попробуйте переформулировать запрос");
-  }
-
-  if (!parsed.recipe || !parsed.taste || !parsed.color) {
-    throw new Error("ИИ вернул неполный ответ, попробуйте ещё раз");
-  }
 
   return {
-    result: { recipe: parsed.recipe, taste: parsed.taste, color: parsed.color },
+    answer: json.choices?.[0]?.message?.content ?? "Не удалось получить ответ от ИИ",
     tokensUsed: json.usage?.total_tokens ?? 0,
   };
 }
@@ -85,19 +66,33 @@ export const tasteCalculatorRouter = createRouter({
     return getAiAccessState(ctx.user.id);
   }),
 
-  /* ── Сгенерировать идею рецепта по описанию/ингредиентам ── */
+  /* ── Задать вопрос/продолжить разговор ── */
   generate: authedQuery
-    .input(z.object({ description: z.string().min(3).max(500) }))
+    .input(
+      z.object({
+        message: z.string().min(1).max(500),
+        history: z
+          .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
+          .max(20)
+          .optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       // Списываем бесплатный запрос или 2 ₽ с баланса ДО обращения к ИИ.
       // Бросает TRPCError('FORBIDDEN'), если ни бесплатных, ни денег не осталось.
       const charge = await chargeAiRequest(ctx.user.id);
 
-      let result: TasteResult;
-      let tokensUsed = 0;
+      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...(input.history ?? []),
+        { role: "user", content: input.message },
+      ];
+
+      let answer: string;
+      let tokensUsed: number;
       try {
-        const res = await callDeepSeek(input.description);
-        result = res.result;
+        const res = await callDeepSeek(messages);
+        answer = res.answer;
         tokensUsed = res.tokensUsed;
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
@@ -107,6 +102,6 @@ export const tasteCalculatorRouter = createRouter({
       await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
 
       const access = await getAiAccessState(ctx.user.id);
-      return { answer: result, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access };
+      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access };
     }),
 });

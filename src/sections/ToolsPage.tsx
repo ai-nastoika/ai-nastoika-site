@@ -22,10 +22,21 @@ import {
    SUB-COMPONENT: AI Taste Calculator
    Требует логина — тарификация общая с recipeConsult/infusionConsult
    (5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса). См. api/tasteCalculatorRouter.ts.
+   Разговорный чат с историей — так же, как RecipeAiConsult.tsx.
    ============================================================ */
+type TasteChatMessage = { role: "user" | "assistant"; content: string };
+
+const TASTE_SUGGESTIONS = [
+  "Есть вишня и мёд, что посоветуете?",
+  "Хочу что-то освежающее и не приторное",
+  "Настаиваю на самогоне — с чем лучше сочетается?",
+  "Как получить красивый янтарный цвет?",
+];
+
 function TasteCalculator() {
   const { isLoggedIn } = useAuth();
-  const [ingredients, setIngredients] = useState("");
+  const [messages, setMessages] = useState<TasteChatMessage[]>([]);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.tasteCalculator.checkLimit.useQuery(undefined, {
@@ -33,7 +44,8 @@ function TasteCalculator() {
   });
 
   const generate = trpc.tasteCalculator.generate.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
       setError("");
       refetchLimit();
     },
@@ -43,23 +55,29 @@ function TasteCalculator() {
     },
   });
 
-  const result = generate.data?.answer ?? null;
   const limitReached = limitInfo ? !limitInfo.allowed : false;
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
-  const handleSubmit = () => {
-    if (!ingredients.trim() || generate.isPending || limitReached) return;
+  function handleSend(text?: string) {
+    const m = (text ?? message).trim();
+    if (!m || generate.isPending || limitReached) return;
     setError("");
-    generate.mutate({ description: ingredients.trim() });
-  };
+    const nextMessages: TasteChatMessage[] = [...messages, { role: "user", content: m }];
+    setMessages(nextMessages);
+    setMessage("");
+    generate.mutate({
+      message: m,
+      history: messages.slice(-10), // предыдущие реплики этого диалога, для контекста
+    });
+  }
 
   if (!isLoggedIn) {
     return (
       <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
         <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
         <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Опишите идею или ингредиенты — ИИ составит рецептуру и расскажет о вкусовом профиле. Доступно после входа в аккаунт.
+          Опишите идею или ингредиенты — ИИ подскажет, что может получиться, и посоветует, с чего начать. Доступно после входа в аккаунт.
         </p>
         <Link
           to="/login"
@@ -74,38 +92,64 @@ function TasteCalculator() {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-          <label
-            className="text-base font-medium"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
-            Опишите идею или перечислите ингредиенты
-          </label>
-          {limitInfo && (
-            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
-              ) : (
-                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <label className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+          Опишите идею или перечислите ингредиенты
+        </label>
+        {limitInfo && (
+          <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            {limitInfo.freeRequestsLeft > 0 ? (
+              <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+            ) : (
+              <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+            )}
+          </span>
+        )}
+      </div>
+
+      {messages.length === 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {TASTE_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              onClick={() => handleSend(s)}
+              disabled={!!limitReached}
+              className="text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
+              style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {messages.length > 0 && (
+        <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className="rounded-xl p-3 text-sm"
+              style={
+                m.role === "user"
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "15%", fontFamily: "var(--font-body)" }
+                  : { background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "15%", fontFamily: "var(--font-body)", lineHeight: 1.6 }
+              }
+            >
+              {m.role === "assistant" && (
+                <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
+                  <Sparkles size={14} /> Ответ ИИ
+                </div>
               )}
-            </span>
+              {m.content}
+            </div>
+          ))}
+          {generate.isPending && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+              <Sparkles size={16} className="animate-spin" /> Думаю над ответом...
+            </div>
           )}
         </div>
-        <textarea
-          value={ingredients}
-          onChange={(e) => setIngredients(e.target.value)}
-          placeholder="Например: вишня, ваниль, корица..."
-          className="w-full rounded-xl p-4 text-base outline-none resize-none"
-          style={{
-            background: "var(--bg-primary)",
-            border: "1px solid var(--border)",
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-body)",
-            minHeight: 100,
-          }}
-        />
-      </div>
+      )}
 
       {error && (
         <p className="text-sm mb-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
@@ -121,71 +165,32 @@ function TasteCalculator() {
           </Link>
         </div>
       ) : (
-        <button
-          onClick={handleSubmit}
-          disabled={generate.isPending || !ingredients.trim()}
-          className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          {generate.isPending ? (
-            <>
-              <Sparkles size={22} className="animate-spin" />
-              Думаю...
-            </>
-          ) : (
-            <>
-              <Wand2 size={22} />
-              Составить рецептуру
-            </>
-          )}
-        </button>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder={messages.length === 0 ? "Например: вишня, ваниль, корица..." : "Продолжите разговор..."}
+            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            disabled={generate.isPending}
+          />
+          <button
+            onClick={() => handleSend()}
+            disabled={!message.trim() || generate.isPending}
+            className="rounded-xl px-4 flex items-center justify-center text-white disabled:opacity-50"
+            style={{ background: "var(--accent)" }}
+          >
+            <Wand2 size={18} />
+          </button>
+        </div>
       )}
 
-      {result && (
-        <div
-          className="mt-6 rounded-xl p-5 space-y-3"
-          style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={28} style={{ color: "var(--accent)" }} />
-            <span
-              className="text-base font-semibold"
-              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
-            >
-              Результат ИИ
-            </span>
-          </div>
-          <div>
-            <div className="text-base font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              Рецептура
-            </div>
-            <div className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              {result.recipe}
-            </div>
-          </div>
-          <div>
-            <div className="text-base font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              Вкусовой профиль
-            </div>
-            <div className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              {result.taste}
-            </div>
-          </div>
-          <div>
-            <div className="text-base font-medium mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              Цвет напитка
-            </div>
-            <div className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              {result.color}
-            </div>
-          </div>
-          <div
-            className="text-xs pt-3"
-            style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", borderTop: "1px solid var(--border)" }}
-          >
-            Это ориентировочная идея от ИИ, а не проверенный рецепт — сверьте пропорции перед использованием.
-          </div>
-        </div>
+      {messages.length > 0 && (
+        <p className="text-xs mt-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Это ориентировочные советы от ИИ, а не проверенный рецепт — сверьте пропорции перед использованием.
+        </p>
       )}
     </div>
   );
