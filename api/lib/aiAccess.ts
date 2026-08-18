@@ -91,6 +91,8 @@ export async function logAiUsage(params: {
   requestType: string;
   tokensUsed: number;
   charge: AiCharge;
+  modelUsed?: string;
+  usedFallback?: boolean;
 }): Promise<void> {
   const db = getDb();
   await db.insert(aiUsage).values({
@@ -99,6 +101,8 @@ export async function logAiUsage(params: {
     tokensUsed: params.tokensUsed,
     costKopecks: params.charge.costKopecks,
     wasFree: params.charge.wasFree ? 1 : 0,
+    modelUsed: params.modelUsed ?? null,
+    usedFallback: params.usedFallback ? 1 : 0,
   });
 }
 

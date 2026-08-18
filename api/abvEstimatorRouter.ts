@@ -75,9 +75,13 @@ export const abvEstimatorRouter = createRouter({
       let estimatedAbv: string;
       let explanation: string;
       let tokensUsed = 0;
+      let modelUsed = "";
+      let usedFallback = false;
       try {
         const res = await callChatCompletion(messages, { temperature: 0.5, maxTokens: 2500, jsonMode: true });
         tokensUsed = res.tokensUsed;
+        modelUsed = res.modelUsed;
+        usedFallback = res.usedFallback;
 
         let parsed: { estimatedAbv?: string; explanation?: string };
         try {
@@ -95,7 +99,7 @@ export const abvEstimatorRouter = createRouter({
         throw err;
       }
 
-      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
+      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge, modelUsed, usedFallback });
 
       // Сохраняем и в историю диалогов — как один обмен репликами, для вкладки
       // "История диалогов с ИИ" в личном кабинете.

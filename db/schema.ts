@@ -373,6 +373,9 @@ export const aiUsage = mysqlTable("ai_usage", {
   // 0, если списан бесплатный запрос; иначе — сколько реально списано с баланса (в копейках)
   costKopecks: int("cost_kopecks").default(0).notNull(),
   wasFree: int("was_free").default(1).notNull(),
+  // Какая модель реально ответила (см. api/lib/aiClient.ts) — основная или резервная
+  modelUsed: varchar("model_used", { length: 100 }),
+  usedFallback: int("used_fallback").default(0).notNull(), // 1, если основная модель упала и сработал AI_MODEL_FALLBACK
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

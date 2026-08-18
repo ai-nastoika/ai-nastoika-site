@@ -65,16 +65,20 @@ export const tasteCalculatorRouter = createRouter({
 
       let answer: string;
       let tokensUsed: number;
+      let modelUsed = "";
+      let usedFallback = false;
       try {
         const res = await callChatCompletion(messages, { temperature: 0.8, maxTokens: 2500 });
         answer = res.answer;
         tokensUsed = res.tokensUsed;
+        modelUsed = res.modelUsed;
+        usedFallback = res.usedFallback;
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
         throw err;
       }
 
-      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
+      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge, modelUsed, usedFallback });
 
       // Сохраняем диалог целиком (без системного промпта) — на 10 последних диалогов
       // в личном кабинете и на восстановление при повторном открытии страницы.

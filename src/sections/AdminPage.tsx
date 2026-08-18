@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -200,6 +200,7 @@ function AdminPanel() {
   const { data: usersCount } = trpc.user.list.useQuery();
   const { data: feedbackCount } = trpc.feedback.list.useQuery();
   const { data: commentsCount } = trpc.comment.listAll.useQuery();
+  const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000 });
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -418,6 +419,22 @@ function AdminPanel() {
         <h1 className="text-3xl font-bold mb-8" style={{ fontFamily: "var(--font-heading)", color: "var(--accent)" }}>
           Админ-панель
         </h1>
+
+        {aiHealth?.lastRequestUsedFallback && (
+          <div
+            className="mb-6 rounded-xl px-5 py-4 flex items-center gap-3"
+            style={{ background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }}
+          >
+            <AlertTriangle size={22} className="shrink-0" />
+            <div className="text-sm" style={{ fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+              <div className="font-semibold">Основная ИИ-модель недоступна — сейчас работает резервная ({aiHealth.lastRequestModel ?? "неизвестно"})</div>
+              <div>
+                За последний час: {aiHealth.fallbackRequestsLastHour} из {aiHealth.requestsLastHour} запросов ушли на резервную модель.
+                {aiHealth.lastRequestAt && ` Последний запрос: ${new Date(aiHealth.lastRequestAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+              </div>
+            </div>
+          </div>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">

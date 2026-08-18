@@ -92,17 +92,21 @@ export const recipeConsultRouter = createRouter({
 
       let answer: string;
       let tokensUsed = 0;
+      let modelUsed = "";
+      let usedFallback = false;
       try {
         const res = await callChatCompletion(messages, { temperature: 0.7, maxTokens: 2500 });
         answer = res.answer;
         tokensUsed = res.tokensUsed;
+        modelUsed = res.modelUsed;
+        usedFallback = res.usedFallback;
       } catch (err) {
         // Вызов не удался — возвращаем списанный бесплатный запрос/деньги пользователю.
         await refundAiRequest(ctx.user.id, charge);
         throw err;
       }
 
-      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
+      await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge, modelUsed, usedFallback });
 
       const conversationId = await saveConversationTurn({
         userId: ctx.user.id,
