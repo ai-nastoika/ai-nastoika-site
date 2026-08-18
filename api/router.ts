@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { listRecentConversations } from "./lib/aiConversations";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
 import { eq, and, avg, count, desc, sql } from "drizzle-orm";
 import { recipeRatings, comments, feedback, transactions, users as usersFull } from "../db/schema";
@@ -506,6 +507,13 @@ export const appRouter = router({
 
   // ─── Консультация ИИ по рецепту ───
   recipeConsult: recipeConsultRouter,
+
+  // ─── История диалогов с ИИ — для личного кабинета (последние 10, все фичи вместе) ───
+  aiConversation: router({
+    listRecent: authedProcedure.query(async ({ ctx }) => {
+      return listRecentConversations(ctx.userId, 10);
+    }),
+  }),
 
   // ─── Калькулятор вкуса с ИИ (требует логина, тарификация как у recipeConsult) ───
   tasteCalculator: tasteCalculatorRouter,

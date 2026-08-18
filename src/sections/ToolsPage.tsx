@@ -39,15 +39,31 @@ function TasteCalculator() {
   const [messages, setMessages] = useState<TasteChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [conversationId, setConversationId] = useState<number | undefined>(undefined);
+  const [restored, setRestored] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.tasteCalculator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
   });
 
+  // При открытии — подтягиваем последний диалог, если он есть, чтобы не начинать с нуля
+  const { data: lastConversation } = trpc.tasteCalculator.getLastConversation.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
+
+  useEffect(() => {
+    if (!restored && lastConversation) {
+      setMessages(lastConversation.messages as TasteChatMessage[]);
+      setConversationId(lastConversation.id);
+      setRestored(true);
+    }
+  }, [lastConversation, restored]);
+
   const generate = trpc.tasteCalculator.generate.useMutation({
     onSuccess: (data) => {
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setConversationId(data.conversationId);
       setError("");
       refetchLimit();
     },
@@ -75,6 +91,7 @@ function TasteCalculator() {
     generate.mutate({
       message: m,
       history: messages.slice(-10), // предыдущие реплики этого диалога, для контекста
+      conversationId,
     });
   }
 
@@ -102,15 +119,26 @@ function TasteCalculator() {
         <label className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
           Опишите идею или перечислите ингредиенты
         </label>
-        {limitInfo && (
-          <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            {limitInfo.freeRequestsLeft > 0 ? (
-              <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
-            ) : (
-              <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
-            )}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {messages.length > 0 && (
+            <button
+              onClick={() => { setMessages([]); setConversationId(undefined); setError(""); }}
+              className="text-xs underline"
+              style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+            >
+              Начать заново
+            </button>
+          )}
+          {limitInfo && (
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              {limitInfo.freeRequestsLeft > 0 ? (
+                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+              ) : (
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
       {messages.length === 0 && (

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
+import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
 
 /* Тарификация общая с recipeConsult/infusionConsult (см. api/lib/aiAccess.ts):
    5 бесплатных запросов на аккаунт (разово, при регистрации), дальше — 2 ₽ за
@@ -34,6 +35,11 @@ export const tasteCalculatorRouter = createRouter({
     return getAiAccessState(ctx.user.id);
   }),
 
+  /* ── Последний незавершённый диалог — чтобы продолжить при повторном открытии ── */
+  getLastConversation: authedQuery.query(async ({ ctx }) => {
+    return getLatestConversation(ctx.user.id, REQUEST_TYPE);
+  }),
+
   /* ── Задать вопрос/продолжить разговор ── */
   generate: authedQuery
     .input(
@@ -43,6 +49,7 @@ export const tasteCalculatorRouter = createRouter({
           .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
           .max(20)
           .optional(),
+        conversationId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -69,7 +76,16 @@ export const tasteCalculatorRouter = createRouter({
 
       await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
 
+      // Сохраняем диалог целиком (без системного промпта) — на 10 последних диалогов
+      // в личном кабинете и на восстановление при повторном открытии страницы.
+      const conversationId = await saveConversationTurn({
+        userId: ctx.user.id,
+        requestType: REQUEST_TYPE,
+        conversationId: input.conversationId,
+        messages: [...(input.history ?? []), { role: "user", content: input.message }, { role: "assistant", content: answer }],
+      });
+
       const access = await getAiAccessState(ctx.user.id);
-      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access };
+      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access, conversationId };
     }),
 });

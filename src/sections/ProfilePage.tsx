@@ -31,6 +31,7 @@ import {
   Phone,
   CheckCircle2,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -53,6 +54,10 @@ export default function ProfilePage() {
     { limit: 30 },
     { enabled: !!user && tab === "history" }
   );
+  const { data: aiConversations } = trpc.aiConversation.listRecent.useQuery(undefined, {
+    enabled: !!user && tab === "history",
+  });
+  const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
     onSuccess: (data) => {
@@ -717,6 +722,70 @@ export default function ProfilePage() {
                         {amountRub !== 0 && (
                           <div className="text-base font-medium shrink-0" style={{ color: meta.color, fontFamily: "var(--font-body)" }}>
                             {amountRub > 0 ? "+" : ""}{amountRub} ₽
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* История диалогов с ИИ */}
+            <div>
+              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>История диалогов с ИИ</h3>
+              {!aiConversations || aiConversations.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <MessageCircleQuestion size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Диалогов с ИИ пока нет</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {aiConversations.map((conv) => {
+                    const typeLabel =
+                      conv.requestType === "recipe_consultation" ? "Консультация по рецепту" :
+                      conv.requestType === "infusion_consult" ? "Консультант трекера" :
+                      "Калькулятор вкуса";
+                    const isOpen = expandedConversationId === conv.id;
+                    const messages = conv.messages as { role: "user" | "assistant"; content: string }[];
+                    return (
+                      <div key={conv.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                        <button
+                          onClick={() => setExpandedConversationId(isOpen ? null : conv.id)}
+                          className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+                        >
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface)" }}>
+                            <MessageCircle size={16} style={{ color: "var(--accent)" }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                              {typeLabel}{conv.contextLabel ? ` · ${conv.contextLabel}` : ""}
+                            </div>
+                            <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                              {new Date(conv.updatedAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              {" · "}{messages.length} {messages.length === 1 ? "сообщение" : "сообщений"}
+                            </div>
+                          </div>
+                          <ChevronDown
+                            size={18}
+                            style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+                          />
+                        </button>
+                        {isOpen && (
+                          <div className="px-5 pb-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
+                            {messages.map((m, i) => (
+                              <div
+                                key={i}
+                                className="rounded-lg p-3 text-sm mt-3"
+                                style={
+                                  m.role === "user"
+                                    ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "10%" }
+                                    : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "10%", lineHeight: 1.6 }
+                                }
+                              >
+                                {m.content}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>

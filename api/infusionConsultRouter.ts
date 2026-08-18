@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { callChatCompletion } from "./lib/aiClient";
+import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
 
 /* Тарификация общая с recipeConsult (см. api/lib/aiAccess.ts): 5 бесплатных
    запросов на аккаунт, дальше — 2 ₽ за запрос с баланса. requestType отдельный,
@@ -68,6 +69,13 @@ export const infusionConsultRouter = createRouter({
     return getAiAccessState(ctx.user.id);
   }),
 
+  /* ── Последний диалог по этому трекеру — чтобы продолжить при повторном открытии ── */
+  getLastConversation: authedQuery
+    .input(z.object({ infusionId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      return getLatestConversation(ctx.user.id, REQUEST_TYPE, input.infusionId);
+    }),
+
   /* ── Задать вопрос по конкретному трекеру ── */
   ask: authedQuery
     .input(
@@ -78,6 +86,7 @@ export const infusionConsultRouter = createRouter({
           .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() }))
           .max(20)
           .optional(),
+        conversationId: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -114,7 +123,16 @@ export const infusionConsultRouter = createRouter({
 
       await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed, charge });
 
+      const conversationId = await saveConversationTurn({
+        userId: ctx.user.id,
+        requestType: REQUEST_TYPE,
+        contextId: input.infusionId,
+        contextLabel: infusion.name,
+        conversationId: input.conversationId,
+        messages: [...(input.history ?? []), { role: "user", content: input.question }, { role: "assistant", content: answer }],
+      });
+
       const access = await getAiAccessState(ctx.user.id);
-      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access };
+      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access, conversationId };
     }),
 });

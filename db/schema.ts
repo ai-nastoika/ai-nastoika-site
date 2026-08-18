@@ -476,3 +476,20 @@ export const infusionStages = mysqlTable("infusion_stages", {
 
 export type InfusionStage = typeof infusionStages.$inferSelect;
 export type InsertInfusionStage = typeof infusionStages.$inferInsert;
+
+// ─── AI Conversations — история диалогов с ИИ (recipeConsult/infusionConsult/tasteCalculator) ───
+// Один ряд = один диалог (тред). При каждом обмене репликами messages перезаписывается
+// целиком новым полным массивом — проще, чем отдельная таблица сообщений, и достаточно
+// для истории на 10 последних диалогов в личном кабинете.
+export const aiConversations = mysqlTable("ai_conversations", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  requestType: varchar("request_type", { length: 20 }).notNull(), // recipe_consultation | infusion_consult | taste_calculator
+  contextId: int("context_id"), // recipeId или infusionId; null для taste_calculator (свободный диалог)
+  contextLabel: varchar("context_label", { length: 200 }), // название рецепта/настойки на момент создания — для отображения без лишних join'ов
+  messages: json("messages").$type<{ role: "user" | "assistant"; content: string }[]>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type AiConversation = typeof aiConversations.$inferSelect;

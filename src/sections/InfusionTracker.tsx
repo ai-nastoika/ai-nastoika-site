@@ -345,13 +345,27 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
+  const [conversationId, setConversationId] = useState<number | undefined>(undefined);
+  const [restored, setRestored] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.infusionConsult.checkLimit.useQuery();
 
+  // При открытии трекера — подтягиваем последний диалог именно по нему, если он есть
+  const { data: lastConversation } = trpc.infusionConsult.getLastConversation.useQuery({ infusionId });
+
+  useEffect(() => {
+    if (!restored && lastConversation) {
+      setMessages(lastConversation.messages as ChatMessage[]);
+      setConversationId(lastConversation.id);
+      setRestored(true);
+    }
+  }, [lastConversation, restored]);
+
   const ask = trpc.infusionConsult.ask.useMutation({
     onSuccess: (data) => {
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setConversationId(data.conversationId);
       refetchLimit();
     },
     onError: (err) => {
@@ -366,7 +380,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
     setError("");
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     setQuestion("");
-    ask.mutate({ infusionId, question: q, history: messages.slice(-10) });
+    ask.mutate({ infusionId, question: q, history: messages.slice(-10), conversationId });
   }
 
   useEffect(() => {
@@ -385,13 +399,20 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
           Спросить консультанта
         </h3>
         {limitInfo && (
-          <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
-            {limitInfo.freeRequestsLeft > 0 ? (
-              <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
-            ) : (
-              <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+          <div className="flex items-center gap-3">
+            {messages.length > 0 && (
+              <button onClick={() => { setMessages([]); setConversationId(undefined); setError(""); }} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
+                Начать заново
+              </button>
             )}
-          </span>
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+              {limitInfo.freeRequestsLeft > 0 ? (
+                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+              ) : (
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+              )}
+            </span>
+          </div>
         )}
       </div>
 
