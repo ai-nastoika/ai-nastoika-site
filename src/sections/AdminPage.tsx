@@ -420,20 +420,41 @@ function AdminPanel() {
           Админ-панель
         </h1>
 
-        {aiHealth?.lastRequestUsedFallback && (
-          <div
-            className="mb-6 rounded-xl px-5 py-4 flex items-center gap-3"
-            style={{ background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }}
-          >
-            <AlertTriangle size={22} className="shrink-0" />
-            <div className="text-sm" style={{ fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
-              <div className="font-semibold">Основная ИИ-модель недоступна — сейчас работает резервная ({aiHealth.lastRequestModel ?? "неизвестно"})</div>
-              <div>
-                За последний час: {aiHealth.fallbackRequestsLastHour} из {aiHealth.requestsLastHour} запросов ушли на резервную модель.
-                {aiHealth.lastRequestAt && ` Последний запрос: ${new Date(aiHealth.lastRequestAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+        {aiHealth && (
+          aiHealth.lastRequestUsedFallback ? (
+            <div
+              className="mb-6 rounded-xl px-5 py-4 flex items-center gap-3"
+              style={{ background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }}
+            >
+              <AlertTriangle size={22} className="shrink-0" />
+              <div className="text-sm" style={{ fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                <div className="font-semibold">Основная ИИ-модель недоступна — сейчас работает резервная ({aiHealth.lastRequestModel ?? "неизвестно"})</div>
+                <div>
+                  За последний час: {aiHealth.fallbackRequestsLastHour} из {aiHealth.requestsLastHour} запросов ушли на резервную модель.
+                  {aiHealth.lastRequestAt && ` Последний запрос: ${new Date(aiHealth.lastRequestAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+                </div>
               </div>
             </div>
-          </div>
+          ) : aiHealth.lastRequestModel ? (
+            <div
+              className="mb-6 rounded-xl px-5 py-3 flex items-center gap-3 text-sm"
+              style={{ background: "#dcfce7", border: "1px solid #86efac", color: "#166534", fontFamily: "var(--font-body)" }}
+            >
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#16a34a" }} />
+              <span>
+                ИИ работает штатно, основная модель: <strong>{aiHealth.lastRequestModel}</strong>.
+                {aiHealth.lastRequestAt && ` Последний запрос: ${new Date(aiHealth.lastRequestAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+                {" "}Запросов за час: {aiHealth.requestsLastHour}.
+              </span>
+            </div>
+          ) : (
+            <div
+              className="mb-6 rounded-xl px-5 py-3 text-sm"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+            >
+              ИИ-запросов пока не было — статус модели появится после первого обращения к ИИ на сайте.
+            </div>
+          )
         )}
 
         <Tabs value={tab} onValueChange={setTab}>
