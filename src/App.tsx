@@ -12,6 +12,7 @@ import BarMapPreview from "./sections/BarMapPreview";
 import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
 import ScrollToTop from "./components/ScrollToTop";
+import AddToHomeScreenPrompt from "./components/AddToHomeScreenPrompt";
 
 /* Lazy-loaded pages — code splitting for faster initial load */
 const ToolsPage = lazy(() => import("./sections/ToolsPage"));
@@ -97,6 +98,7 @@ function Layout() {
         onScaleChange={setActiveScale}
       />
       <SwipeIndicator />
+      <AddToHomeScreenPrompt />
     </div>
   );
 }
