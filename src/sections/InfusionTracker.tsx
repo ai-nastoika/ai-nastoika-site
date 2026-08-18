@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import {
   Plus,
   Droplet,
@@ -17,7 +18,6 @@ import {
   Archive,
   Sparkles,
   Send,
-  Loader2,
   MessageCircleQuestion,
   X,
   CalendarClock,
@@ -345,6 +345,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.infusionConsult.checkLimit.useQuery();
 
@@ -367,6 +368,10 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
     setQuestion("");
     ask.mutate({ infusionId, question: q, history: messages.slice(-10) });
   }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, ask.isPending]);
 
   const limitReached = limitInfo ? !limitInfo.allowed : false;
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
@@ -397,12 +402,12 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
       )}
 
       {messages.length > 0 && (
-        <div className="space-y-3 mb-4 max-h-72 overflow-y-auto">
+        <div className="space-y-3 mb-4 max-h-[28rem] overflow-y-auto pr-1">
           {messages.map((m, i) => (
-            <div key={i} className="rounded-xl p-3 text-sm" style={
+            <div key={i} className="rounded-xl p-4 text-base" style={
               m.role === "user"
-                ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "15%" }
-                : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "15%", lineHeight: 1.6 }
+                ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%" }
+                : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", lineHeight: 1.65 }
             }>
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
@@ -412,11 +417,8 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
               {m.content}
             </div>
           ))}
-          {ask.isPending && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              <Loader2 size={16} className="animate-spin" /> Думаю над ответом...
-            </div>
-          )}
+          {ask.isPending && <BottleThinkingIndicator />}
+          <div ref={messagesEndRef} />
         </div>
       )}
 
@@ -434,7 +436,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
           <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
             placeholder="Например: забыл взболтать 3 дня, это страшно?"
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             disabled={ask.isPending} />
           <button onClick={handleAsk} disabled={!question.trim() || ask.isPending}

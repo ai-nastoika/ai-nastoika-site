@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, Link } from "react-router";
 import QRCode from "qrcode";
+import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import {
   Wand2,
   Calculator,
@@ -38,6 +39,7 @@ function TasteCalculator() {
   const [messages, setMessages] = useState<TasteChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.tasteCalculator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -55,12 +57,16 @@ function TasteCalculator() {
     },
   });
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, generate.isPending]);
+
   const limitReached = limitInfo ? !limitInfo.allowed : false;
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
-  function handleSend(text?: string) {
-    const m = (text ?? message).trim();
+  function handleSend() {
+    const m = message.trim();
     if (!m || generate.isPending || limitReached) return;
     setError("");
     const nextMessages: TasteChatMessage[] = [...messages, { role: "user", content: m }];
@@ -112,9 +118,9 @@ function TasteCalculator() {
           {TASTE_SUGGESTIONS.map((s) => (
             <button
               key={s}
-              onClick={() => handleSend(s)}
+              onClick={() => setMessage(s)}
               disabled={!!limitReached}
-              className="text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
+              className="text-sm px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
             >
               {s}
@@ -124,15 +130,15 @@ function TasteCalculator() {
       )}
 
       {messages.length > 0 && (
-        <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+        <div className="space-y-3 mb-4 max-h-[32rem] overflow-y-auto pr-1">
           {messages.map((m, i) => (
             <div
               key={i}
-              className="rounded-xl p-3 text-sm"
+              className="rounded-xl p-4 text-base"
               style={
                 m.role === "user"
-                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "15%", fontFamily: "var(--font-body)" }
-                  : { background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "15%", fontFamily: "var(--font-body)", lineHeight: 1.6 }
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)" }
+                  : { background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.65 }
               }
             >
               {m.role === "assistant" && (
@@ -143,11 +149,8 @@ function TasteCalculator() {
               {m.content}
             </div>
           ))}
-          {generate.isPending && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              <Sparkles size={16} className="animate-spin" /> Думаю над ответом...
-            </div>
-          )}
+          {generate.isPending && <BottleThinkingIndicator />}
+          <div ref={messagesEndRef} />
         </div>
       )}
 
@@ -172,7 +175,7 @@ function TasteCalculator() {
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder={messages.length === 0 ? "Например: вишня, ваниль, корица..." : "Продолжите разговор..."}
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
             style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
             disabled={generate.isPending}
           />

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Send, Loader2, MessageCircleQuestion, LogIn, Wallet } from "lucide-react";
+import { Sparkles, Send, MessageCircleQuestion, LogIn, Wallet } from "lucide-react";
+import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -18,6 +19,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.recipeConsult.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -34,8 +36,12 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
     },
   });
 
-  function handleAsk(text?: string) {
-    const q = (text ?? question).trim();
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, ask.isPending]);
+
+  function handleAsk() {
+    const q = question.trim();
     if (!q || ask.isPending) return;
     setError("");
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: q }];
@@ -101,9 +107,9 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
             {SUGGESTIONS.map((s) => (
               <button
                 key={s}
-                onClick={() => handleAsk(s)}
+                onClick={() => setQuestion(s)}
                 disabled={!!limitReached}
-                className="text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
+                className="text-sm px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
                 style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               >
                 {s}
@@ -114,15 +120,15 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
       )}
 
       {messages.length > 0 && (
-        <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+        <div className="space-y-3 mb-4 max-h-[32rem] overflow-y-auto pr-1">
           {messages.map((m, i) => (
             <div
               key={i}
-              className="rounded-xl p-3 text-sm"
+              className="rounded-xl p-4 text-base"
               style={
                 m.role === "user"
-                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "15%", fontFamily: "var(--font-body)" }
-                  : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "15%", fontFamily: "var(--font-body)", lineHeight: 1.6 }
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)" }
+                  : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.65 }
               }
             >
               {m.role === "assistant" && (
@@ -133,11 +139,8 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
               {m.content}
             </div>
           ))}
-          {ask.isPending && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              <Loader2 size={16} className="animate-spin" /> Думаю над ответом...
-            </div>
-          )}
+          {ask.isPending && <BottleThinkingIndicator />}
+          <div ref={messagesEndRef} />
         </div>
       )}
 
@@ -158,7 +161,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
             placeholder="Например: можно настоять на спирту вместо водки?"
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm outline-none"
+            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
             disabled={ask.isPending}
           />
