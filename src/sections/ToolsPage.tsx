@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, Link } from "react-router";
@@ -17,6 +17,7 @@ import {
   Star,
   LogIn,
   Wallet,
+  AlertTriangle,
 } from "lucide-react";
 
 /* ============================================================
@@ -231,28 +232,44 @@ function TasteCalculator() {
    SUB-COMPONENT: ABV Calculator
    ============================================================ */
 function AbvCalculator() {
+  const { isLoggedIn } = useAuth();
   const [volume, setVolume] = useState(1000);
   const [initialAbv, setInitialAbv] = useState(40);
   const [sugar, setSugar] = useState(100);
   const [water, setWater] = useState(0);
   const [infusionIngredients, setInfusionIngredients] = useState("");
   const [infusionDays, setInfusionDays] = useState(21);
-  const [result, setResult] = useState<{
-    abv: number;
-    totalVolume: number;
-    days: number;
-    ingredients: string;
-  } | null>(null);
+  const [straining, setStraining] = useState<"none" | "light" | "full">("light");
 
-  const calculate = () => {
+  // База пересчитывается сама при любом изменении полей — точная формула, без ИИ.
+  const baseResult = useMemo(() => {
     const alcoholMl = volume * (initialAbv / 100);
     const totalVolume = volume + water + sugar * 0.6;
-    const finalAbv = (alcoholMl / totalVolume) * 100;
-    setResult({
-      abv: parseFloat(finalAbv.toFixed(1)),
-      totalVolume: Math.round(totalVolume),
-      days: infusionDays,
+    const finalAbv = totalVolume > 0 ? (alcoholMl / totalVolume) * 100 : 0;
+    return { abv: parseFloat(finalAbv.toFixed(1)), totalVolume: Math.round(totalVolume) };
+  }, [volume, initialAbv, sugar, water]);
+
+  const { data: limitInfo, refetch: refetchLimit } = trpc.abvEstimator.checkLimit.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
+
+  const estimate = trpc.abvEstimator.estimate.useMutation({
+    onSuccess: () => refetchLimit(),
+    onError: () => refetchLimit(),
+  });
+
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
+
+  const handleEstimate = () => {
+    if (!infusionIngredients.trim() || estimate.isPending || limitReached) return;
+    estimate.mutate({
+      baseAbv: baseResult.abv,
+      baseVolumeMl: baseResult.totalVolume,
       ingredients: infusionIngredients.trim(),
+      infusionDays,
+      straining,
     });
   };
 
@@ -263,7 +280,8 @@ function AbvCalculator() {
     setWater(0);
     setInfusionIngredients("");
     setInfusionDays(21);
-    setResult(null);
+    setStraining("light");
+    estimate.reset();
   };
 
   const adjust = (setter: React.Dispatch<React.SetStateAction<number>>, value: number, step: number) => {
@@ -401,18 +419,18 @@ function AbvCalculator() {
           </div>
         </div>
 
-        {/* Infusion ingredients */}
+        {/* Infusion ingredients — используется только для ИИ-оценки ниже, на формулу базы не влияет */}
         <div
           className="rounded-xl p-4 sm:col-span-2"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Ингредиенты для настаивания
+            Ингредиенты для настаивания <span style={{ fontWeight: 400 }}>(для ИИ-оценки ниже, на точный расчёт базы не влияет)</span>
           </label>
           <textarea
             value={infusionIngredients}
             onChange={(e) => setInfusionIngredients(e.target.value)}
-            placeholder="Например: вишня 500г, ваниль 1 стручок, корица 2 палочки..."
+            placeholder="Например: вишня свежая 500г, ваниль 1 стручок, корица 2 палочки..."
             className="w-full mt-2 rounded-lg px-4 py-2.5 text-base outline-none resize-none"
             style={{
               background: "transparent",
@@ -423,71 +441,160 @@ function AbvCalculator() {
             }}
           />
         </div>
-      </div>
 
-      <div className="flex gap-3">
-        <button
-          onClick={calculate}
-          className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105"
-          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          <Calculator size={22} />
-          Рассчитать
-        </button>
-        <button
-          onClick={reset}
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-3 font-medium transition-all hover:scale-105"
-          style={{
-            background: "var(--surface)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border)",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          <RotateCcw size={28} />
-          Сброс
-        </button>
-      </div>
-
-      {result !== null && (
+        {/* Straining method — тоже только для ИИ-оценки */}
         <div
-          className="mt-6 rounded-xl p-6 space-y-3"
-          style={{ background: "var(--accent)", color: "#fff" }}
+          className="rounded-xl p-4 sm:col-span-2"
+          style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
-          <div className="text-center">
-            <div className="text-base opacity-80 mb-1" style={{ fontFamily: "var(--font-body)" }}>
-              Итоговая крепость напитка
-            </div>
-            <div className="text-3xl font-bold" style={{ fontFamily: "var(--font-heading)" }}>
-              {result.abv}%
-            </div>
+          <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Отжим/процеживание после настаивания
+          </label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {([
+              { id: "none", label: "Не отжимал(а)" },
+              { id: "light", label: "Слегка процедил(а)" },
+              { id: "full", label: "Отжал(а) полностью" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setStraining(opt.id)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  background: straining === opt.id ? "var(--accent)" : "var(--surface)",
+                  color: straining === opt.id ? "#fff" : "var(--text-secondary)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-
-          <div className="grid sm:grid-cols-3 gap-3 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12 }}>
-            <div>
-              <div className="text-sm opacity-70" style={{ fontFamily: "var(--font-body)" }}>Общий объём</div>
-              <div className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{result.totalVolume} мл</div>
-            </div>
-            <div>
-              <div className="text-sm opacity-70" style={{ fontFamily: "var(--font-body)" }}>Срок настаивания</div>
-              <div className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{result.days} дней</div>
-            </div>
-            <div>
-              <div className="text-sm opacity-70" style={{ fontFamily: "var(--font-body)" }}>Содержание сахара</div>
-              <div className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{sugar} г</div>
-            </div>
-          </div>
-
-          {result.ingredients && (
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12 }}>
-              <div className="text-sm opacity-70 mb-1" style={{ fontFamily: "var(--font-body)" }}>Ингредиенты для настаивания</div>
-              <div className="text-base" style={{ fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                {result.ingredients}
-              </div>
-            </div>
-          )}
         </div>
-      )}
+      </div>
+
+      <button
+        onClick={reset}
+        className="inline-flex items-center gap-2 rounded-xl px-4 py-3 font-medium transition-all hover:scale-105"
+        style={{
+          background: "var(--surface)",
+          color: "var(--text-secondary)",
+          border: "1px solid var(--border)",
+          fontFamily: "var(--font-body)",
+        }}
+      >
+        <RotateCcw size={28} />
+        Сброс
+      </button>
+
+      {/* База — точный расчёт, пересчитывается сам при любом изменении полей выше */}
+      <div className="mt-6 rounded-xl p-6 space-y-3" style={{ background: "var(--accent)", color: "#fff" }}>
+        <div className="text-center">
+          <div className="text-base opacity-80 mb-1" style={{ fontFamily: "var(--font-body)" }}>
+            Крепость базы (точный расчёт)
+          </div>
+          <div className="text-3xl font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+            {baseResult.abv}%
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12 }}>
+          <div>
+            <div className="text-sm opacity-70" style={{ fontFamily: "var(--font-body)" }}>Общий объём базы</div>
+            <div className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{baseResult.totalVolume} мл</div>
+          </div>
+          <div>
+            <div className="text-sm opacity-70" style={{ fontFamily: "var(--font-body)" }}>Содержание сахара</div>
+            <div className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>{sugar} г</div>
+          </div>
+        </div>
+        <div className="flex items-start gap-2 text-sm" style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12, opacity: 0.9, fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>Это точный расчёт только базы — спирт, вода, сахар. Ягоды/фрукты, срок настаивания и способ отжима здесь не учтены. Их влияние — в оценке ИИ ниже.</span>
+        </div>
+      </div>
+
+      {/* ИИ-оценка итоговой крепости готового напитка — второй, отдельный этап */}
+      <div className="mt-6 rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <h3 className="text-lg font-bold flex items-center gap-2 mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+          <Sparkles size={20} style={{ color: "var(--accent)" }} />
+          Оценка готового напитка (ИИ)
+        </h3>
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Учитывает ингредиенты выше, срок настаивания ({infusionDays} дней) и способ отжима — с оговоркой, что это оценка, а не точное измерение.
+        </p>
+
+        {!isLoggedIn ? (
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
+            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <LogIn size={16} /> Войти, чтобы получить оценку
+          </Link>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              {limitInfo && (
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  {limitInfo.freeRequestsLeft > 0 ? (
+                    <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                  ) : (
+                    <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                  )}
+                </span>
+              )}
+            </div>
+
+            {limitReached ? (
+              <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+                <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+                  Пополнить баланс
+                </Link>
+              </div>
+            ) : (
+              <button
+                onClick={handleEstimate}
+                disabled={!infusionIngredients.trim() || estimate.isPending}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+              >
+                <Wand2 size={20} />
+                {estimate.isPending ? "Оцениваю..." : "Оценить с ИИ"}
+              </button>
+            )}
+            {!infusionIngredients.trim() && !limitReached && (
+              <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Заполните поле «Ингредиенты для настаивания» выше, чтобы получить оценку.
+              </p>
+            )}
+
+            {estimate.isPending && <div className="mt-4"><BottleThinkingIndicator label="Оцениваю итоговую крепость..." /></div>}
+
+            {estimate.error && (
+              <p className="text-sm mt-4" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                {estimate.error.message}
+              </p>
+            )}
+
+            {estimate.data && (
+              <div className="mt-4 rounded-xl p-5" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}>
+                <div className="text-center mb-3">
+                  <div className="text-sm mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Ориентировочная итоговая крепость
+                  </div>
+                  <div className="text-3xl font-bold" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>
+                    {estimate.data.estimatedAbv}
+                  </div>
+                </div>
+                <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.65, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+                  {estimate.data.explanation}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

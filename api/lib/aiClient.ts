@@ -27,12 +27,16 @@ async function callModel(
   model: string,
   messages: ChatMessage[],
   temperature: number,
-  maxTokens: number
+  maxTokens: number,
+  jsonMode: boolean
 ): Promise<{ answer: string; tokensUsed: number }> {
+  const body: Record<string, unknown> = { model, messages, temperature, max_tokens: maxTokens };
+  if (jsonMode) body.response_format = { type: "json_object" };
+
   const res = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -53,7 +57,7 @@ async function callModel(
 
 export async function callChatCompletion(
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number } = {}
+  opts: { temperature?: number; maxTokens?: number; jsonMode?: boolean } = {}
 ): Promise<AiCallResult> {
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
@@ -62,13 +66,14 @@ export async function callChatCompletion(
 
   const temperature = opts.temperature ?? 0.7;
   const maxTokens = opts.maxTokens ?? 2500;
+  const jsonMode = opts.jsonMode ?? false;
 
   if (!apiKey) {
     throw new Error("ИИ временно недоступен: не задан AI_API_KEY на сервере");
   }
 
   try {
-    const result = await callModel(apiUrl, apiKey, primaryModel, messages, temperature, maxTokens);
+    const result = await callModel(apiUrl, apiKey, primaryModel, messages, temperature, maxTokens, jsonMode);
     return { ...result, modelUsed: primaryModel, usedFallback: false };
   } catch (primaryErr) {
     if (!fallbackModel) throw primaryErr;
@@ -80,7 +85,7 @@ export async function callChatCompletion(
     );
 
     try {
-      const result = await callModel(apiUrl, apiKey, fallbackModel, messages, temperature, maxTokens);
+      const result = await callModel(apiUrl, apiKey, fallbackModel, messages, temperature, maxTokens, jsonMode);
       return { ...result, modelUsed: fallbackModel, usedFallback: true };
     } catch (fallbackErr) {
       // Обе модели недоступны — показываем ошибку основной, она обычно информативнее
