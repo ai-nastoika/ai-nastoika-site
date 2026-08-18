@@ -1,7 +1,7 @@
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { feedback, userRecipeSubmissions, placeSubmissions } from "@db/schema";
-import { eq, count, and, ne } from "drizzle-orm";
+import { feedback, userRecipeSubmissions, placeSubmissions, aiUsage } from "@db/schema";
+import { eq, count, and, ne, desc, gte, sql } from "drizzle-orm";
 
 export const adminStatsRouter = createRouter({
   /* ── Сводный счётчик для бейджа на кнопке "Админка" в шапке ──
@@ -27,6 +27,36 @@ export const adminStatsRouter = createRouter({
       recipes: recipeCount,
       places: placeCount,
       total: feedbackCount + recipeCount + placeCount,
+    };
+  }),
+
+  /* ── Статус ИИ-моделей: не переключились ли недавно на резервную ──
+     Смотрим последний реальный запрос и статистику за последний час,
+     чтобы отличить разовый сбой от систематической проблемы с основной моделью. */
+  aiHealth: adminQuery.query(async () => {
+    const db = getDb();
+
+    const [lastRequest] = await db
+      .select({ modelUsed: aiUsage.modelUsed, usedFallback: aiUsage.usedFallback, createdAt: aiUsage.createdAt })
+      .from(aiUsage)
+      .orderBy(desc(aiUsage.createdAt))
+      .limit(1);
+
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const [hourStats] = await db
+      .select({
+        total: count(),
+        fallbackCount: sql<number>`sum(${aiUsage.usedFallback})`,
+      })
+      .from(aiUsage)
+      .where(gte(aiUsage.createdAt, hourAgo));
+
+    return {
+      lastRequestUsedFallback: lastRequest?.usedFallback === 1,
+      lastRequestModel: lastRequest?.modelUsed ?? null,
+      lastRequestAt: lastRequest?.createdAt ?? null,
+      requestsLastHour: Number(hourStats?.total ?? 0),
+      fallbackRequestsLastHour: Number(hourStats?.fallbackCount ?? 0),
     };
   }),
 });
