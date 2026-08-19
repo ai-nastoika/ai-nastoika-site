@@ -3,14 +3,22 @@ import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
 import {
   ArrowLeft, Star, MapPin, Clock, Phone, Globe, Train,
-  Heart, Share2, Printer, ThumbsUp, MessageCircle, Send,
-  AlertTriangle, Check, X, Wine, Navigation,
+  Heart, Share2, Printer, Check, X, Wine, Navigation,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import CommentSection from "../components/CommentSection";
+import { ShotGlassCompact } from "../components/ShotGlassRating";
 
 function findFallbackPlace(slug: string) {
   return fallbackPlaces.find((p) => p.slug === slug) ?? null;
+}
+
+/* Компактный индикатор рюмками в шапке заведения — тянет агрегат из отзывов */
+function PlaceRatingBadge({ placeId }: { placeId: number }) {
+  const { data: summary } = trpc.comment.ratingSummary.useQuery({ placeId });
+  if (!summary) return null;
+  return <ShotGlassCompact summary={summary} />;
 }
 
 export default function PlaceDetail() {
@@ -21,21 +29,6 @@ export default function PlaceDetail() {
   const utils = trpc.useUtils();
 
   const placeId = place?.id ?? 0;
-  const { data: commentsData } = trpc.comment.byPlace.useQuery(
-    { placeId },
-    { enabled: placeId > 0 }
-  );
-  const createComment = trpc.comment.create.useMutation({
-    onSuccess: () => {
-      utils.comment.byPlace.invalidate({ placeId });
-      setNewComment("");
-    },
-  });
-  const likeComment = trpc.comment.like.useMutation({
-    onSuccess: () => utils.comment.byPlace.invalidate({ placeId }),
-  });
-
-  const [newComment, setNewComment] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
 
   const { isLoggedIn } = useAuth();
@@ -106,14 +99,8 @@ export default function PlaceDetail() {
     );
   }
 
-  const handleSubmit = () => {
-    if (!newComment.trim() || !placeId) return;
-    createComment.mutate({ placeId, authorName: "Александр", text: newComment.trim() });
-  };
-
   const infusions = (place as Record<string, unknown>).infusions as Array<{name: string, note?: string}> ?? [];
   const tags: string[] = place.tags ? (place.tags as string[]) : [];
-  const comments = commentsData ?? [];
   const pros: string[] = place.externalPros ? (place.externalPros as string[]) : [];
   const cons: string[] = place.externalCons ? (place.externalCons as string[]) : [];
 
@@ -178,8 +165,8 @@ export default function PlaceDetail() {
       <div className="sticky top-16 z-30 py-3" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <PlaceRatingBadge placeId={place.id} />
             {[
-              { icon: Star, label: `${place.rating} (${place.reviews})`, color: "var(--accent)" },
               { icon: Clock, label: place.hours ?? "", color: "var(--text-secondary)" },
               { icon: Wine, label: place.price ?? "", color: "var(--text-secondary)" },
               { icon: Phone, label: place.phone ?? "", color: "var(--text-secondary)" },
@@ -333,63 +320,8 @@ export default function PlaceDetail() {
           </div>
         </section>
 
-        {/* --- User Comments --- */}
-        <section className="mb-12">
-          <div className="flex items-center gap-2 mb-6">
-            <MessageCircle size={20} style={{ color: "var(--accent)" }} />
-            <h2 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Отзывы с сайта</h2>
-            <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>({comments.length})</span>
-          </div>
-
-          {/* Comment input */}
-          <div className="rounded-xl p-5 mb-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>
-                А
-              </div>
-              <div className="flex-1">
-                <textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Поделитесь впечатлениями о настойках..." className="w-full rounded-lg px-4 py-3 text-sm outline-none resize-none mb-3" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)", minHeight: 80 }} />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    <AlertTriangle size={12} /> <span>Будьте вежливы. Нецензурная лексика удаляется.</span>
-                  </div>
-                  <button onClick={handleSubmit} disabled={!newComment.trim() || createComment.isPending} className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white transition-all hover:scale-105 disabled:opacity-50" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                    <Send size={14} /> Отправить
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Comments list */}
-          <div className="space-y-4">
-            {comments.map((comment) => (
-              <div key={comment.id} className="rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--surface)", color: "var(--accent)", fontFamily: "var(--font-heading)", border: "1px solid var(--border)" }}>
-                    {comment.authorAvatar ?? "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                        {comment.authorName ?? "Аноним"}
-                      </span>
-                      <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString("ru-RU") : ""}
-                      </span>
-                    </div>
-                    <p className="text-sm mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                      {comment.text}
-                    </p>
-                    <button onClick={() => likeComment.mutate({ id: comment.id })} className="flex items-center gap-1.5 text-sm transition-colors" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                      <ThumbsUp size={14} /> {comment.likes ?? 0}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* --- Отзывы с сайта (рюмки + текст) --- */}
+        <CommentSection placeId={place.id} />
 
         {/* --- CTA --- */}
         <div className="flex flex-wrap gap-3">

@@ -2,62 +2,75 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { MessageCircle, Send, AlertTriangle, Pencil, Trash2, Check, X } from "lucide-react";
+import { ShotGlassPicker, ShotGlassIcon, ShotGlassDetailed, type RatingTier } from "./ShotGlassRating";
 
-export default function CommentSection({ recipeId }: { recipeId: number }) {
+type CommentSectionProps =
+  | { recipeId: number; placeId?: undefined }
+  | { placeId: number; recipeId?: undefined };
+
+export default function CommentSection(props: CommentSectionProps) {
+  const { recipeId, placeId } = props;
   const utils = trpc.useUtils();
   const { user, isLoggedIn } = useAuth();
 
-  const { data: commentsData } = trpc.comment.list.useQuery(
-    { recipeId },
-    { enabled: recipeId > 0 }
-  );
+  const queryInput = recipeId ? { recipeId } : { placeId };
+  const isValid = (recipeId ?? 0) > 0 || (placeId ?? 0) > 0;
+
+  const { data: commentsData } = trpc.comment.list.useQuery(queryInput, { enabled: isValid });
+  const { data: ratingSummary } = trpc.comment.ratingSummary.useQuery(queryInput, { enabled: isValid });
+
+  function invalidateAll() {
+    utils.comment.list.invalidate(queryInput);
+    utils.comment.ratingSummary.invalidate(queryInput);
+  }
 
   const createComment = trpc.comment.create.useMutation({
     onSuccess: () => {
-      utils.comment.list.invalidate({ recipeId });
+      invalidateAll();
       setNewComment("");
+      setNewRating(null);
     },
   });
 
   const updateComment = trpc.comment.update.useMutation({
     onSuccess: () => {
-      utils.comment.list.invalidate({ recipeId });
+      invalidateAll();
       setEditingId(null);
     },
     onError: (err) => alert("Не удалось сохранить: " + err.message),
   });
 
   const deleteComment = trpc.comment.delete.useMutation({
-    onSuccess: () => utils.comment.list.invalidate({ recipeId }),
+    onSuccess: () => invalidateAll(),
     onError: (err) => alert("Не удалось удалить: " + err.message),
   });
 
   const [newComment, setNewComment] = useState("");
+  const [newRating, setNewRating] = useState<RatingTier | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  const [editRating, setEditRating] = useState<RatingTier | null>(null);
 
   const comments = commentsData ?? [];
 
   const handleSubmit = () => {
     if (!newComment.trim() || !isLoggedIn) return;
-    createComment.mutate({
-      recipeId,
-      text: newComment.trim(),
-    });
+    createComment.mutate({ ...queryInput, text: newComment.trim(), rating: newRating ?? undefined });
   };
 
-  const startEditing = (id: number, text: string) => {
+  const startEditing = (id: number, text: string, rating: string | null) => {
     setEditingId(id);
     setEditText(text);
+    setEditRating(rating === "green" || rating === "yellow" || rating === "red" ? rating : null);
   };
 
   const saveEditing = () => {
     if (!editText.trim() || editingId === null) return;
-    updateComment.mutate({ id: editingId, text: editText.trim() });
+    updateComment.mutate({ id: editingId, text: editText.trim(), rating: editRating ?? undefined });
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Удалить комментарий?")) deleteComment.mutate({ id });
+    if (confirm("Удалить отзыв?")) deleteComment.mutate({ id });
   };
 
   const getInitial = (name?: string | null) => {
@@ -73,15 +86,21 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
 
   return (
     <section className="mb-14">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <MessageCircle size={22} style={{ color: "var(--accent)" }} />
         <h2 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          Комментарии
+          Отзывы
         </h2>
         <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
           ({comments.length})
         </span>
       </div>
+
+      {ratingSummary && (
+        <div className="mb-6">
+          <ShotGlassDetailed summary={ratingSummary} />
+        </div>
+      )}
 
       {/* Comment input */}
       {isLoggedIn ? (
@@ -90,7 +109,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>
               {getInitial(user?.name)}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -107,7 +126,15 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit();
                 }}
               />
-              <div className="flex items-center justify-between">
+
+              <div className="mb-3">
+                <div className="text-sm mb-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Оценка (необязательно — только вместе с текстом отзыва)
+                </div>
+                <ShotGlassPicker value={newRating} onChange={setNewRating} />
+              </div>
+
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                   <AlertTriangle size={14} />
                   <span>Ctrl+Enter для отправки</span>
@@ -128,7 +155,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
       ) : (
         <div className="rounded-xl p-5 mb-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
           <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            <a href="#/login" className="underline font-medium" style={{ color: "var(--accent)" }}>Войдите</a>, чтобы оставить комментарий
+            <a href="#/login" className="underline font-medium" style={{ color: "var(--accent)" }}>Войдите</a>, чтобы оставить отзыв
           </p>
         </div>
       )}
@@ -138,6 +165,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
         {comments.map((comment) => {
           const isOwn = isLoggedIn && comment.userId === user?.id;
           const isEditing = editingId === comment.id;
+          const rating = comment.rating === "green" || comment.rating === "yellow" || comment.rating === "red" ? comment.rating : null;
 
           return (
             <div key={comment.id} className="rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -147,10 +175,11 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                         {comment.authorName ?? "Аноним"}
                       </span>
+                      {rating && <ShotGlassIcon tier={rating} size={18} />}
                       <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                         {formatDate(comment.createdAt)}
                       </span>
@@ -158,7 +187,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
                     {isOwn && !isEditing && (
                       <div className="flex items-center gap-1 shrink-0">
                         <button
-                          onClick={() => startEditing(comment.id, comment.text)}
+                          onClick={() => startEditing(comment.id, comment.text, comment.rating)}
                           title="Редактировать"
                           className="p-1.5 rounded-lg transition-opacity hover:opacity-70"
                           style={{ color: "var(--text-muted)" }}
@@ -191,6 +220,9 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
                           minHeight: 70,
                         }}
                       />
+                      <div className="mb-2">
+                        <ShotGlassPicker value={editRating} onChange={setEditRating} />
+                      </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={saveEditing}
@@ -210,7 +242,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                    <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
                       {comment.text}
                     </p>
                   )}
@@ -225,7 +257,7 @@ export default function CommentSection({ recipeId }: { recipeId: number }) {
         <div className="text-center py-8">
           <MessageCircle size={32} style={{ color: "var(--border)" }} className="mx-auto mb-3" />
           <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Пока нет комментариев. Будьте первым!
+            Пока нет отзывов. Будьте первым!
           </p>
         </div>
       )}

@@ -4,11 +4,19 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 
 import CommentSection from "../components/CommentSection";
+import { ShotGlassCompact } from "../components/ShotGlassRating";
 import RecipeAiConsult from "./RecipeAiConsult";
 import {
   ArrowLeft, Clock, Star, Wine, ChefHat, BookOpen, Lightbulb,
   FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check, Timer,
 } from "lucide-react";
+
+/* Компактный индикатор рюмками в шапке рецепта — тянет агрегат из отзывов */
+function RecipeRatingBadge({ recipeId }: { recipeId: number }) {
+  const { data: summary } = trpc.comment.ratingSummary.useQuery({ recipeId });
+  if (!summary) return null;
+  return <ShotGlassCompact summary={summary} />;
+}
 
 function FlavorBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -202,8 +210,8 @@ export default function RecipeDetail() {
       <div className="sticky top-16 z-30 py-3 print:static" style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <RecipeRatingBadge recipeId={recipe.id} />
             {[
-              { icon: Star, label: `${recipe.rating} (${recipe.reviews})`, color: "var(--accent)" },
               { icon: Clock, label: recipe.time ?? "", color: "var(--text-secondary)" },
               { icon: Wine, label: recipe.abv ?? "", color: "var(--text-secondary)" },
               { icon: ChefHat, label: recipe.difficulty ?? "", color: "var(--text-secondary)" },

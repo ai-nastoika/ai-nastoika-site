@@ -85,6 +85,13 @@
       "when": 1787123559492,
       "tag": "0011_jazzy_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1787128806655,
+      "tag": "0012_skinny_jack_power",
+      "breakpoints": true
     }
   ]
 }

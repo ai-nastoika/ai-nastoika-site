@@ -2,8 +2,16 @@ import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
-import { MapPin, Star, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles } from "lucide-react";
+import { MapPin, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles } from "lucide-react";
 import SuggestPlaceForm from "./SuggestPlaceForm";
+import { ShotGlassCompact } from "@/components/ShotGlassRating";
+
+/* Компактный индикатор рюмками для карточки заведения в списке */
+function PlaceRatingBadge({ placeId }: { placeId: number }) {
+  const { data: summary } = trpc.comment.ratingSummary.useQuery({ placeId });
+  if (!summary) return null;
+  return <ShotGlassCompact summary={summary} />;
+}
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
@@ -526,8 +534,7 @@ export default function BarMap() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Star size={22} fill="var(--accent)" color="var(--accent)" />
-                      <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{venue.rating}</span>
+                      <PlaceRatingBadge placeId={venue.id} />
                     </div>
                   </div>
 
@@ -621,7 +628,7 @@ function RecommendGroup({
                   {venue.name}
                 </div>
                 <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  <Star size={12} fill="var(--accent)" color="var(--accent)" /> {venue.rating ?? "—"}
+                  <PlaceRatingBadge placeId={venue.id} />
                 </div>
                 {travel && (
                   <div className="text-xs mt-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>

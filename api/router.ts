@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { listRecentConversations } from "./lib/aiConversations";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq, and, avg, count, desc, sql } from "drizzle-orm";
-import { recipeRatings, comments, feedback, transactions, users as usersFull } from "../db/schema";
+import { eq, count, desc, sql } from "drizzle-orm";
+import { comments, feedback, transactions, users as usersFull, places } from "../db/schema";
 // ^ users из "./trpc" — устаревшая копия схемы без free_requests_left/balance_kopecks
 //   (см. api/trpc.ts). usersFull — актуальная таблица из db/schema.ts, с этими полями.
 //   Используется ниже только там, где эти поля реально нужны (list/grant*).
@@ -281,57 +281,18 @@ export const appRouter = router({
   // ─── Рецепты ───
   recipe: recipeRouter,
 
-  // ─── Оценки ───
-  rating: router({
-    myRating: authedProcedure
-      .input(z.object({ recipeId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        const rows = await db.select().from(recipeRatings).where(
-          and(eq(recipeRatings.recipeId, input.recipeId), eq(recipeRatings.userId, ctx.userId))
-        );
-        return rows[0] || null;
-      }),
-
-    myRatings: authedProcedure.query(async ({ ctx }) => {
-      return db.select({
-        id: recipeRatings.id,
-        recipeId: recipeRatings.recipeId,
-        rating: recipeRatings.rating,
-        createdAt: recipeRatings.createdAt,
-      }).from(recipeRatings).where(eq(recipeRatings.userId, ctx.userId));
-    }),
-
-    set: authedProcedure
-      .input(z.object({ recipeId: z.number(), rating: z.number().min(1).max(5) }))
-      .mutation(async ({ input, ctx }) => {
-        const existing = await db.select().from(recipeRatings).where(
-          and(eq(recipeRatings.recipeId, input.recipeId), eq(recipeRatings.userId, ctx.userId))
-        );
-        if (existing.length > 0) {
-          await db.update(recipeRatings).set({ rating: input.rating }).where(eq(recipeRatings.id, existing[0].id));
-        } else {
-          await db.insert(recipeRatings).values({ recipeId: input.recipeId, userId: ctx.userId, rating: input.rating });
-        }
-        const result = await db.select({
-          avg: avg(recipeRatings.rating),
-          count: count(recipeRatings.id),
-        }).from(recipeRatings).where(eq(recipeRatings.recipeId, input.recipeId));
-        const newRating = Number(result[0].avg).toFixed(1);
-        const newCount = Number(result[0].count);
-        await db.update(recipes).set({ rating: newRating, reviews: newCount }).where(eq(recipes.id, input.recipeId));
-        return { success: true, newRating, newCount };
-      }),
-  }),
-
-  // ─── Комментарии ───
+  // ─── Комментарии и отзывы с оценкой "рюмками" ───
   comment: router({
+    /* input: ровно один из recipeId/placeId */
     list: publicProcedure
-      .input(z.object({ recipeId: z.number() }))
+      .input(z.object({ recipeId: z.number().optional(), placeId: z.number().optional() }))
       .query(async ({ input }) => {
+        const condition = input.recipeId != null ? eq(comments.recipeId, input.recipeId) : eq(comments.placeId, input.placeId!);
         return db
           .select({
             id: comments.id,
             text: comments.text,
+            rating: comments.rating,
             createdAt: comments.createdAt,
             likes: comments.likes,
             userId: comments.userId,
@@ -339,30 +300,64 @@ export const appRouter = router({
           })
           .from(comments)
           .leftJoin(users, eq(comments.userId, users.id))
-          .where(eq(comments.recipeId, input.recipeId))
+          .where(condition)
           .orderBy(desc(comments.createdAt));
+      }),
+
+    /* Сколько зелёных/жёлтых/красных отзывов у рецепта или места — для рюмок на карточках/странице */
+    ratingSummary: publicProcedure
+      .input(z.object({ recipeId: z.number().optional(), placeId: z.number().optional() }))
+      .query(async ({ input }) => {
+        const condition = input.recipeId != null ? eq(comments.recipeId, input.recipeId) : eq(comments.placeId, input.placeId!);
+        const rows = await db
+          .select({ rating: comments.rating, n: count() })
+          .from(comments)
+          .where(condition)
+          .groupBy(comments.rating);
+        const summary = { green: 0, yellow: 0, red: 0 };
+        for (const row of rows) {
+          if (row.rating === "green" || row.rating === "yellow" || row.rating === "red") {
+            summary[row.rating] = Number(row.n);
+          }
+        }
+        return summary;
       }),
 
     myComments: authedProcedure.query(async ({ ctx }) => {
       return db.select().from(comments).where(eq(comments.userId, ctx.userId));
     }),
 
+    /* Оценку можно приложить только вместе с отзывом — отдельного эндпоинта "поставить рюмку без текста" нет */
     create: authedProcedure
-      .input(z.object({ recipeId: z.number(), text: z.string().min(1) }))
+      .input(
+        z.object({
+          recipeId: z.number().optional(),
+          placeId: z.number().optional(),
+          text: z.string().min(1),
+          rating: z.enum(["green", "yellow", "red"]).optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        await db.insert(comments).values({ recipeId: input.recipeId, userId: ctx.userId, text: input.text });
+        if (!input.recipeId && !input.placeId) throw new Error("Нужно указать recipeId или placeId");
+        await db.insert(comments).values({
+          recipeId: input.recipeId ?? null,
+          placeId: input.placeId ?? null,
+          userId: ctx.userId,
+          text: input.text,
+          rating: input.rating ?? null,
+        });
         return { success: true };
       }),
 
     /* ── Редактировать свой комментарий (только автор, не админ —
        модерация правкой чужого текста без ведома автора недопустима) ── */
     update: authedProcedure
-      .input(z.object({ id: z.number(), text: z.string().min(1).max(2000) }))
+      .input(z.object({ id: z.number(), text: z.string().min(1).max(2000), rating: z.enum(["green", "yellow", "red"]).optional() }))
       .mutation(async ({ input, ctx }) => {
         const [existing] = await db.select().from(comments).where(eq(comments.id, input.id));
         if (!existing) throw new Error("Комментарий не найден");
         if (existing.userId !== ctx.userId) throw new Error("Нельзя редактировать чужой комментарий");
-        await db.update(comments).set({ text: input.text }).where(eq(comments.id, input.id));
+        await db.update(comments).set({ text: input.text, rating: input.rating ?? existing.rating }).where(eq(comments.id, input.id));
         return { success: true };
       }),
 
@@ -379,21 +374,25 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    /* ── Для админ-панели: все комментарии сайта, новые сверху, с автором и рецептом ── */
+    /* ── Для админ-панели: все комментарии сайта, новые сверху, с автором и рецептом/местом ── */
     listAll: adminProcedure.query(async () => {
       return db
         .select({
           id: comments.id,
           text: comments.text,
+          rating: comments.rating,
           createdAt: comments.createdAt,
           recipeId: comments.recipeId,
           recipeTitle: recipes.title,
+          placeId: comments.placeId,
+          placeName: places.name,
           userId: comments.userId,
           authorName: users.name,
           authorEmail: users.email,
         })
         .from(comments)
         .leftJoin(recipes, eq(comments.recipeId, recipes.id))
+        .leftJoin(places, eq(comments.placeId, places.id))
         .leftJoin(users, eq(comments.userId, users.id))
         .orderBy(desc(comments.createdAt))
         .limit(300);

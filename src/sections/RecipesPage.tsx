@@ -3,11 +3,19 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 
 import {
-  Search, SlidersHorizontal, Star, Clock, Heart, Flame,
+  Search, SlidersHorizontal, Clock, Heart, Flame,
   Leaf, Grape, Citrus, Coffee, Droplets, ChevronDown, ArrowLeft,
   Sparkles, Plus, X,
 } from "lucide-react";
 import AddRecipeForm from "@/sections/AddRecipeForm";
+import { ShotGlassCompact } from "@/components/ShotGlassRating";
+
+/* Компактный индикатор рюмками для карточки рецепта в списке */
+function RecipeRatingBadge({ recipeId }: { recipeId: number }) {
+  const { data: summary } = trpc.comment.ratingSummary.useQuery({ recipeId });
+  if (!summary) return null;
+  return <ShotGlassCompact summary={summary} />;
+}
 
 // Первые 5 — в полоске, остальные — в «Другие»
 const MAIN_CATEGORIES = [
@@ -285,11 +293,7 @@ export default function RecipesPage() {
                   <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{recipe.title}</h3>
 
                   <div className="flex items-center gap-4 mb-3">
-                    <div className="flex items-center gap-1">
-                      <Star size={22} fill="var(--accent)" color="var(--accent)" />
-                      <span className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{recipe.rating}</span>
-                      <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>({recipe.reviews})</span>
-                    </div>
+                    <RecipeRatingBadge recipeId={recipe.id} />
                     <div className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                       <Clock size={28} />
                       <span className="text-base" style={{ fontFamily: "var(--font-body)" }}>{recipe.time}</span>

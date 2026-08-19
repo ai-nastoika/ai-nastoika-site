@@ -212,6 +212,9 @@ export const comments = mysqlTable("comments", {
   authorName: varchar("author_name", { length: 100 }),
   authorAvatar: varchar("author_avatar", { length: 10 }),
   text: text("text").notNull(),
+  // Оценка "рюмками" — только вместе с отзывом, не отдельная фича.
+  // green = отлично, yellow = нормально, red = плохо. null — комментарий без оценки (вопрос/реплика).
+  rating: varchar("rating", { length: 10 }), // green | yellow | red
   likes: int("likes").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
