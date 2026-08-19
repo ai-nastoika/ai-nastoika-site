@@ -1,0 +1,1 @@
+ALTER TABLE `ai_usage` ADD `failed` int DEFAULT 0 NOT NULL;

@@ -40,6 +40,12 @@ export async function generateImage(prompt: string): Promise<GeneratedImage> {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
+    if (errText.includes("safety system") || errText.includes("rejected by the safety")) {
+      throw new Error(
+        "Настройки безопасности ИИ-модели не позволяют сгенерировать изображение по вашему описанию. " +
+          "Попробуйте изменить описание или начните заново. Плата за запрос не взималась."
+      );
+    }
     throw new Error(`Ошибка генерации изображения (${res.status}): ${errText.slice(0, 200)}`);
   }
 

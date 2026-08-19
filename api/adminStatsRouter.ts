@@ -59,4 +59,33 @@ export const adminStatsRouter = createRouter({
       fallbackRequestsLastHour: Number(hourStats?.fallbackCount ?? 0),
     };
   }),
+
+  /* ── Статус генерации изображений (этикетки) — отдельно от текстовых моделей,
+     у картинок нет резервной модели, поэтому здесь смотрим именно успех/провал. ── */
+  imageHealth: adminQuery.query(async () => {
+    const db = getDb();
+
+    const [lastAttempt] = await db
+      .select({ failed: aiUsage.failed, createdAt: aiUsage.createdAt })
+      .from(aiUsage)
+      .where(eq(aiUsage.requestType, "label_image"))
+      .orderBy(desc(aiUsage.createdAt))
+      .limit(1);
+
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const [hourStats] = await db
+      .select({
+        total: count(),
+        failedCount: sql<number>`sum(${aiUsage.failed})`,
+      })
+      .from(aiUsage)
+      .where(and(eq(aiUsage.requestType, "label_image"), gte(aiUsage.createdAt, hourAgo)));
+
+    return {
+      lastAttemptFailed: lastAttempt?.failed === 1,
+      lastAttemptAt: lastAttempt?.createdAt ?? null,
+      attemptsLastHour: Number(hourStats?.total ?? 0),
+      failedAttemptsLastHour: Number(hourStats?.failedCount ?? 0),
+    };
+  }),
 });

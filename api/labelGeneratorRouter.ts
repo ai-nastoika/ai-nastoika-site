@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
-import { chargeImageRequest, getImageAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
+import { chargeImageRequest, getImageAccessState, logAiUsage, logAiFailure, refundAiRequest } from "./lib/aiAccess";
 import { generateImage } from "./lib/imageClient";
 import { saveConversationTurn } from "./lib/aiConversations";
 
@@ -38,6 +38,7 @@ function buildLabelPrompt(input: {
   if (input.colors?.trim()) parts.push(`color palette: ${input.colors.trim()}`);
   if (input.elements?.trim()) parts.push(`decorative elements: ${input.elements.trim()}`);
   parts.push(bottleAspect[input.bottleType] ?? bottleAspect.standard);
+  parts.push("aspect ratio 3:4 portrait orientation (width:height), image noticeably taller than wide but not extremely elongated");
 
   parts.push(
     `render the exact text "${input.title.trim()}" as the main title, large and clearly legible, ` +
@@ -93,6 +94,7 @@ export const labelGeneratorRouter = createRouter({
         image = await generateImage(prompt);
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
+        await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
         throw err;
       }
 

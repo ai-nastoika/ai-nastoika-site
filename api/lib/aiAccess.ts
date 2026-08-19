@@ -146,6 +146,23 @@ export async function logAiUsage(params: {
   });
 }
 
+/**
+ * Записывает неудачную попытку (провайдер вернул ошибку) — списание к этому
+ * моменту уже отменено через refundAiRequest, здесь только для статистики/
+ * индикатора доступности в админке (см. adminStatsRouter.ts → imageHealth).
+ */
+export async function logAiFailure(params: { userId: number; requestType: string }): Promise<void> {
+  const db = getDb();
+  await db.insert(aiUsage).values({
+    userId: params.userId,
+    requestType: params.requestType,
+    tokensUsed: 0,
+    costKopecks: 0,
+    wasFree: 1,
+    failed: 1,
+  });
+}
+
 /** Текущее состояние доступа пользователя — для эндпоинта checkLimit и личного кабинета. */
 export async function getAiAccessState(userId: number) {
   const db = getDb();

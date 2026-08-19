@@ -384,6 +384,9 @@ export const aiUsage = mysqlTable("ai_usage", {
   // Какая модель реально ответила (см. api/lib/aiClient.ts) — основная или резервная
   modelUsed: varchar("model_used", { length: 100 }),
   usedFallback: int("used_fallback").default(0).notNull(), // 1, если основная модель упала и сработал AI_MODEL_FALLBACK
+  // 1, если сам вызов ИИ-провайдера не удался (списание при этом отменяется через refundAiRequest —
+  // эта запись только для статистики/индикатора доступности в админке, costKopecks у неё всегда 0)
+  failed: int("failed").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

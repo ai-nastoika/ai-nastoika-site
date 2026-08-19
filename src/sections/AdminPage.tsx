@@ -201,6 +201,7 @@ function AdminPanel() {
   const { data: feedbackCount } = trpc.feedback.list.useQuery();
   const { data: commentsCount } = trpc.comment.listAll.useQuery();
   const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000 });
+  const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000 });
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -453,6 +454,44 @@ function AdminPanel() {
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
             >
               ИИ-запросов пока не было — статус модели появится после первого обращения к ИИ на сайте.
+            </div>
+          )
+        )}
+
+        {imageHealth && (
+          imageHealth.lastAttemptFailed ? (
+            <div
+              className="mb-6 rounded-xl px-5 py-4 flex items-center gap-3"
+              style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b" }}
+            >
+              <AlertTriangle size={22} className="shrink-0" />
+              <div className="text-sm" style={{ fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                <div className="font-semibold">Генерация этикеток сейчас падает с ошибкой (последняя попытка неудачна)</div>
+                <div>
+                  За последний час: {imageHealth.failedAttemptsLastHour} из {imageHealth.attemptsLastHour} попыток завершились ошибкой.
+                  {imageHealth.lastAttemptAt && ` Последняя попытка: ${new Date(imageHealth.lastAttemptAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+                  {" "}У изображений нет резервной модели — деньги за неудачные попытки автоматически возвращаются пользователю.
+                </div>
+              </div>
+            </div>
+          ) : imageHealth.lastAttemptAt ? (
+            <div
+              className="mb-6 rounded-xl px-5 py-3 flex items-center gap-3 text-sm"
+              style={{ background: "#dcfce7", border: "1px solid #86efac", color: "#166534", fontFamily: "var(--font-body)" }}
+            >
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#16a34a" }} />
+              <span>
+                Генерация этикеток работает штатно.
+                {` Последняя попытка: ${new Date(imageHealth.lastAttemptAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.`}
+                {" "}Попыток за час: {imageHealth.attemptsLastHour}.
+              </span>
+            </div>
+          ) : (
+            <div
+              className="mb-6 rounded-xl px-5 py-3 text-sm"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+            >
+              Генераций этикеток пока не было — статус появится после первого обращения.
             </div>
           )
         )}
