@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Send, Check, Wine, Link as LinkIcon, ChevronDown, MapPin, Tag, Coins, Clock } from "lucide-react";
 
 type YandexTagStatus = "has_tag" | "wants_paid" | "no_tag_wait";
+type InputMode = "url" | "address";
 
 function isYandexMapsUrl(url: string): boolean {
   return /yandex\.[a-z.]+\/maps/i.test(url) || /yandex\.[a-z.]+\/[a-z]{2}\/maps/i.test(url);
@@ -16,7 +17,9 @@ function isYandexMapsUrl(url: string): boolean {
 export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
+  const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [yandexTagStatus, setYandexTagStatus] = useState<YandexTagStatus | null>(null);
   const [rulesOpen, setRulesOpen] = useState(true);
@@ -27,7 +30,9 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
   const submitForReview = trpc.placeSubmission.submit.useMutation();
 
   const urlLooksValid = url.trim().length > 0 && isYandexMapsUrl(url);
-  const canSubmit = name.trim() && email.trim() && urlLooksValid && yandexTagStatus !== null;
+  const addressFilled = address.trim().length >= 5;
+  const locationProvided = inputMode === "url" ? urlLooksValid : addressFilled;
+  const canSubmit = name.trim() && email.trim() && locationProvided && yandexTagStatus !== null;
 
   async function handleSubmit() {
     setError("");
@@ -35,7 +40,8 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
       const draft = await createSubmission.mutateAsync({
         authorName: name,
         contactEmail: email,
-        rawUrl: url,
+        rawUrl: inputMode === "url" ? url : undefined,
+        rawAddress: inputMode === "address" ? address : undefined,
         rawNotes: description || undefined,
         yandexTagStatus: yandexTagStatus ?? undefined,
       });
@@ -104,7 +110,8 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
             <div className="flex gap-2">
               <MapPin size={16} className="shrink-0 mt-0.5" style={{ color: "var(--text-muted)" }} />
               <span style={{ color: "var(--text-secondary)" }}>
-                Заносим только заведения, которые есть на <strong>Яндекс.Картах</strong>. Если места там нет — на нашу карту оно, к сожалению, не попадёт.
+                Заносим только заведения, которые есть на <strong>Яндекс.Картах</strong>. Точная ссылка необязательна — можно указать просто адрес,
+                мы сами найдём нужную точку. Если места нет на Яндекс.Картах вообще — на нашу карту оно, к сожалению, не попадёт.
               </span>
             </div>
             <div className="flex gap-2">
@@ -142,13 +149,56 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <Label className="text-sm">Ссылка на Яндекс.Карты *</Label>
-          <div className="relative mt-1">
-            <LinkIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://yandex.ru/maps/..." className="pl-9" />
+          <Label className="text-sm mb-2 block">Как найти заведение на Яндекс.Картах? *</Label>
+          <div className="flex gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => setInputMode("url")}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: inputMode === "url" ? "var(--accent)" : "var(--surface)",
+                color: inputMode === "url" ? "#fff" : "var(--text-secondary)",
+                border: "1px solid " + (inputMode === "url" ? "var(--accent)" : "var(--border)"),
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              У меня есть ссылка
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("address")}
+              className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: inputMode === "address" ? "var(--accent)" : "var(--surface)",
+                color: inputMode === "address" ? "#fff" : "var(--text-secondary)",
+                border: "1px solid " + (inputMode === "address" ? "var(--accent)" : "var(--border)"),
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              Просто укажу адрес
+            </button>
           </div>
-          {url.trim().length > 0 && !urlLooksValid && (
-            <p className="text-xs mt-1" style={{ color: "#dc2626" }}>Похоже, это не ссылка на Яндекс.Карты — без неё заявку принять не сможем.</p>
+
+          {inputMode === "url" ? (
+            <>
+              <div className="relative">
+                <LinkIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://yandex.ru/maps/..." className="pl-9" />
+              </div>
+              {url.trim().length > 0 && !urlLooksValid && (
+                <p className="text-xs mt-1" style={{ color: "#dc2626" }}>Похоже, это не ссылка на Яндекс.Карты.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Город, улица, номер дома" className="pl-9" />
+              </div>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                Мы сами найдём заведение на Яндекс.Картах по адресу — но это добавит времени на проверку.
+              </p>
+            </>
           )}
         </div>
 

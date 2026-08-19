@@ -334,14 +334,6 @@ export default function BarMap() {
     );
   }
 
-  if (showAddForm) {
-    return (
-      <div className="min-h-screen py-12 px-4" style={{ background: "var(--bg-primary)" }}>
-        <SuggestPlaceForm onClose={() => setShowAddForm(false)} />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* Hero */}
@@ -582,6 +574,12 @@ export default function BarMap() {
           )}
         </div>
       </section>
+
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto py-12 px-4" style={{ background: "var(--bg-primary)" }}>
+          <SuggestPlaceForm onClose={() => setShowAddForm(false)} />
+        </div>
+      )}
     </div>
   );
 }
