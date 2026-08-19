@@ -1,23 +1,33 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Send, Check, Wine, Link as LinkIcon } from "lucide-react";
+import { Send, Check, Wine, Link as LinkIcon, ChevronDown, MapPin, Tag, Coins, Clock } from "lucide-react";
+
+type YandexTagStatus = "has_tag" | "wants_paid" | "no_tag_wait";
+
+function isYandexMapsUrl(url: string): boolean {
+  return /yandex\.[a-z.]+\/maps/i.test(url) || /yandex\.[a-z.]+\/[a-z]{2}\/maps/i.test(url);
+}
 
 export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
+  const [yandexTagStatus, setYandexTagStatus] = useState<YandexTagStatus | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(true);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
   const createSubmission = trpc.placeSubmission.create.useMutation();
   const submitForReview = trpc.placeSubmission.submit.useMutation();
 
-  const canSubmit = name.trim() && email.trim() && (url.trim() || description.trim());
+  const urlLooksValid = url.trim().length > 0 && isYandexMapsUrl(url);
+  const canSubmit = name.trim() && email.trim() && urlLooksValid && yandexTagStatus !== null;
 
   async function handleSubmit() {
     setError("");
@@ -25,8 +35,9 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
       const draft = await createSubmission.mutateAsync({
         authorName: name,
         contactEmail: email,
-        rawUrl: url || undefined,
+        rawUrl: url,
         rawNotes: description || undefined,
+        yandexTagStatus: yandexTagStatus ?? undefined,
       });
       // Публичная заявка сразу уходит на модерацию — без обработки ИИ на стороне пользователя
       await submitForReview.mutateAsync({ id: draft.id });
@@ -46,7 +57,9 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
           Спасибо! Заявка отправлена
         </h2>
         <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-          Мы проверим информацию и, если всё в порядке, заведение появится на барной карте. Если понадобятся детали — напишем вам на указанный email.
+          {yandexTagStatus === "has_tag" && "Раз тег «Настойки» уже есть на Яндекс.Картах — обычно такие заявки мы обрабатываем быстро и бесплатно."}
+          {yandexTagStatus === "wants_paid" && "Мы свяжемся с вами по указанному email, чтобы обсудить детали и приоритетную обработку."}
+          {yandexTagStatus === "no_tag_wait" && "Заявка встанет в общую очередь — добавим, когда Яндекс сам присвоит тег «Настойки» отзывам этого заведения."}
         </p>
         <button
           onClick={onClose}
@@ -75,11 +88,46 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      <div className="p-4 rounded-xl mb-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <p className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Знаете место, где подают отличные настойки? Оставьте ссылку и короткое описание — мы проверим
-          и добавим на карту. Не нужно искать координаты или собирать отзывы, мы сделаем это сами.
-        </p>
+      {/* Правила добавления — на видном месте, чтобы не было неожиданностей после отправки */}
+      <div className="rounded-xl mb-5 overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <button
+          onClick={() => setRulesOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left"
+        >
+          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+            Как мы решаем, что попадёт на карту
+          </span>
+          <ChevronDown size={18} style={{ color: "var(--text-muted)", transform: rulesOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+        </button>
+        {rulesOpen && (
+          <div className="px-4 pb-4 space-y-3 text-sm" style={{ fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+            <div className="flex gap-2">
+              <MapPin size={16} className="shrink-0 mt-0.5" style={{ color: "var(--text-muted)" }} />
+              <span style={{ color: "var(--text-secondary)" }}>
+                Заносим только заведения, которые есть на <strong>Яндекс.Картах</strong>. Если места там нет — на нашу карту оно, к сожалению, не попадёт.
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Tag size={16} className="shrink-0 mt-0.5" style={{ color: "#16a34a" }} />
+              <span style={{ color: "var(--text-secondary)" }}>
+                Если в отзывах на Яндекс.Картах у заведения <strong>уже есть тег «Настойки»</strong> — добавляем бесплатно, это быстро.
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Coins size={16} className="shrink-0 mt-0.5" style={{ color: "var(--accent)" }} />
+              <span style={{ color: "var(--text-secondary)" }}>
+                Если тега пока нет — нужен ручной разбор отзывов и составление описания администратором. Это можно ускорить донатом
+                или депозитом от заведения на дегустацию — тогда рассмотрим вне очереди.
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Clock size={16} className="shrink-0 mt-0.5" style={{ color: "var(--text-muted)" }} />
+              <span style={{ color: "var(--text-secondary)" }}>
+                Без доната — тоже добавим, но только когда сам Яндекс присвоит отзывам тег «Настойки». Срок заранее назвать не можем.
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -94,11 +142,46 @@ export default function SuggestPlaceForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <Label className="text-sm">Ссылка на заведение</Label>
+          <Label className="text-sm">Ссылка на Яндекс.Карты *</Label>
           <div className="relative mt-1">
             <LinkIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Сайт или ссылка на Яндекс.Карты" className="pl-9" />
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://yandex.ru/maps/..." className="pl-9" />
           </div>
+          {url.trim().length > 0 && !urlLooksValid && (
+            <p className="text-xs mt-1" style={{ color: "#dc2626" }}>Похоже, это не ссылка на Яндекс.Карты — без неё заявку принять не сможем.</p>
+          )}
+        </div>
+
+        <div>
+          <Label className="text-sm mb-2 block">Есть ли у заведения тег «Настойки» в отзывах на Яндекс.Картах? *</Label>
+          <div className="space-y-2">
+            {([
+              { id: "has_tag" as const, label: "Да, тег уже есть" },
+              { id: "wants_paid" as const, label: "Нет, но готовы поддержать проект донатом/дегустацией ради приоритета" },
+              { id: "no_tag_wait" as const, label: "Нет — подожду, пока тег появится сам" },
+            ]).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setYandexTagStatus(opt.id)}
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all"
+                style={{
+                  background: yandexTagStatus === opt.id ? "var(--accent)" : "var(--surface)",
+                  color: yandexTagStatus === opt.id ? "#fff" : "var(--text-secondary)",
+                  border: "1px solid " + (yandexTagStatus === opt.id ? "var(--accent)" : "var(--border)"),
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {yandexTagStatus === "wants_paid" && (
+            <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+              После отправки мы напишем вам на email, чтобы согласовать детали. Поддержать проект также можно на{" "}
+              <Link to="/rules" className="underline" style={{ color: "var(--accent)" }}>странице доната</Link>.
+            </p>
+          )}
         </div>
 
         <div>

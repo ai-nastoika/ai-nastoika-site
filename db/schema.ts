@@ -146,6 +146,11 @@ export const placeSubmissions = mysqlTable("place_submissions", {
   contactEmail: varchar("contact_email", { length: 320 }),
   status: varchar("status", { length: 20 }).notNull().default("draft"), // draft | ai_processed | pending | approved | rejected
 
+  // Самостоятельный ответ заявителя на вопрос "есть ли уже тег «Настойки» в отзывах
+  // на Яндекс.Картах" — не финальное решение (это по-прежнему проверяют админы),
+  // а только для быстрой сортировки заявок в очереди модерации.
+  yandexTagStatus: varchar("yandex_tag_status", { length: 20 }), // has_tag | wants_paid | no_tag_wait
+
   // ─ сырые данные, вставленные вручную (адрес/координаты копируются
   //   с открытой точки на Яндекс.Картах, отзывы — вручную найденные фрагменты) ─
   rawUrl: varchar("raw_url", { length: 500 }),

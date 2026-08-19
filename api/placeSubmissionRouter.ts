@@ -38,6 +38,7 @@ export const placeSubmissionRouter = createRouter({
         rawHours: z.string().optional(),
         rawReviews: z.string().optional(),
         rawNotes: z.string().optional(),
+        yandexTagStatus: z.enum(["has_tag", "wants_paid", "no_tag_wait"]).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -56,6 +57,7 @@ export const placeSubmissionRouter = createRouter({
           rawHours: input.rawHours ?? null,
           rawReviews: input.rawReviews ?? null,
           rawNotes: input.rawNotes ?? null,
+          yandexTagStatus: input.yandexTagStatus ?? null,
           status: "draft",
         })
         .$returningId();

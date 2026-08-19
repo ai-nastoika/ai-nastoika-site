@@ -1986,6 +1986,21 @@ function PlaceModerationTab() {
                     <span className="font-medium text-sm flex-1 truncate" style={{ fontFamily: "var(--font-body)" }}>
                       {s.name || "(без названия)"}
                     </span>
+                    {s.yandexTagStatus && (
+                      <span
+                        className="shrink-0 px-2 py-1 rounded-full text-xs font-medium"
+                        style={
+                          s.yandexTagStatus === "has_tag"
+                            ? { background: "#d8f3dc", color: "#386641" }
+                            : s.yandexTagStatus === "wants_paid"
+                            ? { background: "#fef3c7", color: "#92400e" }
+                            : { background: "#f3f4f6", color: "#6b7280" }
+                        }
+                        title="Что заявитель сам указал про тег «Настойки» на Яндекс.Картах — это не финальная проверка, только для сортировки очереди"
+                      >
+                        {s.yandexTagStatus === "has_tag" ? "Тег уже есть" : s.yandexTagStatus === "wants_paid" ? "Готовы поддержать" : "Ждёт тега"}
+                      </span>
+                    )}
                     <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
                       <User size={12} className="inline mr-1" />
                       {s.authorName || "Аноним"}

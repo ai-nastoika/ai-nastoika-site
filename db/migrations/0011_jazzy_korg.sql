@@ -1,0 +1,1 @@
+ALTER TABLE `place_submissions` ADD `yandex_tag_status` varchar(20);
