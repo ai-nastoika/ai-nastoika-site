@@ -67,8 +67,18 @@ export default function LabelGeneratorPage() {
   const limitReached = limitInfo ? !limitInfo.allowed : false;
 
   function handleGenerate() {
-    if (!description.trim() || generate.isPending || limitReached) return;
-    generate.mutate({ description: description.trim(), style, colors, elements, bottleType });
+    if (!description.trim() || !labelTitle.trim() || generate.isPending || limitReached) return;
+    generate.mutate({
+      description: description.trim(),
+      style,
+      colors,
+      elements,
+      bottleType,
+      title: labelTitle.trim(),
+      subtitle: labelSubtitle,
+      abv: labelAbv,
+      date: labelDate,
+    });
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -249,7 +259,7 @@ export default function LabelGeneratorPage() {
                 ) : (
                   <button
                     onClick={handleGenerate}
-                    disabled={!description.trim() || generate.isPending}
+                    disabled={!description.trim() || !labelTitle.trim() || generate.isPending}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 mb-3"
                     style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                   >
@@ -292,13 +302,16 @@ export default function LabelGeneratorPage() {
 
           {/* Label text */}
           <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               Текст на этикетке
             </h3>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Эти надписи ИИ встроит прямо в изображение при генерации — точнее, чем накладывать текст поверх готовой картинки.
+            </p>
             <div className="space-y-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium mb-2" style={{ color: "var(--text-muted)" }}>
-                  <Type size={16} /> Название напитка
+                  <Type size={16} /> Название напитка *
                 </label>
                 <input
                   type="text"
@@ -433,11 +446,22 @@ export default function LabelGeneratorPage() {
               textColor={textColor}
               fontFamily={fontFamily}
               textPosition={textPosition}
+              overlayText={!generatedImage}
               large
             />
             {!finalImage && (
               <p className="text-sm mt-4 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                 Здесь появится предпросмотр — сгенерируйте фон или загрузите своё изображение
+              </p>
+            )}
+            {!generatedImage && uploadedImage && (
+              <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                На своём фото текст накладывается поверх (справа) — на ИИ-генерации текст встроен в саму картинку.
+              </p>
+            )}
+            {generatedImage && (
+              <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Текст уже встроен в изображение. Чтобы изменить надписи — поправьте поля слева и сгенерируйте заново (спишется ещё раз).
               </p>
             )}
             {finalImage && (
@@ -468,6 +492,7 @@ function LabelPreview({
   textColor,
   fontFamily,
   textPosition,
+  overlayText = true,
   large = false,
 }: {
   image: string;
@@ -478,6 +503,7 @@ function LabelPreview({
   textColor: string;
   fontFamily: string;
   textPosition: string;
+  overlayText?: boolean;
   large?: boolean;
 }) {
   const h = large ? 280 : 220;
@@ -501,25 +527,27 @@ function LabelPreview({
       {image && (
         <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
       )}
-      <div className={`absolute inset-0 flex flex-col items-center ${posClass} px-3`} style={{ zIndex: 1, textShadow: image ? "0 1px 6px rgba(0,0,0,0.6)" : "none" }}>
-        {title && (
-          <div style={{ color: image ? textColor : "var(--text-primary)", fontFamily: ff, fontSize: large ? 22 : 16, fontWeight: "bold", lineHeight: 1.2, wordBreak: "break-word" }}>
-            {title}
-          </div>
-        )}
-        {subtitle && (
-          <div className="mt-1" style={{ color: image ? textColor : "var(--text-secondary)", fontFamily: '"Inter", sans-serif', fontSize: large ? 13 : 10, opacity: 0.9, lineHeight: 1.3, wordBreak: "break-word" }}>
-            {subtitle}
-          </div>
-        )}
-        {(abv || date) && (
-          <div className="flex gap-2 mt-2" style={{ color: image ? textColor : "var(--text-muted)", fontFamily: '"Inter", sans-serif', fontSize: large ? 11 : 9, opacity: 0.75 }}>
-            {abv && <span>{abv}</span>}
-            {abv && date && <span>·</span>}
-            {date && <span>{date}</span>}
-          </div>
-        )}
-      </div>
+      {overlayText && (
+        <div className={`absolute inset-0 flex flex-col items-center ${posClass} px-3`} style={{ zIndex: 1, textShadow: image ? "0 1px 6px rgba(0,0,0,0.6)" : "none" }}>
+          {title && (
+            <div style={{ color: image ? textColor : "var(--text-primary)", fontFamily: ff, fontSize: large ? 22 : 16, fontWeight: "bold", lineHeight: 1.2, wordBreak: "break-word" }}>
+              {title}
+            </div>
+          )}
+          {subtitle && (
+            <div className="mt-1" style={{ color: image ? textColor : "var(--text-secondary)", fontFamily: '"Inter", sans-serif', fontSize: large ? 13 : 10, opacity: 0.9, lineHeight: 1.3, wordBreak: "break-word" }}>
+              {subtitle}
+            </div>
+          )}
+          {(abv || date) && (
+            <div className="flex gap-2 mt-2" style={{ color: image ? textColor : "var(--text-muted)", fontFamily: '"Inter", sans-serif', fontSize: large ? 11 : 9, opacity: 0.75 }}>
+              {abv && <span>{abv}</span>}
+              {abv && date && <span>·</span>}
+              {date && <span>{date}</span>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

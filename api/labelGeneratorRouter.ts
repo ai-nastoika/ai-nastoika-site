@@ -12,23 +12,46 @@ const bottleAspect: Record<string, string> = {
   gift: "elegant tall rectangular vertical format (gift bottle proportions)",
 };
 
-/* Промпт собирается из лёгких, не слишком детальных пожеланий — нарочно без
-   микро-инструкций (точные градиенты, точные пропорции узоров и т.п.):
-   чем детальнее просьба, тем выше шанс, что ИИ что-то испортит при генерации. */
+/* Промпт собирается из лёгких, не слишком детальных пожеланий к фону — нарочно
+   без микро-инструкций (точные градиенты, пропорции узоров и т.п.): чем детальнее
+   просьба, тем выше шанс, что ИИ что-то испортит при генерации.
+   Текст, наоборот, задаётся явно и дословно — накладывать его отдельным CSS-слоем
+   поверх картинки ненадёжно (сдвигается, не сочетается со шрифтом фона), поэтому
+   вставляет его сама модель — gemini-3.1-flash-image-preview для этого достаточно точна. */
 function buildLabelPrompt(input: {
   description: string;
   style?: string;
   colors?: string;
   elements?: string;
   bottleType: string;
+  title: string;
+  subtitle?: string;
+  abv?: string;
+  date?: string;
 }): string {
-  const parts: string[] = ["Blank bottle label template", input.description.trim()];
+  const parts: string[] = ["Premium bottle label design", input.description.trim()];
   if (input.style?.trim()) parts.push(`${input.style.trim()} style`);
   if (input.colors?.trim()) parts.push(`color palette: ${input.colors.trim()}`);
   if (input.elements?.trim()) parts.push(`decorative elements: ${input.elements.trim()}`);
   parts.push(bottleAspect[input.bottleType] ?? bottleAspect.standard);
+
   parts.push(
-    "empty clear area in the center-lower portion reserved for text overlay (do not render any text or letters), ornate decorative border, premium alcohol beverage label aesthetic, high resolution, clean design"
+    `render the exact text "${input.title.trim()}" as the main title, large and clearly legible, ` +
+      "in elegant lettering that matches the overall design style"
+  );
+  if (input.subtitle?.trim()) {
+    parts.push(`below the title render the exact text "${input.subtitle.trim()}" in smaller, clearly legible lettering`);
+  }
+  const smallDetails: string[] = [];
+  if (input.abv?.trim()) smallDetails.push(`"${input.abv.trim()}"`);
+  if (input.date?.trim()) smallDetails.push(`"${input.date.trim()}"`);
+  if (smallDetails.length > 0) {
+    parts.push(`include the exact text ${smallDetails.join(" and ")} as small legible detail text near the bottom`);
+  }
+
+  parts.push(
+    "ensure sufficient contrast between text and background so every word is fully readable, " +
+      "ornate decorative border, premium alcohol beverage label aesthetic, high resolution, clean design"
   );
   return parts.join(", ");
 }
@@ -46,6 +69,10 @@ export const labelGeneratorRouter = createRouter({
         colors: z.string().max(100).optional(),
         elements: z.string().max(200).optional(),
         bottleType: z.enum(["standard", "wine", "mini", "gift"]).default("standard"),
+        title: z.string().min(1).max(80),
+        subtitle: z.string().max(120).optional(),
+        abv: z.string().max(20).optional(),
+        date: z.string().max(20).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
