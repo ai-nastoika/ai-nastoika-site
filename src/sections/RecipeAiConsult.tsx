@@ -152,8 +152,8 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
               className="rounded-xl p-4 text-base"
               style={
                 m.role === "user"
-                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)" }
-                  : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.65 }
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
+                  : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
               }
             >
               {m.role === "assistant" && (

@@ -427,8 +427,8 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
           {messages.map((m, i) => (
             <div key={i} className="rounded-xl p-4 text-base" style={
               m.role === "user"
-                ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%" }
-                : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", lineHeight: 1.65 }
+                ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", lineHeight: 1.8 }
+                : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", lineHeight: 1.8 }
             }>
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>

@@ -166,8 +166,8 @@ function TasteCalculator() {
               className="rounded-xl p-4 text-base"
               style={
                 m.role === "user"
-                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)" }
-                  : { background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.65 }
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
+                  : { background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
               }
             >
               {m.role === "assistant" && (
@@ -587,7 +587,7 @@ function AbvCalculator() {
                     {estimate.data.estimatedAbv}
                   </div>
                 </div>
-                <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.65, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+                <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.8, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
                   {estimate.data.explanation}
                 </p>
               </div>

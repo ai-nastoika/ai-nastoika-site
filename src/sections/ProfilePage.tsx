@@ -779,8 +779,8 @@ export default function ProfilePage() {
                                 className="rounded-lg p-3 text-sm mt-3"
                                 style={
                                   m.role === "user"
-                                    ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "10%" }
-                                    : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "10%", lineHeight: 1.6 }
+                                    ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "10%", lineHeight: 1.8 }
+                                    : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "10%", lineHeight: 1.8 }
                                 }
                               >
                                 {m.content}
