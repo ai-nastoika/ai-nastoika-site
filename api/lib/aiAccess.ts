@@ -12,6 +12,16 @@ import { aiUsage, transactions, users } from "@db/schema";
  */
 export const AI_REQUEST_COST_KOPECKS = 200; // 2 ₽
 
+/* Генерация изображений (этикетки) — заметно дороже текстового запроса и без
+   бесплатного лимита вообще: раздавать дорогую операцию бесплатно новым
+   аккаунтам вместе с общим пулом из 5 бесплатных текстовых запросов рискованно
+   для экономики. Всегда списывается с баланса.
+   15 ₽ — оценка с запасом по прайсу Gemini 3.1 Flash Image Preview (исходящие
+   8100 ₽/млн токенов, ~1290 токенов на типичное изображение ≈ 10,5 ₽ себестоимость).
+   После первых реальных генераций сверьте фактический расход токенов в панели
+   Timeweb и поправьте константу при необходимости. */
+export const IMAGE_REQUEST_COST_KOPECKS = 1500; // 15 ₽
+
 export type AiCharge = { wasFree: boolean; costKopecks: number };
 
 /**
@@ -56,6 +66,37 @@ export async function chargeAiRequest(userId: number): Promise<AiCharge> {
   throw new TRPCError({
     code: "FORBIDDEN",
     message: `Бесплатные запросы закончились, а на балансе меньше ${AI_REQUEST_COST_KOPECKS / 100} ₽. Пополните баланс в личном кабинете, чтобы продолжить.`,
+  });
+}
+
+/**
+ * То же самое, что chargeAiRequest, но без бесплатного лимита — только баланс,
+ * фиксированная стоимость IMAGE_REQUEST_COST_KOPECKS. Используется для генерации
+ * изображений (этикетки), где операция заметно дороже обычного текстового запроса.
+ */
+export async function chargeImageRequest(userId: number): Promise<AiCharge> {
+  const db = getDb();
+
+  const [balanceResult] = await db
+    .update(users)
+    .set({ balanceKopecks: sql`${users.balanceKopecks} - ${IMAGE_REQUEST_COST_KOPECKS}` })
+    .where(and(eq(users.id, userId), gte(users.balanceKopecks, IMAGE_REQUEST_COST_KOPECKS)));
+
+  if (balanceResult.affectedRows > 0) {
+    const [user] = await db.select({ balanceKopecks: users.balanceKopecks }).from(users).where(eq(users.id, userId));
+    await db.insert(transactions).values({
+      userId,
+      type: "debit",
+      amountKopecks: -IMAGE_REQUEST_COST_KOPECKS,
+      balanceAfter: user?.balanceKopecks ?? 0,
+      meta: { reason: "image_request" },
+    });
+    return { wasFree: false, costKopecks: IMAGE_REQUEST_COST_KOPECKS };
+  }
+
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: `Для генерации изображения нужно минимум ${IMAGE_REQUEST_COST_KOPECKS / 100} ₽ на балансе (бесплатных генераций нет — эта операция дороже обычного запроса). Пополните баланс в личном кабинете.`,
   });
 }
 
@@ -123,5 +164,19 @@ export async function getAiAccessState(userId: number) {
     balanceKopecks,
     costKopecks: AI_REQUEST_COST_KOPECKS,
     allowed: freeRequestsLeft > 0 || canRequestPaid,
+  };
+}
+
+/** То же самое, но для генерации изображений — без бесплатного лимита. */
+export async function getImageAccessState(userId: number) {
+  const db = getDb();
+  const [user] = await db.select({ balanceKopecks: users.balanceKopecks }).from(users).where(eq(users.id, userId));
+
+  const balanceKopecks = user?.balanceKopecks ?? 0;
+
+  return {
+    balanceKopecks,
+    costKopecks: IMAGE_REQUEST_COST_KOPECKS,
+    allowed: balanceKopecks >= IMAGE_REQUEST_COST_KOPECKS,
   };
 }

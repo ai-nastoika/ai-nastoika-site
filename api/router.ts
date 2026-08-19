@@ -19,6 +19,7 @@ import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
 import { tasteCalculatorRouter } from "./tasteCalculatorRouter";
 import { abvEstimatorRouter } from "./abvEstimatorRouter";
+import { labelGeneratorRouter } from "./labelGeneratorRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
 import { balanceRouter } from "./balanceRouter";
 import { donationRouter } from "./donationRouter";
@@ -520,6 +521,9 @@ export const appRouter = router({
 
   // ─── Оценка итоговой крепости с учётом ингредиентов (ИИ, поверх точного расчёта базы) ───
   abvEstimator: abvEstimatorRouter,
+
+  // ─── Генерация изображения этикетки (ИИ, платно, без бесплатного лимита) ───
+  labelGenerator: labelGeneratorRouter,
 
   // ─── Трекер созревания ───
   infusion: infusionRouter,
