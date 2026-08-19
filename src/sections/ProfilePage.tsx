@@ -742,10 +742,14 @@ export default function ProfilePage() {
               ) : (
                 <div className="space-y-2">
                   {aiConversations.map((conv) => {
-                    const typeLabel =
-                      conv.requestType === "recipe_consultation" ? "Консультация по рецепту" :
-                      conv.requestType === "infusion_consult" ? "Консультант трекера" :
-                      "Калькулятор вкуса";
+                    const typeLabels: Record<string, string> = {
+                      recipe_consultation: "Консультация по рецепту",
+                      infusion_consult: "Консультант трекера",
+                      taste_calculator: "Калькулятор вкуса",
+                      abv_ai_estimate: "Оценка крепости",
+                      label_image: "Генератор этикеток",
+                    };
+                    const typeLabel = typeLabels[conv.requestType] ?? conv.requestType;
                     const isOpen = expandedConversationId === conv.id;
                     const messages = conv.messages as { role: "user" | "assistant"; content: string }[];
                     return (

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { chargeImageRequest, getImageAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { generateImage } from "./lib/imageClient";
+import { saveConversationTurn } from "./lib/aiConversations";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
 
@@ -96,6 +97,28 @@ export const labelGeneratorRouter = createRouter({
       }
 
       await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed: 0, charge });
+
+      // В историю пишем текстовое резюме запроса, не саму картинку — base64-изображение
+      // (сотни КБ) раздуло бы каждую выборку "последние 10 диалогов" в личном кабинете.
+      const requestSummary = [
+        `Название: ${input.title}`,
+        input.subtitle ? `Подпись: ${input.subtitle}` : null,
+        input.style ? `Стиль: ${input.style}` : null,
+        input.colors ? `Цвета: ${input.colors}` : null,
+        `Описание: ${input.description}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await saveConversationTurn({
+        userId: ctx.user.id,
+        requestType: REQUEST_TYPE,
+        contextLabel: input.title,
+        messages: [
+          { role: "user", content: requestSummary },
+          { role: "assistant", content: `Этикетка «${input.title}» сгенерирована и доступна для скачивания/печати на странице генератора.` },
+        ],
+      });
 
       const access = await getImageAccessState(ctx.user.id);
       return { image, costKopecks: charge.costKopecks, access };
