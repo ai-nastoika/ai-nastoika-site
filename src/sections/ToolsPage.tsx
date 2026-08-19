@@ -292,16 +292,16 @@ function AbvCalculator() {
 
   return (
     <div>
-      <div className="grid sm:grid-cols-2 gap-4 mb-6">
+      <div className="grid sm:grid-cols-2 gap-4 mb-6 min-w-0">
         {/* Volume */}
         <div
-          className="rounded-xl p-4"
+          className="rounded-xl p-4 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             Объём спирта (мл)
           </label>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 min-w-0">
             <button onClick={() => adjust(setVolume, volume, -100)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
               <Minus size={22} style={{ color: "var(--text-secondary)" }} />
             </button>
@@ -309,7 +309,7 @@ function AbvCalculator() {
               type="number"
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
-              className="flex-1 text-center bg-transparent text-lg font-bold outline-none"
+              className="flex-1 min-w-0 text-center bg-transparent text-lg font-bold outline-none"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             />
             <button onClick={() => adjust(setVolume, volume, 100)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
@@ -320,13 +320,13 @@ function AbvCalculator() {
 
         {/* Initial ABV */}
         <div
-          className="rounded-xl p-4"
+          className="rounded-xl p-4 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             Крепость спирта (%)
           </label>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 min-w-0">
             <button onClick={() => adjust(setInitialAbv, initialAbv, -1)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
               <Minus size={22} style={{ color: "var(--text-secondary)" }} />
             </button>
@@ -334,7 +334,7 @@ function AbvCalculator() {
               type="number"
               value={initialAbv}
               onChange={(e) => setInitialAbv(Number(e.target.value))}
-              className="flex-1 text-center bg-transparent text-lg font-bold outline-none"
+              className="flex-1 min-w-0 text-center bg-transparent text-lg font-bold outline-none"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             />
             <button onClick={() => adjust(setInitialAbv, initialAbv, 1)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
@@ -345,13 +345,13 @@ function AbvCalculator() {
 
         {/* Sugar */}
         <div
-          className="rounded-xl p-4"
+          className="rounded-xl p-4 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             Сахар (г)
           </label>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 min-w-0">
             <button onClick={() => adjust(setSugar, sugar, -10)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
               <Minus size={22} style={{ color: "var(--text-secondary)" }} />
             </button>
@@ -359,7 +359,7 @@ function AbvCalculator() {
               type="number"
               value={sugar}
               onChange={(e) => setSugar(Number(e.target.value))}
-              className="flex-1 text-center bg-transparent text-lg font-bold outline-none"
+              className="flex-1 min-w-0 text-center bg-transparent text-lg font-bold outline-none"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             />
             <button onClick={() => adjust(setSugar, sugar, 10)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
@@ -370,13 +370,13 @@ function AbvCalculator() {
 
         {/* Water */}
         <div
-          className="rounded-xl p-4"
+          className="rounded-xl p-4 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
             Добавлено воды (мл)
           </label>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 min-w-0">
             <button onClick={() => adjust(setWater, water, -50)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
               <Minus size={22} style={{ color: "var(--text-secondary)" }} />
             </button>
@@ -384,7 +384,7 @@ function AbvCalculator() {
               type="number"
               value={water}
               onChange={(e) => setWater(Number(e.target.value))}
-              className="flex-1 text-center bg-transparent text-lg font-bold outline-none"
+              className="flex-1 min-w-0 text-center bg-transparent text-lg font-bold outline-none"
               style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
             />
             <button onClick={() => adjust(setWater, water, 50)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
@@ -395,7 +395,7 @@ function AbvCalculator() {
 
         {/* Infusion period */}
         <div
-          className="rounded-xl p-4"
+          className="rounded-xl p-4 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -421,7 +421,7 @@ function AbvCalculator() {
 
         {/* Infusion ingredients — используется только для ИИ-оценки ниже, на формулу базы не влияет */}
         <div
-          className="rounded-xl p-4 sm:col-span-2"
+          className="rounded-xl p-4 sm:col-span-2 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -444,7 +444,7 @@ function AbvCalculator() {
 
         {/* Straining method — тоже только для ИИ-оценки */}
         <div
-          className="rounded-xl p-4 sm:col-span-2"
+          className="rounded-xl p-4 sm:col-span-2 min-w-0"
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
