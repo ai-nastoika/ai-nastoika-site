@@ -29,7 +29,13 @@ export async function generateImage(prompt: string): Promise<GeneratedImage> {
   const res = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, prompt, n: 1, size: "1024x1792" }),
+    // Подтверждено примером из панели Timeweb (GPT Image 2): модель принимает
+    // только фиксированный набор размеров, а не произвольные пропорции —
+    // 1024x1365 (нужные 3:4) тихо игнорировался, отсюда были вытянутые этикетки.
+    // 1024x1536 — валидный портретный вариант у семейства gpt-image (ближайший
+    // к нужным пропорциям из реально поддерживаемых). quality:"low" — как в
+    // примере Timeweb, чтобы не полагаться на неявный дефолт по качеству/цене.
+    body: JSON.stringify({ model, prompt, n: 1, size: "1024x1536", quality: "low" }),
   });
 
   if (!res.ok) {

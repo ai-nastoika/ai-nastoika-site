@@ -62,7 +62,7 @@ export default function LabelGeneratorPage() {
     : "";
 
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
-  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 15;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 10;
   const limitReached = limitInfo ? !limitInfo.allowed : false;
 
   function handleGenerate() {
