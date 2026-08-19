@@ -16,13 +16,19 @@ export const RATING_LABELS: Record<RatingTier, string> = {
   red: "Плохо",
 };
 
-/* ── Одна иконка рюмки, SVG, заливка цветом или серым (не выбрано) ── */
+/* ── Одна иконка рюмки, SVG, заливка цветом или серым (не выбрано) ──
+   Та же форма, что и у пина на барной карте (BarMap.tsx, buildPinIconDataUri) —
+   для визуального единообразия по всему сайту. */
 export function ShotGlassIcon({ tier, size = 20, muted = false }: { tier: RatingTier; size?: number; muted?: boolean }) {
   const color = muted ? "var(--border)" : RATING_COLORS[tier];
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M6 4h12l-2 16H8L6 4z" fill={color} stroke={color} strokeWidth="1" strokeLinejoin="round" />
-      <line x1="6" y1="4" x2="18" y2="4" stroke={color} strokeWidth="1.5" />
+      <g stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 3h8" />
+        <path d="M8 3c0 4 .5 6 1.5 7a2.7 2.7 0 0 0 5 0c1-1 1.5-3 1.5-7" />
+        <path d="M12 14v6" />
+        <path d="M9 20h6" />
+      </g>
     </svg>
   );
 }
@@ -35,7 +41,7 @@ export function ShotGlassPicker({
   value: RatingTier | null;
   onChange: (tier: RatingTier) => void;
 }) {
-  const tiers: RatingTier[] = ["red", "yellow", "green"];
+  const tiers: RatingTier[] = ["green", "yellow", "red"];
   return (
     <div className="flex items-center gap-2">
       {tiers.map((tier) => (
