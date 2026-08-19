@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,43 +10,43 @@ import {
   Type,
   Palette,
   Shapes,
-  ImagePlus,
   Wand2,
   LogIn,
   Wallet,
   RotateCcw,
+  Printer,
 } from "lucide-react";
 
+/* Физические размеры этикетки для печати — тот же принцип, что в конструкторе
+   этикеток (ToolsPage.tsx, LABEL_SIZES): сколько копий помещается на A4. */
+const LABEL_SIZES = [
+  { name: "90 × 120 мм", w: 90, h: 120, perA4: 4, cols: 2 },
+  { name: "60 × 80 мм", w: 60, h: 80, perA4: 9, cols: 3 },
+];
+
 /* ═══════════════════════════════════════════════════════════════
-   LABEL GENERATOR PAGE — одна страница вместо мастера из 4 шагов.
-   Все пожелания (стиль/цвета/элементы/текст) собираются сразу,
-   промпт строится и уходит в ИИ на бэкенде (api/labelGeneratorRouter.ts).
-   Текст на этикетке — отдельный слой поверх картинки (LabelPreview),
-   редактируется мгновенно без повторной (платной) генерации.
+   LABEL GENERATOR PAGE — только генерация ИИ, без загрузки своих фото.
+   Текст встраивается моделью прямо в промпт (не CSS-наложением) — см.
+   api/labelGeneratorRouter.ts. Печать — реальная раскладка на A4 с нужным
+   числом копий по физическому размеру, тем же способом, что в конструкторе
+   этикеток (canvas → отдельное окно → печать), а не window.print() всей страницы.
    ═══════════════════════════════════════════════════════════════ */
 export default function LabelGeneratorPage() {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
 
-  /* Design wishes — намеренно без сильной детализации */
   const [description, setDescription] = useState("");
   const [style, setStyle] = useState("");
   const [colors, setColors] = useState("");
   const [elements, setElements] = useState("");
   const [bottleType, setBottleType] = useState<"standard" | "wine" | "mini" | "gift">("standard");
 
-  /* Image — сгенерированное или загруженное */
-  const [uploadedImage, setUploadedImage] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  /* Label text overlay */
   const [labelTitle, setLabelTitle] = useState("");
   const [labelSubtitle, setLabelSubtitle] = useState("");
   const [labelAbv, setLabelAbv] = useState("");
   const [labelDate, setLabelDate] = useState("");
-  const [textColor, setTextColor] = useState("#ffffff");
-  const [fontFamily, setFontFamily] = useState("serif");
-  const [textPosition, setTextPosition] = useState<"center" | "top" | "bottom">("center");
+
+  const [sizeIdx, setSizeIdx] = useState(0);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -60,7 +60,6 @@ export default function LabelGeneratorPage() {
   const generatedImage = generate.data
     ? generate.data.image.imageUrl ?? (generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : "")
     : "";
-  const finalImage = generatedImage || uploadedImage;
 
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 15;
@@ -81,26 +80,88 @@ export default function LabelGeneratorPage() {
     });
   }
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setUploadedImage(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  }
-
   function handleReset() {
     setDescription("");
     setStyle("");
     setColors("");
     setElements("");
     setBottleType("standard");
-    setUploadedImage("");
     setLabelTitle("");
     setLabelSubtitle("");
     setLabelAbv("");
     setLabelDate("");
     generate.reset();
+  }
+
+  /* ── Печать: рисуем нужное число копий на canvas в размере A4 (300dpi),
+     вписывая картинку в физический размер этикетки с обрезкой по центру
+     (cover-fit, на случай если пропорции ИИ-картинки не точно совпали
+     с выбранным размером), открываем отдельное окно и печатаем только его. ── */
+  function handlePrint() {
+    if (!generatedImage) return;
+    const size = LABEL_SIZES[sizeIdx];
+
+    const img = new Image();
+    img.onload = () => {
+      const DPI = 300;
+      const MM_TO_PX = DPI / 25.4;
+      const A4_PX_W = Math.round(210 * MM_TO_PX);
+      const A4_PX_H = Math.round(297 * MM_TO_PX);
+      const margin = Math.round(10 * MM_TO_PX);
+      const gap = Math.round(4 * MM_TO_PX);
+      const labW = Math.round(size.w * MM_TO_PX);
+      const labH = Math.round(size.h * MM_TO_PX);
+      const cols = size.cols;
+      const rows = Math.ceil(size.perA4 / cols);
+
+      const a4 = document.createElement("canvas");
+      a4.width = A4_PX_W;
+      a4.height = A4_PX_H;
+      const ctx = a4.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, A4_PX_W, A4_PX_H);
+
+      const totalW = labW * cols + gap * (cols - 1);
+      const totalH = labH * rows + gap * (rows - 1);
+      const startX = Math.max(margin, Math.round((A4_PX_W - totalW) / 2));
+      const startY = Math.max(margin, Math.round((A4_PX_H - totalH) / 2));
+
+      const imgRatio = img.width / img.height;
+      const boxRatio = labW / labH;
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+      if (imgRatio > boxRatio) {
+        sw = img.height * boxRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / boxRatio;
+        sy = (img.height - sh) / 2;
+      }
+
+      for (let i = 0; i < size.perA4; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (labW + gap);
+        const y = startY + row * (labH + gap);
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, labW, labH);
+      }
+
+      const printImg = document.createElement("img");
+      printImg.src = a4.toDataURL("image/png");
+      printImg.style.cssText = "width:100%;height:auto;display:block;";
+
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(`<!DOCTYPE html><html><head><title>Печать этикетки</title><style>
+        body{margin:0;padding:0;}
+        img{display:block;width:100%;height:auto;}
+        @media print{@page{size:A4 portrait;margin:0;}}
+      </style></head><body>`);
+      win.document.write(printImg.outerHTML);
+      win.document.write(`</body></html>`);
+      win.document.close();
+      setTimeout(() => win.print(), 500);
+    };
+    img.src = generatedImage;
   }
 
   return (
@@ -119,7 +180,7 @@ export default function LabelGeneratorPage() {
           Сгенерировать <span style={{ color: "var(--accent)" }}>этикетку</span> с ИИ
         </h1>
         <p className="text-base mt-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-          Опишите пожелания одной формой — ИИ создаст фон этикетки, текст добавляется отдельно и меняется мгновенно.
+          Опишите пожелания одной формой — ИИ нарисует готовую печатную этикетку с вашим текстом.
         </p>
       </div>
 
@@ -194,7 +255,7 @@ export default function LabelGeneratorPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>Тип бутылки</label>
+                <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>Тип бутылки (влияет на пропорции этикетки)</label>
                 <div className="flex flex-wrap gap-2">
                   {([
                     { k: "standard", l: "Стандартная 0.5л" },
@@ -220,93 +281,13 @@ export default function LabelGeneratorPage() {
             </div>
           </div>
 
-          {/* Generate / upload */}
-          <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            {!isLoggedIn ? (
-              <div className="text-center py-4">
-                <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
-                <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                  Генерация фона этикетки требует входа в аккаунт.
-                </p>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
-                  style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-                >
-                  <LogIn size={16} /> Войти
-                </Link>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                    Сгенерировать фон
-                  </h3>
-                  {limitInfo && (
-                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                      <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за генерацию
-                    </span>
-                  )}
-                </div>
-
-                {limitReached ? (
-                  <div className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    На балансе меньше {costRub} ₽ — генерация изображений без бесплатного лимита, дороже обычных запросов.{" "}
-                    <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
-                      Пополнить баланс
-                    </Link>
-                  </div>
-                ) : (
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!description.trim() || !labelTitle.trim() || generate.isPending}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 mb-3"
-                    style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-                  >
-                    <Sparkles size={22} />
-                    {generate.isPending ? "Генерирую..." : `Сгенерировать (${costRub} ₽)`}
-                  </button>
-                )}
-
-                {generate.isPending && <div className="mb-3"><BottleThinkingIndicator label="Рисую фон этикетки..." /></div>}
-
-                {generate.error && (
-                  <p className="text-sm mb-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
-                    {generate.error.message}
-                  </p>
-                )}
-              </>
-            )}
-
-            <div className="flex items-center gap-4 my-4">
-              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-              <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>или</span>
-              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-            </div>
-
-            <div
-              className="rounded-xl p-5 text-center transition-all cursor-pointer"
-              style={{ background: "var(--bg-primary)", border: "2px dashed var(--border)" }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-              <ImagePlus size={32} className="mx-auto mb-2" style={{ color: "var(--accent)" }} />
-              <p className="text-sm font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                Загрузить своё изображение
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Бесплатно, без ИИ
-              </p>
-            </div>
-          </div>
-
-          {/* Label text */}
+          {/* Label text — уходит в промпт */}
           <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               Текст на этикетке
             </h3>
             <p className="text-xs mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              Эти надписи ИИ встроит прямо в изображение при генерации — точнее, чем накладывать текст поверх готовой картинки.
+              ИИ встроит эти надписи прямо в изображение при генерации.
             </p>
             <div className="space-y-4">
               <div>
@@ -329,7 +310,7 @@ export default function LabelGeneratorPage() {
                   type="text"
                   value={labelSubtitle}
                   onChange={(e) => setLabelSubtitle(e.target.value)}
-                  placeholder="Домашний рецепт · Крепость 25%"
+                  placeholder="Домашний рецепт"
                   className="w-full rounded-lg px-4 py-2.5 text-base outline-none"
                   style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
                 />
@@ -359,195 +340,144 @@ export default function LabelGeneratorPage() {
                   />
                 </div>
               </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>Цвет текста</label>
-                <div className="flex gap-2">
-                  {["#ffffff", "#000000", "#f5efe6", "#8B4513", "#b8860b", "#9b2226"].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setTextColor(c)}
-                      className="w-8 h-8 rounded-full transition-all hover:scale-110"
-                      style={{ background: c, border: textColor === c ? "3px solid var(--accent)" : "2px solid var(--border)" }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-4 flex-wrap">
-                <div>
-                  <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>Шрифт</label>
-                  <div className="flex gap-2">
-                    {[
-                      { k: "serif", l: "С засечками" },
-                      { k: "sans", l: "Без засечек" },
-                      { k: "mono", l: "Моно" },
-                    ].map((f) => (
-                      <button
-                        key={f.k}
-                        onClick={() => setFontFamily(f.k)}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                        style={{
-                          background: fontFamily === f.k ? "var(--accent)" : "var(--surface)",
-                          color: fontFamily === f.k ? "#fff" : "var(--text-secondary)",
-                          fontFamily: "var(--font-body)",
-                        }}
-                      >
-                        {f.l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)" }}>Позиция</label>
-                  <div className="flex gap-2">
-                    {[
-                      { k: "center", l: "Центр" },
-                      { k: "top", l: "Сверху" },
-                      { k: "bottom", l: "Снизу" },
-                    ].map((p) => (
-                      <button
-                        key={p.k}
-                        onClick={() => setTextPosition(p.k as typeof textPosition)}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                        style={{
-                          background: textPosition === p.k ? "var(--accent)" : "var(--surface)",
-                          color: textPosition === p.k ? "#fff" : "var(--text-secondary)",
-                          fontFamily: "var(--font-body)",
-                        }}
-                      >
-                        {p.l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
-          <button
-            onClick={handleReset}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
-            style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <RotateCcw size={16} /> Начать заново
-          </button>
+          {/* Generate */}
+          <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            {!isLoggedIn ? (
+              <div className="text-center py-4">
+                <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
+                <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                  Генерация этикетки требует входа в аккаунт.
+                </p>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
+                  style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  <LogIn size={16} /> Войти
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                    Сгенерировать
+                  </h3>
+                  {limitInfo && (
+                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за генерацию
+                    </span>
+                  )}
+                </div>
+
+                {limitReached ? (
+                  <div className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    На балансе меньше {costRub} ₽ — генерация изображений без бесплатного лимита, дороже обычных запросов.{" "}
+                    <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+                      Пополнить баланс
+                    </Link>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!description.trim() || !labelTitle.trim() || generate.isPending}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                  >
+                    <Sparkles size={22} />
+                    {generate.isPending ? "Генерирую..." : `Сгенерировать (${costRub} ₽)`}
+                  </button>
+                )}
+                {!labelTitle.trim() && !limitReached && (
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Заполните название напитка выше.</p>
+                )}
+
+                {generate.isPending && <div className="mt-3"><BottleThinkingIndicator label="Рисую этикетку..." /></div>}
+
+                {generate.error && (
+                  <p className="text-sm mt-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                    {generate.error.message}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          {(description || labelTitle || generatedImage) && (
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+              style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+            >
+              <RotateCcw size={16} /> Начать заново
+            </button>
+          )}
         </div>
 
-        {/* ─── Правая колонка: живой предпросмотр ─── */}
+        {/* ─── Правая колонка: результат + печать ─── */}
         <div className="lg:sticky lg:top-24 self-start">
           <div className="flex flex-col items-center justify-center rounded-2xl p-8" style={{ background: "var(--bg-secondary)" }}>
-            <LabelPreview
-              image={finalImage}
-              title={labelTitle}
-              subtitle={labelSubtitle}
-              abv={labelAbv}
-              date={labelDate}
-              textColor={textColor}
-              fontFamily={fontFamily}
-              textPosition={textPosition}
-              overlayText={!generatedImage}
-              large
-            />
-            {!finalImage && (
-              <p className="text-sm mt-4 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Здесь появится предпросмотр — сгенерируйте фон или загрузите своё изображение
-              </p>
-            )}
-            {!generatedImage && uploadedImage && (
-              <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                На своём фото текст накладывается поверх (справа) — на ИИ-генерации текст встроен в саму картинку.
-              </p>
-            )}
-            {generatedImage && (
-              <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Текст уже встроен в изображение. Чтобы изменить надписи — поправьте поля слева и сгенерируйте заново (спишется ещё раз).
-              </p>
-            )}
-            {finalImage && (
-              <button
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium mt-6 transition-all hover:scale-105"
-                style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            {generatedImage ? (
+              <img
+                src={generatedImage}
+                alt="Сгенерированная этикетка"
+                className="max-w-full rounded-lg"
+                style={{ maxHeight: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
+              />
+            ) : (
+              <div
+                className="flex items-center justify-center rounded-lg w-full"
+                style={{ height: 320, background: "var(--bg-card)", border: "1px dashed var(--border)" }}
               >
-                <Download size={20} /> Печать
-              </button>
+                <p className="text-sm text-center px-6" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Здесь появится готовая этикетка после генерации
+                </p>
+              </div>
+            )}
+
+            {generatedImage && (
+              <div className="w-full mt-6 pt-6" style={{ borderTop: "1px solid var(--border)" }}>
+                <label className="text-sm font-medium mb-2 block" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Размер для печати
+                </label>
+                <div className="flex gap-2 mb-4">
+                  {LABEL_SIZES.map((s, i) => (
+                    <button
+                      key={s.name}
+                      onClick={() => setSizeIdx(i)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: sizeIdx === i ? "var(--accent)" : "var(--surface)",
+                        color: sizeIdx === i ? "#fff" : "var(--text-secondary)",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {s.name} · {s.perA4}/лист
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handlePrint}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
+                  style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+                >
+                  <Printer size={20} /> Печать ({LABEL_SIZES[sizeIdx].perA4} шт. на листе A4)
+                </button>
+                <a
+                  href={generatedImage}
+                  download="label.png"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium mt-2 transition-all hover:opacity-70"
+                  style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                >
+                  <Download size={16} /> Скачать изображение
+                </a>
+              </div>
             )}
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   Label Preview Component (без изменений)
-   ═══════════════════════════════════════════ */
-function LabelPreview({
-  image,
-  title,
-  subtitle,
-  abv,
-  date,
-  textColor,
-  fontFamily,
-  textPosition,
-  overlayText = true,
-  large = false,
-}: {
-  image: string;
-  title: string;
-  subtitle: string;
-  abv: string;
-  date: string;
-  textColor: string;
-  fontFamily: string;
-  textPosition: string;
-  overlayText?: boolean;
-  large?: boolean;
-}) {
-  const h = large ? 280 : 220;
-  const w = Math.round(h * 0.75);
-  const ff = fontFamily === "serif" ? '"Playfair Display", Georgia, serif' : fontFamily === "mono" ? '"Courier New", monospace' : '"Inter", sans-serif';
-
-  const posClass = textPosition === "top" ? "justify-start pt-6" : textPosition === "bottom" ? "justify-end pb-6" : "justify-center";
-
-  return (
-    <div
-      className="relative flex flex-col items-center text-center overflow-hidden"
-      style={{
-        width: w,
-        height: h,
-        borderRadius: 4,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-        background: image ? undefined : "var(--bg-card)",
-        border: image ? undefined : "1px dashed var(--border)",
-      }}
-    >
-      {image && (
-        <img src={image} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: 0 }} />
-      )}
-      {overlayText && (
-        <div className={`absolute inset-0 flex flex-col items-center ${posClass} px-3`} style={{ zIndex: 1, textShadow: image ? "0 1px 6px rgba(0,0,0,0.6)" : "none" }}>
-          {title && (
-            <div style={{ color: image ? textColor : "var(--text-primary)", fontFamily: ff, fontSize: large ? 22 : 16, fontWeight: "bold", lineHeight: 1.2, wordBreak: "break-word" }}>
-              {title}
-            </div>
-          )}
-          {subtitle && (
-            <div className="mt-1" style={{ color: image ? textColor : "var(--text-secondary)", fontFamily: '"Inter", sans-serif', fontSize: large ? 13 : 10, opacity: 0.9, lineHeight: 1.3, wordBreak: "break-word" }}>
-              {subtitle}
-            </div>
-          )}
-          {(abv || date) && (
-            <div className="flex gap-2 mt-2" style={{ color: image ? textColor : "var(--text-muted)", fontFamily: '"Inter", sans-serif', fontSize: large ? 11 : 9, opacity: 0.75 }}>
-              {abv && <span>{abv}</span>}
-              {abv && date && <span>·</span>}
-              {date && <span>{date}</span>}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

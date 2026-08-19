@@ -29,7 +29,7 @@ export async function generateImage(prompt: string): Promise<GeneratedImage> {
   const res = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, prompt, n: 1, size: "1024x1024" }),
+    body: JSON.stringify({ model, prompt, n: 1, size: "1024x1792" }),
   });
 
   if (!res.ok) {

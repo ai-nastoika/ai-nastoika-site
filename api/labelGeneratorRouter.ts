@@ -29,7 +29,10 @@ function buildLabelPrompt(input: {
   abv?: string;
   date?: string;
 }): string {
-  const parts: string[] = ["Premium bottle label design", input.description.trim()];
+  const parts: string[] = [
+    "Flat 2D printable bottle label artwork, top-down view of the label graphic itself",
+    input.description.trim(),
+  ];
   if (input.style?.trim()) parts.push(`${input.style.trim()} style`);
   if (input.colors?.trim()) parts.push(`color palette: ${input.colors.trim()}`);
   if (input.elements?.trim()) parts.push(`decorative elements: ${input.elements.trim()}`);
@@ -51,7 +54,10 @@ function buildLabelPrompt(input: {
 
   parts.push(
     "ensure sufficient contrast between text and background so every word is fully readable, " +
-      "ornate decorative border, premium alcohol beverage label aesthetic, high resolution, clean design"
+      "ornate decorative border, premium alcohol beverage label aesthetic, high resolution, clean design, " +
+      "flat vector-like sticker artwork isolated on a plain neutral background — " +
+      "absolutely NOT a photo of a bottle, NOT a glass bottle mockup, NOT a 3D render, no bottle shape, " +
+      "no cork, no bottle neck or cap, no shadows implying a physical object, just the flat printable label graphic itself"
   );
   return parts.join(", ");
 }
