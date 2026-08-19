@@ -1,5 +1,5 @@
 import { Palette, Type, Check, X, ZoomIn } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const palettes = [
   {
@@ -31,7 +31,7 @@ const palettes = [
 const fonts = [
   { id: "classic", name: "Классическая", heading: '"Playfair Display", Georgia', body: '"Inter", sans-serif', desc: "Элегантность и традиция" },
   { id: "modern", name: "Современная", heading: '"Inter", sans-serif', body: '"Inter", sans-serif', desc: "Чистота и минимализм" },
-  { id: "craft", name: "Крафтовая", heading: '"Playfair Display", Georgia', body: '"Source Sans Pro", sans-serif', desc: "Хенд-мейд характер" },
+  { id: "craft", name: "Крафтовая", heading: '"Playfair Display", Georgia', body: '"Source Sans 3", sans-serif', desc: "Хенд-мейд характер" },
 ];
 
 const scales = [
@@ -60,22 +60,68 @@ export default function StyleSwitcher({
 }: StyleSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tab, setTab] = useState<"palette" | "font" | "scale">("palette");
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem("style-switcher-seen")) {
+      const timer = setTimeout(() => setShowHint(true), 1200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  function dismissHint() {
+    localStorage.setItem("style-switcher-seen", "1");
+    setShowHint(false);
+  }
+
+  function openPanel() {
+    dismissHint();
+    setIsOpen(true);
+  }
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {!isOpen ? (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 rounded-full px-5 py-3 font-medium shadow-xl transition-transform hover:scale-105"
-          style={{
-            background: "var(--accent)",
-            color: "#fff",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          <Palette size={22} />
-          <span>Стиль</span>
-        </button>
+        <div className="relative">
+          {showHint && (
+            <div
+              className="absolute bottom-full right-0 mb-3 w-56 rounded-xl p-3 shadow-xl text-sm"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}
+            >
+              <button
+                onClick={dismissHint}
+                className="absolute top-1.5 right-1.5 p-1 rounded-full transition-opacity hover:opacity-60"
+                style={{ color: "var(--text-muted)" }}
+                aria-label="Закрыть"
+              >
+                <X size={14} />
+              </button>
+              <span className="font-medium">Знали, что можно настроить сайт под себя?</span> Цвет, шрифт и размер текста — нажмите «Стиль».
+            </div>
+          )}
+          <button
+            onClick={openPanel}
+            className="flex items-center gap-2 rounded-full px-5 py-3 font-medium shadow-xl transition-transform hover:scale-105"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              fontFamily: "var(--font-body)",
+              boxShadow: showHint ? "0 0 0 6px rgba(184, 115, 51, 0.25)" : undefined,
+              animation: showHint ? "style-switcher-pulse 1.8s ease-in-out infinite" : undefined,
+            }}
+          >
+            <Palette size={22} />
+            <span>Стиль</span>
+          </button>
+          {showHint && (
+            <style>{`
+              @keyframes style-switcher-pulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(184, 115, 51, 0.4); }
+                50% { box-shadow: 0 0 0 10px rgba(184, 115, 51, 0); }
+              }
+            `}</style>
+          )}
+        </div>
       ) : (
         <div
           className="w-80 rounded-2xl shadow-2xl overflow-hidden theme-transition"

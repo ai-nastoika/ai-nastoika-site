@@ -70,7 +70,7 @@ export default function AddToHomeScreenPrompt() {
 
   return (
     <div
-      className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm z-50 rounded-2xl p-4 shadow-2xl"
+      className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm z-40 rounded-2xl p-4 shadow-2xl"
       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
       <button
