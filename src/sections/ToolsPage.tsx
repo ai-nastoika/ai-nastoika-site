@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, Link, useSearchParams } from "react-router";
 import QRCode from "qrcode";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import {
@@ -1810,6 +1810,15 @@ export default function ToolsPage() {
   const [activeTool, setActiveTool] = useState("taste");
   const [editLabelData, setEditLabelData] = useState<any>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  /* Прямая ссылка на конкретную вкладку — /tools?tool=abv, /tools?tool=label и т.п. */
+  useEffect(() => {
+    const tool = searchParams.get("tool");
+    if (tool === "taste" || tool === "abv" || tool === "label") {
+      setActiveTool(tool);
+    }
+  }, [searchParams]);
 
   /* Auto-select label tab when coming from recipe page or profile */
   useEffect(() => {

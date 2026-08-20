@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import {
   Heart,
   Users,
@@ -236,9 +237,9 @@ export default function AboutPage() {
                 link: "/barmap",
               },
             ].map((item, i) => (
-              <a
+              <Link
                 key={i}
-                href={item.link}
+                to={item.link}
                 className="group rounded-2xl p-6 transition-all hover:shadow-xl"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
@@ -267,7 +268,7 @@ export default function AboutPage() {
                 >
                   {item.desc}
                 </p>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -290,16 +291,16 @@ export default function AboutPage() {
             история запросов и 5 бесплатных ИИ-запросов на аккаунт.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <a
-              href="/recipes"
+            <Link
+              to="/recipes"
               className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105"
               style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
             >
               <Star size={22} />
               Смотреть рецепты
-            </a>
-            <a
-              href="/tools"
+            </Link>
+            <Link
+              to="/tools"
               className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium transition-all hover:scale-105"
               style={{
                 background: "var(--bg-card)",
@@ -310,7 +311,7 @@ export default function AboutPage() {
             >
               <Wrench size={22} />
               Попробовать инструменты
-            </a>
+            </Link>
           </div>
 
           <div className="flex justify-center gap-6 mt-10">

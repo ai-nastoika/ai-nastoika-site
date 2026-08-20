@@ -53,7 +53,7 @@ export const donationRouter = createRouter({
       // SITE_URL — та же переменная, что и в balanceRouter.ts/api/router.ts.
       // Если не задана — фоллбэк на dev-домен, чтобы не ломать текущую разработку.
       const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
-      const returnUrl = `${siteUrl}/about?donation=done`;
+      const returnUrl = `${siteUrl}/rules?donation=done`;
 
       const payment = await createDonationPayment({
         amountRub: input.amountRub,
