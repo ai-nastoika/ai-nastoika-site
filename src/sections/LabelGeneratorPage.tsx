@@ -70,6 +70,19 @@ export default function LabelGeneratorPage() {
 
   const activeOrientation = ORIENTATION_OPTIONS.find((o) => o.k === orientation)!;
 
+  /* Сколько копий реально помещается на A4 для текущей ориентации —
+     считается от печатной области (лист минус поля), не жёстко зашито,
+     иначе широкие/горизонтальные этикетки вылезают за край листа. */
+  function computePrintGrid() {
+    const PAGE_W_MM = 210, PAGE_H_MM = 297, MARGIN_MM = 10, GAP_MM = 6;
+    const usableW = PAGE_W_MM - MARGIN_MM * 2;
+    const usableH = PAGE_H_MM - MARGIN_MM * 2;
+    const cols = Math.max(1, Math.floor((usableW + GAP_MM) / (activeOrientation.printW + GAP_MM)));
+    const rows = Math.max(1, Math.floor((usableH + GAP_MM) / (activeOrientation.printH + GAP_MM)));
+    return { cols, rows, count: cols * rows };
+  }
+  const printGrid = computePrintGrid();
+
   function handleGenerate() {
     if (!description.trim() || !labelTitle.trim() || generate.isPending || limitReached) return;
     generate.mutate({
@@ -109,13 +122,26 @@ export default function LabelGeneratorPage() {
     img.onload = () => {
       const DPI = 300;
       const MM_TO_PX = DPI / 25.4;
-      const A4_PX_W = Math.round(210 * MM_TO_PX);
-      const A4_PX_H = Math.round(297 * MM_TO_PX);
-      const margin = Math.round(10 * MM_TO_PX);
-      const gap = Math.round(6 * MM_TO_PX);
+      const PAGE_W_MM = 210;
+      const PAGE_H_MM = 297;
+      const MARGIN_MM = 10;
+      const GAP_MM = 6;
+
+      const A4_PX_W = Math.round(PAGE_W_MM * MM_TO_PX);
+      const A4_PX_H = Math.round(PAGE_H_MM * MM_TO_PX);
+      const margin = Math.round(MARGIN_MM * MM_TO_PX);
+      const gap = Math.round(GAP_MM * MM_TO_PX);
       const labW = Math.round(activeOrientation.printW * MM_TO_PX);
       const labH = Math.round(activeOrientation.printH * MM_TO_PX);
-      const cols = 2, rows = 2;
+
+      // Сколько этикеток реально помещается на лист по ширине/высоте —
+      // считаем от печатной области (лист минус поля), а не жёстко 2×2,
+      // иначе широкие/горизонтальные этикетки вылезают за край.
+      const usableW = A4_PX_W - margin * 2;
+      const usableH = A4_PX_H - margin * 2;
+      const cols = Math.max(1, Math.floor((usableW + gap) / (labW + gap)));
+      const rows = Math.max(1, Math.floor((usableH + gap) / (labH + gap)));
+      const totalCount = cols * rows;
 
       const a4 = document.createElement("canvas");
       a4.width = A4_PX_W;
@@ -126,15 +152,15 @@ export default function LabelGeneratorPage() {
 
       const totalW = labW * cols + gap * (cols - 1);
       const totalH = labH * rows + gap * (rows - 1);
-      const startX = Math.max(margin, Math.round((A4_PX_W - totalW) / 2));
-      const startY = Math.max(margin, Math.round((A4_PX_H - totalH) / 2));
+      const startX = Math.round((A4_PX_W - totalW) / 2);
+      const startY = Math.round((A4_PX_H - totalH) / 2);
 
       // contain-fit — вписываем картинку целиком, ничего не обрезаем
       const scale = Math.min(labW / img.width, labH / img.height);
       const drawW = img.width * scale;
       const drawH = img.height * scale;
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < totalCount; i++) {
         const col = i % cols;
         const row = Math.floor(i / cols);
         const boxX = startX + col * (labW + gap);
@@ -150,18 +176,26 @@ export default function LabelGeneratorPage() {
 
       const printImg = document.createElement("img");
       printImg.src = a4.toDataURL("image/png");
-      printImg.style.cssText = "width:100%;height:auto;display:block;";
+      // Точный физический размер в мм, а не проценты — сумма реального размера
+      // страницы плюс собственные поля браузера на печати иногда превышает
+      // одну страницу при width:100%, из-за чего появляется лишний пустой лист.
+      printImg.style.cssText = `width:${PAGE_W_MM}mm;height:${PAGE_H_MM}mm;display:block;`;
 
       const win = window.open("", "_blank");
       if (!win) return;
       win.document.write(`<!DOCTYPE html><html><head><title>Печать этикетки</title><style>
-        body{margin:0;padding:0;}
-        img{display:block;width:100%;height:auto;}
-        .no-print{position:sticky;top:0;display:flex;gap:8px;justify-content:center;padding:12px;background:#fff;border-bottom:1px solid #e5e5e5;z-index:10;}
+        * { box-sizing: border-box; }
+        html, body { margin:0; padding:0; width:${PAGE_W_MM}mm; }
+        img { display:block; }
+        .no-print{display:flex;gap:8px;justify-content:center;padding:12px;background:#fff;border-bottom:1px solid #e5e5e5;}
         .no-print button{font:inherit;font-size:16px;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;}
         .btn-close{background:#f0f0f0;color:#333;}
         .btn-print{background:#8B4513;color:#fff;}
-        @media print{.no-print{display:none !important;} @page{size:A4 portrait;margin:0;}}
+        @media print{
+          .no-print{display:none !important;}
+          @page{size:A4 portrait;margin:0;}
+          html, body { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; }
+        }
       </style></head><body>
       <div class="no-print">
         <button class="btn-close" onclick="window.close()">← Закрыть и вернуться на сайт</button>
@@ -472,7 +506,7 @@ export default function LabelGeneratorPage() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
                   style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
                 >
-                  <Printer size={20} /> Печать (4 шт. на листе A4)
+                  <Printer size={20} /> Печать ({printGrid.count} шт. на листе A4)
                 </button>
                 <a
                   href={generatedImage}
