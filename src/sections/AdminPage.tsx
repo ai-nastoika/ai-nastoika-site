@@ -1146,6 +1146,7 @@ const FEEDBACK_TOPIC_LABELS: Record<string, string> = {
   bug: "Баг на сайте",
   feature: "Предложение",
   place: "Добавить заведение",
+  account_deletion: "Удаление аккаунта",
   other: "Другое",
 };
 

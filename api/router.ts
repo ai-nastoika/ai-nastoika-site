@@ -277,6 +277,57 @@ export const appRouter = router({
 
         return { success: true };
       }),
+
+    /* ── Запрос на удаление аккаунта — создаёт тикет в "Обращения" (не удаляет
+       ничего автоматически, обработка вручную админом в течение 7 рабочих дней,
+       как обещано на странице "Правила") + подтверждение на почту пользователю. ── */
+    requestDeletion: authedProcedure
+      .input(z.object({ reason: z.string().max(1000).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const [user] = await db.select().from(usersFull).where(eq(usersFull.id, ctx.userId));
+        if (!user) throw new Error("Пользователь не найден");
+
+        const reasonText = input.reason?.trim() || "Причина не указана";
+
+        await db.insert(feedback).values({
+          userId: ctx.userId,
+          name: user.name ?? "Без имени",
+          email: user.email,
+          topic: "account_deletion",
+          message: reasonText,
+          status: "new",
+        });
+
+        await notifyAdmin(
+          `🗑 Запрос на удаление аккаунта — ${user.email}`,
+          `<div style="font-family: sans-serif; max-width: 480px;">
+            <h2>🗑 Запрос на удаление аккаунта</h2>
+            <p><b>От:</b> ${user.name ?? "Без имени"} (${user.email})</p>
+            <p><b>ID пользователя:</b> ${ctx.userId}</p>
+            <p><b>Причина:</b></p>
+            <p>${reasonText.replace(/\n/g, "<br/>")}</p>
+            <hr/>
+            <p style="color:#888;font-size:13px;">Обработайте в течение 7 рабочих дней (обещано на странице «Правила»). После фактического удаления — ответьте на тикет письмом-подтверждением через раздел «Обращения».</p>
+          </div>`
+        );
+
+        await sendEmail({
+          to: user.email,
+          subject: "Ваш запрос на удаление аккаунта принят",
+          html: `<div style="font-family: sans-serif; max-width: 480px;">
+            <h2>Запрос на удаление аккаунта принят</h2>
+            <p>Здравствуйте!</p>
+            <p>Мы получили ваш запрос на удаление аккаунта на сайте «Ай, настойка!» (${user.email}).</p>
+            <p>Ваш аккаунт и все связанные с ним данные — профиль, рецепты, комментарии, история ИИ-запросов, история операций по балансу — будут полностью удалены в течение <b>7 рабочих дней</b>, в соответствии с требованиями законодательства о персональных данных (152-ФЗ «О персональных данных»).</p>
+            <p>Если вы передумали — просто ответьте на это письмо в течение указанного срока, и мы отменим удаление.</p>
+            <p>После фактического удаления вы получите отдельное письмо с подтверждением.</p>
+            <hr/>
+            <p style="color:#888;font-size:13px;">С уважением,<br/>Команда «Ай, настойка!»</p>
+          </div>`,
+        });
+
+        return { success: true };
+      }),
   }),
 
   // ─── Рецепты ───
@@ -425,6 +476,7 @@ export const appRouter = router({
           bug: "Баг на сайте",
           feature: "Предложение",
           place: "Добавить заведение",
+          account_deletion: "Удаление аккаунта",
           other: "Другое",
         };
         await notifyAdmin(
@@ -480,6 +532,7 @@ export const appRouter = router({
           bug: "Баг на сайте",
           feature: "Предложение",
           place: "Добавить заведение",
+          account_deletion: "Удаление аккаунта",
           other: "Другое",
         };
         await sendEmail({

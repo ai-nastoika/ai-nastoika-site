@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import InfusionTracker from "./InfusionTracker";
+import { ShotGlassIcon } from "@/components/ShotGlassRating";
 import {
   User,
   Mail,
@@ -30,6 +31,7 @@ import {
   ShieldCheck,
   Phone,
   CheckCircle2,
+  Check,
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
@@ -62,6 +64,13 @@ export default function ProfilePage() {
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [lightboxLabel, setLightboxLabel] = useState<{ src: string; title: string } | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteReasonChoice, setDeleteReasonChoice] = useState<string | null>(null);
+  const [deleteReasonText, setDeleteReasonText] = useState("");
+  const [deleteSubmitted, setDeleteSubmitted] = useState(false);
+  const requestDeletion = trpc.user.requestDeletion.useMutation({
+    onSuccess: () => setDeleteSubmitted(true),
+  });
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
     onSuccess: (data) => {
@@ -181,17 +190,21 @@ export default function ProfilePage() {
   });
 
   // Реальные данные
-  const { data: myRatingsData } = trpc.rating.myRatings.useQuery(undefined, { enabled: !!user });
   const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
   const { data: recipesData } = trpc.recipe.list.useQuery();
+  const { data: placesData } = trpc.place.list.useQuery();
   const { data: trackerStats } = trpc.infusion.stats.useQuery(undefined, { enabled: !!user });
   const { data: myFeedbackData } = trpc.feedback.myFeedback.useQuery(undefined, { enabled: !!user });
   const myFeedback = myFeedbackData || [];
 
-  const myRatings = (myRatingsData || []).map((r) => ({
-    recipe: (recipesData || []).find((rec) => rec.id === r.recipeId),
-    rating: r.rating,
-  })).filter((r) => r.recipe);
+  // Отзывы с оценкой (рюмкой) — заменяет старую 5-звёздочную систему
+  const myRatedComments = (myCommentsData || [])
+    .filter((c) => c.rating)
+    .map((c) => ({
+      comment: c,
+      recipe: c.recipeId ? (recipesData || []).find((rec) => rec.id === c.recipeId) : undefined,
+      place: c.placeId ? (placesData || []).find((p) => p.id === c.placeId) : undefined,
+    }));
 
   const myComments = myCommentsData || [];
   const allRecipes = recipesData || [];
@@ -385,33 +398,36 @@ export default function ProfilePage() {
         {tab === "overview" && (
           <div className="space-y-10">
 
-            {/* Мои оценки */}
+            {/* Мои отзывы */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                <Star size={22} style={{ color: "var(--accent)" }} /> Мои оценки
+                <Star size={22} style={{ color: "var(--accent)" }} /> Мои отзывы
               </h2>
-              {myRatings.length === 0 ? (
+              {myRatedComments.length === 0 ? (
                 <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <Star size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не оценивали рецепты</div>
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не оставляли отзывов с оценкой</div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {myRatings.map(({ recipe, rating }) => (
-                    <div key={recipe!.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                      <img src={recipe!.heroImage ?? "/recipe-cherry.jpg"} alt={recipe!.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{recipe!.title}</div>
-                        <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{recipe!.categoryLabel}</div>
+                  {myRatedComments.map(({ comment, recipe, place }) => {
+                    if (!recipe && !place) return null;
+                    const displayTitle = recipe ? recipe.title : place!.name;
+                    const displayImage = recipe ? recipe.heroImage : (place as { heroImage?: string } | undefined)?.heroImage;
+                    const href = recipe ? `/recipe/${recipe.slug}` : `/place/${place!.slug}`;
+                    const rating = comment.rating as "green" | "yellow" | "red";
+                    return (
+                      <div key={comment.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                        <img src={displayImage ?? "/recipe-cherry.jpg"} alt={displayTitle} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{displayTitle}</div>
+                          <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{comment.text}</div>
+                        </div>
+                        <ShotGlassIcon tier={rating} size={22} />
+                        <Link to={href} style={{ color: "var(--accent)" }}><ChevronRight size={20} /></Link>
                       </div>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} size={16} fill={i < rating ? "var(--accent)" : "none"} color={i < rating ? "var(--accent)" : "var(--border)"} />
-                        ))}
-                      </div>
-                      <Link to={`/recipe/${recipe!.slug}`} style={{ color: "var(--accent)" }}><ChevronRight size={20} /></Link>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1109,6 +1125,7 @@ export default function ProfilePage() {
                 <LogOut size={22} /> Выйти
               </button>
               <button
+                onClick={() => setDeleteModalOpen(true)}
                 className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-base font-medium transition-all hover:scale-105"
                 style={{ background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)", fontFamily: "var(--font-body)" }}
               >
@@ -1140,6 +1157,106 @@ export default function ProfilePage() {
           >
             ×
           </button>
+        </div>
+      )}
+
+      {deleteModalOpen && (
+        <div
+          onClick={() => { if (!deleteSubmitted) setDeleteModalOpen(false); }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            {deleteSubmitted ? (
+              <div className="text-center py-4">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#d8f3dc" }}>
+                  <Check size={28} style={{ color: "#386641" }} />
+                </div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  Запрос отправлен
+                </h3>
+                <p className="text-base mb-5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                  Мы прислали подтверждение на вашу почту. Аккаунт и все данные будут удалены в течение 7 рабочих дней. Если передумаете — просто ответьте на это письмо.
+                </p>
+                <button
+                  onClick={() => { setDeleteModalOpen(false); setDeleteSubmitted(false); setDeleteReasonChoice(null); setDeleteReasonText(""); }}
+                  className="px-5 py-2.5 rounded-xl text-white font-medium"
+                  style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  Понятно
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--danger)", fontFamily: "var(--font-heading)" }}>
+                  Удалить аккаунт?
+                </h3>
+                <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                  Это необратимо: профиль, рецепты, комментарии, история ИИ-запросов и баланс будут удалены в течение 7 рабочих дней. Расскажите, почему уходите — это поможет нам стать лучше.
+                </p>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    "Больше не пользуюсь сайтом",
+                    "Не устроило качество ИИ-ответов",
+                    "Беспокоюсь о приватности данных",
+                    "Нашёл(-ла) альтернативу",
+                    "Другое",
+                  ].map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setDeleteReasonChoice(reason)}
+                      className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
+                      style={{
+                        background: deleteReasonChoice === reason ? "var(--accent)" : "var(--surface)",
+                        color: deleteReasonChoice === reason ? "#fff" : "var(--text-secondary)",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  value={deleteReasonText}
+                  onChange={(e) => setDeleteReasonText(e.target.value)}
+                  placeholder="Дополнительно, если хотите рассказать подробнее (необязательно)"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm outline-none resize-none mb-4"
+                  style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)", minHeight: 70 }}
+                />
+
+                {requestDeletion.error && (
+                  <p className="text-sm mb-3" style={{ color: "#dc2626" }}>{requestDeletion.error.message}</p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                    style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={() => {
+                      const combined = [deleteReasonChoice, deleteReasonText.trim()].filter(Boolean).join(": ");
+                      requestDeletion.mutate({ reason: combined || undefined });
+                    }}
+                    disabled={requestDeletion.isPending}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-50"
+                    style={{ background: "var(--danger)", fontFamily: "var(--font-body)" }}
+                  >
+                    {requestDeletion.isPending ? "Отправка..." : "Отправить запрос"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
