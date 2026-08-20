@@ -58,7 +58,7 @@ export default function ProfilePage() {
     enabled: !!user && tab === "history",
   });
   const { data: myLabels } = trpc.labelGenerator.myLabels.useQuery(undefined, {
-    enabled: !!user && tab === "labels",
+    enabled: !!user,
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
@@ -346,7 +346,7 @@ export default function ProfilePage() {
               { id: "overview", label: "Обзор", icon: User, value: null },
               { id: "tracker", label: "Трекер созревания", icon: Timer, value: trackerStats?.active ?? 0 },
               { id: "recipes", label: "Рецепты", icon: BookOpen, value: savedRecipes.length },
-              { id: "labels", label: "Этикетки", icon: Tag, value: savedLabels?.length ?? 0 },
+              { id: "labels", label: "Этикетки", icon: Tag, value: (savedLabels?.length ?? 0) + (myLabels?.length ?? 0) },
               { id: "places", label: "Места", icon: MapPin, value: savedPlaces.length },
               { id: "history", label: "ИИ", icon: FlaskConical, value: userData.usedQueries },
             ] as const).map((t) => {
@@ -562,6 +562,8 @@ export default function ProfilePage() {
                           <a
                             href={src}
                             download={`${genLabel.title}.png`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="block text-center py-1.5 rounded-lg text-xs font-medium text-white"
                             style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                           >

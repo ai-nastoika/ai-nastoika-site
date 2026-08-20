@@ -477,11 +477,16 @@ export default function LabelGeneratorPage() {
                 <a
                   href={generatedImage}
                   download="label.png"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium mt-2 transition-all hover:opacity-70"
                   style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
                 >
                   <Download size={16} /> Скачать изображение
                 </a>
+                <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  На телефоне: если скачивание не началось само — картинка откроется отдельно, зажмите на ней палец и выберите «Сохранить изображение».
+                </p>
                 <Link
                   to="/profile?tab=labels"
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium mt-2 transition-all hover:opacity-70"

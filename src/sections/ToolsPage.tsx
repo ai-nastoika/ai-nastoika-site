@@ -1759,19 +1759,19 @@ function LabelGeneratorPromo() {
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff" }}>1</div>
             <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-              Опишите желаемый дизайн — стиль (винтаж, минимализм, хохлома), цветовая гамма, элементы (цветы, геометрия, орнаменты). Или просто дайте ИИ свободу.
+              На одной странице опишите дизайн (стиль, цвета, элементы) и сразу впишите текст этикетки — название, подпись, крепость, дату. ИИ нарисует текст прямо на картинке, отдельно ничего добавлять не нужно.
             </p>
           </div>
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff" }}>2</div>
             <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-              ИИ генерирует уникальную этикетку. Вы получаете готовое изображение, которое можно редактировать — добавить текст, название, крепость, дату.
+              Выберите ориентацию — вертикальная, квадратная или горизонтальная — и нажмите «Сгенерировать». Генерация платная (спишется с баланса), без бесплатного лимита — точную цену видно на кнопке перед оплатой.
             </p>
           </div>
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff" }}>3</div>
             <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-              Скачайте в нужном размере и распечатайте на А4. Можно разместить до 6-9 этикеток на одном листе.
+              Печатайте сразу с сайта — 4 копии на листе А4, без обрезки — или скачайте картинку. Последние 3 этикетки сохраняются в личном кабинете, в разделе «Этикетки».
             </p>
           </div>
         </div>
@@ -1784,9 +1784,9 @@ function LabelGeneratorPromo() {
         <ul className="text-base space-y-1" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
           <li>• Создаёт уникальный дизайн по текстовому описанию</li>
           <li>• Поддерживает любой стиль: от русской хохломы до киберпанка</li>
-          <li>• Добавляет орнаменты, рамки, фоны, текстуры</li>
-          <li>• Создаёт этикетки с пустым центром для вашего текста</li>
-          <li>• Адаптирует дизайн под размер бутылки</li>
+          <li>• Вписывает ваш текст (название, подпись, крепость, дату) прямо в изображение</li>
+          <li>• Три фиксированные пропорции: вертикальная, квадратная, горизонтальная</li>
+          <li>• Печать сразу на сайте — 4 копии на листе А4, без обрезки</li>
         </ul>
       </div>
 
