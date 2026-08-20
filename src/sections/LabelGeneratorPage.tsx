@@ -50,6 +50,7 @@ export default function LabelGeneratorPage() {
   const [labelSubtitle, setLabelSubtitle] = useState("");
   const [labelAbv, setLabelAbv] = useState("");
   const [labelDate, setLabelDate] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -471,9 +472,11 @@ export default function LabelGeneratorPage() {
         <div className="lg:sticky lg:top-24 self-start">
           <div className="flex flex-col items-center justify-center rounded-2xl p-8" style={{ background: "var(--bg-secondary)" }}>
             {generatedImage ? (
-              <div
-                className="w-full rounded-lg overflow-hidden flex items-center justify-center"
-                style={{ maxWidth: 300, aspectRatio: activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
+              <button
+                onClick={() => setLightboxOpen(true)}
+                className="w-full rounded-lg overflow-hidden flex items-center justify-center transition-transform hover:scale-[1.02] cursor-zoom-in"
+                style={{ maxWidth: 420, aspectRatio: activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
+                title="Нажмите, чтобы увеличить"
               >
                 <img
                   src={generatedImage}
@@ -481,7 +484,7 @@ export default function LabelGeneratorPage() {
                   className="max-w-full max-h-full"
                   style={{ objectFit: "contain" }}
                 />
-              </div>
+              </button>
             ) : (
               <div
                 className="flex items-center justify-center rounded-lg w-full"
@@ -533,6 +536,29 @@ export default function LabelGeneratorPage() {
           </div>
         </div>
       </div>
+
+      {lightboxOpen && generatedImage && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-6 cursor-zoom-out"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+        >
+          <img
+            src={generatedImage}
+            alt="Сгенерированная этикетка — крупно"
+            className="max-w-full max-h-full rounded-lg"
+            style={{ objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+          />
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white text-2xl"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }

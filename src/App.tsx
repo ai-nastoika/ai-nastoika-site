@@ -13,6 +13,7 @@ import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
 import ScrollToTop from "./components/ScrollToTop";
 import AddToHomeScreenPrompt from "./components/AddToHomeScreenPrompt";
+import ChunkErrorBoundary from "./components/ChunkErrorBoundary";
 
 /* Lazy-loaded pages — code splitting for faster initial load */
 const ToolsPage = lazy(() => import("./sections/ToolsPage"));
@@ -127,6 +128,10 @@ const router = createHashRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <ChunkErrorBoundary>
+      <RouterProvider router={router} />
+    </ChunkErrorBoundary>
+  );
 }
 // deploy marker 1779376610
