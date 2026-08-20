@@ -50,17 +50,15 @@ export default function Header() {
 
           {/* Donate + Auth — компактный блок, видим всегда на десктопе */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
-            <a
-              href="https://boosty.to/ainastoika"
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={() => alert("Способ оплаты скоро появится — следите за обновлениями")}
               className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               title="Поддержать проект"
             >
               <Heart size={14} />
               <span className="hidden lg:inline lg:ml-1">Поддержать</span>
-            </a>
+            </button>
 
             {isLoggedIn ? (
               <div className="flex items-center gap-1">
@@ -276,17 +274,14 @@ export default function Header() {
           )}
 
           <div style={{ borderBottom: "1px solid var(--border)", margin: "4px 0" }} />
-          <a
-            href="https://boosty.to/ainastoika"
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 py-2.5 text-base font-medium"
+          <button
+            onClick={() => { setMobileOpen(false); alert("Способ оплаты скоро появится — следите за обновлениями"); }}
+            className="flex items-center gap-2 py-2.5 text-base font-medium w-full text-left"
             style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
           >
             <Heart size={18} />
-            Поддержать проект
-          </a>
+            Поддержать
+          </button>
           {!isLoggedIn && (
             <Link
               to="/login"
