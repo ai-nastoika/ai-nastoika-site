@@ -58,7 +58,7 @@ export default function ProfilePage() {
     enabled: !!user && tab === "history",
   });
   const { data: myLabels } = trpc.labelGenerator.myLabels.useQuery(undefined, {
-    enabled: !!user && tab === "history",
+    enabled: !!user && tab === "labels",
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
@@ -538,7 +538,52 @@ export default function ProfilePage() {
 
         {/* LABELS — сохранённые этикетки */}
         {tab === "labels" && (
-          <div>
+          <div className="space-y-8">
+            {myLabels && myLabels.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  Сгенерированные ИИ ({myLabels.length}/3)
+                </h3>
+                <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+                  {myLabels.map((genLabel) => {
+                    const src = genLabel.imageBase64.startsWith("http")
+                      ? genLabel.imageBase64
+                      : `data:image/png;base64,${genLabel.imageBase64}`;
+                    return (
+                      <div key={genLabel.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                        <img src={src} alt={genLabel.title} className="w-full" style={{ aspectRatio: "3/4", objectFit: "contain", background: "#fff" }} />
+                        <div className="p-4">
+                          <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                            {genLabel.title}
+                          </div>
+                          <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                            {new Date(genLabel.createdAt).toLocaleDateString("ru-RU")}
+                          </div>
+                          <a
+                            href={src}
+                            download={`${genLabel.title}.png`}
+                            className="block text-center py-1.5 rounded-lg text-xs font-medium text-white"
+                            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                          >
+                            Скачать
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Хранятся только 3 последние — новая генерация вытесняет самую старую.
+                </p>
+              </div>
+            )}
+
+            {myLabels && myLabels.length > 0 && savedLabels && savedLabels.length > 0 && (
+              <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Собранные вручную
+              </h3>
+            )}
+
             {!savedLabels?.length ? (
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
@@ -733,43 +778,6 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-
-            {/* Мои этикетки — последние 3 сгенерированные */}
-            {myLabels && myLabels.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  Мои этикетки ({myLabels.length}/3)
-                </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {myLabels.map((label) => {
-                    const src = label.imageBase64.startsWith("http")
-                      ? label.imageBase64
-                      : `data:image/png;base64,${label.imageBase64}`;
-                    return (
-                      <a
-                        key={label.id}
-                        href={src}
-                        download={`${label.title}.png`}
-                        className="block rounded-xl overflow-hidden relative group"
-                        style={{ border: "1px solid var(--border)", aspectRatio: "3 / 4" }}
-                        title={`Скачать «${label.title}»`}
-                      >
-                        <img src={src} alt={label.title} className="w-full h-full" style={{ objectFit: "cover" }} />
-                        <div
-                          className="absolute inset-0 flex items-end p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent 60%)" }}
-                        >
-                          <span className="text-xs text-white truncate">{label.title}</span>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-                <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Хранятся только 3 последние — новая генерация вытесняет самую старую. Клик — скачать.
-                </p>
-              </div>
-            )}
 
             {/* История диалогов с ИИ */}
             <div>

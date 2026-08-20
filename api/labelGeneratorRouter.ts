@@ -9,25 +9,28 @@ import { eq, desc } from "drizzle-orm";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
 
-const bottleAspect: Record<string, string> = {
-  standard: "tall rectangular vertical format (standard 0.5L bottle proportions)",
-  wine: "tall narrow rectangular vertical format (wine bottle proportions)",
-  mini: "short compact rectangular vertical format (mini 0.25L bottle proportions)",
-  gift: "elegant tall rectangular vertical format (gift bottle proportions)",
+/* Три ориентации вместо типа бутылки — жёстко привязаны к реально поддерживаемым
+   API размерам (см. lib/imageClient.ts), поэтому пропорция гарантированно
+   совпадает с тем, что реально просим у модели, а не с угаданным промпт-текстом. */
+export const ORIENTATIONS = {
+  vertical: { apiSize: "1024x1536" as const, promptHint: "portrait orientation, taller than wide (3:4-like proportions)" },
+  square: { apiSize: "1024x1024" as const, promptHint: "square format, equal width and height (1:1 proportions)" },
+  horizontal: { apiSize: "1536x1024" as const, promptHint: "landscape orientation, wider than tall (4:3-like proportions)" },
 };
+type Orientation = keyof typeof ORIENTATIONS;
 
 /* Промпт собирается из лёгких, не слишком детальных пожеланий к фону — нарочно
    без микро-инструкций (точные градиенты, пропорции узоров и т.п.): чем детальнее
    просьба, тем выше шанс, что ИИ что-то испортит при генерации.
    Текст, наоборот, задаётся явно и дословно — накладывать его отдельным CSS-слоем
    поверх картинки ненадёжно (сдвигается, не сочетается со шрифтом фона), поэтому
-   вставляет его сама модель — gemini-3.1-flash-image-preview для этого достаточно точна. */
+   вставляет его сама модель. */
 function buildLabelPrompt(input: {
   description: string;
   style?: string;
   colors?: string;
   elements?: string;
-  bottleType: string;
+  orientation: Orientation;
   title: string;
   subtitle?: string;
   abv?: string;
@@ -40,8 +43,7 @@ function buildLabelPrompt(input: {
   if (input.style?.trim()) parts.push(`${input.style.trim()} style`);
   if (input.colors?.trim()) parts.push(`color palette: ${input.colors.trim()}`);
   if (input.elements?.trim()) parts.push(`decorative elements: ${input.elements.trim()}`);
-  parts.push(bottleAspect[input.bottleType] ?? bottleAspect.standard);
-  parts.push("aspect ratio 3:4 portrait orientation (width:height), image noticeably taller than wide but not extremely elongated");
+  parts.push(ORIENTATIONS[input.orientation].promptHint);
 
   parts.push(
     `render the exact text "${input.title.trim()}" as the main title, large and clearly legible, ` +
@@ -79,7 +81,7 @@ export const labelGeneratorRouter = createRouter({
         style: z.string().max(100).optional(),
         colors: z.string().max(100).optional(),
         elements: z.string().max(200).optional(),
-        bottleType: z.enum(["standard", "wine", "mini", "gift"]).default("standard"),
+        orientation: z.enum(["vertical", "square", "horizontal"]).default("vertical"),
         title: z.string().min(1).max(80),
         subtitle: z.string().max(120).optional(),
         abv: z.string().max(20).optional(),
@@ -94,7 +96,7 @@ export const labelGeneratorRouter = createRouter({
 
       let image: { imageBase64?: string; imageUrl?: string };
       try {
-        image = await generateImage(prompt);
+        image = await generateImage(prompt, ORIENTATIONS[input.orientation].apiSize);
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
