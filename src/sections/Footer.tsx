@@ -33,7 +33,7 @@ export default function Footer() {
             Сделано с <Heart size={28} style={{ color: "var(--accent)" }} /> для любителей настоек
           </span>
           <span className="hidden sm:inline">·</span>
-          <span>© 2025 Ай, настойка</span>
+          <span>© {new Date().getFullYear()} Ай, настойка</span>
         </div>
 
         <div

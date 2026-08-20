@@ -61,6 +61,7 @@ export default function ProfilePage() {
     enabled: !!user,
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
+  const [lightboxLabel, setLightboxLabel] = useState<{ src: string; title: string } | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
     onSuccess: (data) => {
@@ -551,7 +552,13 @@ export default function ProfilePage() {
                       : `data:image/png;base64,${genLabel.imageBase64}`;
                     return (
                       <div key={genLabel.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                        <img src={src} alt={genLabel.title} className="w-full" style={{ aspectRatio: "3/4", objectFit: "contain", background: "#fff" }} />
+                        <button
+                          onClick={() => setLightboxLabel({ src, title: genLabel.title })}
+                          className="block w-full cursor-zoom-in"
+                          title="Нажмите, чтобы увеличить"
+                        >
+                          <img src={src} alt={genLabel.title} className="w-full" style={{ aspectRatio: "3/4", objectFit: "contain", background: "#fff" }} />
+                        </button>
                         <div className="p-4">
                           <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                             {genLabel.title}
@@ -590,7 +597,7 @@ export default function ProfilePage() {
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
                 <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
-                <a href="/#/tools" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                <a href="/#/tools/generate-label" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
                   Создать этикетку
                 </a>
               </div>
@@ -1111,6 +1118,30 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {lightboxLabel && (
+        <div
+          onClick={() => setLightboxLabel(null)}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 cursor-zoom-out"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+        >
+          <img
+            src={lightboxLabel.src}
+            alt={lightboxLabel.title}
+            className="max-w-full max-h-[80vh] rounded-lg"
+            style={{ objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
+          />
+          <div className="mt-4 text-white text-base" style={{ fontFamily: "var(--font-body)" }}>{lightboxLabel.title}</div>
+          <button
+            onClick={() => setLightboxLabel(null)}
+            className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white text-2xl"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }
