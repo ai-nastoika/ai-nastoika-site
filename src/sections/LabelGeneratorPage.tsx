@@ -154,8 +154,16 @@ export default function LabelGeneratorPage() {
       win.document.write(`<!DOCTYPE html><html><head><title>Печать этикетки</title><style>
         body{margin:0;padding:0;}
         img{display:block;width:100%;height:auto;}
-        @media print{@page{size:A4 portrait;margin:0;}}
-      </style></head><body>`);
+        .no-print{position:sticky;top:0;display:flex;gap:8px;justify-content:center;padding:12px;background:#fff;border-bottom:1px solid #e5e5e5;z-index:10;}
+        .no-print button{font:inherit;font-size:16px;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;}
+        .btn-close{background:#f0f0f0;color:#333;}
+        .btn-print{background:#8B4513;color:#fff;}
+        @media print{.no-print{display:none !important;} @page{size:A4 portrait;margin:0;}}
+      </style></head><body>
+      <div class="no-print">
+        <button class="btn-close" onclick="window.close()">← Закрыть и вернуться на сайт</button>
+        <button class="btn-print" onclick="window.print()">Печать</button>
+      </div>`);
       win.document.write(printImg.outerHTML);
       win.document.write(`</body></html>`);
       win.document.close();
@@ -420,12 +428,17 @@ export default function LabelGeneratorPage() {
         <div className="lg:sticky lg:top-24 self-start">
           <div className="flex flex-col items-center justify-center rounded-2xl p-8" style={{ background: "var(--bg-secondary)" }}>
             {generatedImage ? (
-              <img
-                src={generatedImage}
-                alt="Сгенерированная этикетка"
-                className="max-w-full rounded-lg"
-                style={{ maxHeight: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
-              />
+              <div
+                className="w-full rounded-lg overflow-hidden"
+                style={{ maxWidth: 300, aspectRatio: "3 / 4", boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}
+              >
+                <img
+                  src={generatedImage}
+                  alt="Сгенерированная этикетка"
+                  className="w-full h-full"
+                  style={{ objectFit: "cover" }}
+                />
+              </div>
             ) : (
               <div
                 className="flex items-center justify-center rounded-lg w-full"
@@ -435,6 +448,12 @@ export default function LabelGeneratorPage() {
                   Здесь появится готовая этикетка после генерации
                 </p>
               </div>
+            )}
+
+            {generatedImage && (
+              <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Показано и печатается в пропорции 3:4 — обрезка по центру гарантирует нужный размер, независимо от того, в каких пропорциях ИИ фактически нарисовал картинку.
+              </p>
             )}
 
             {generatedImage && (

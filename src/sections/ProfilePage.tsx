@@ -57,6 +57,9 @@ export default function ProfilePage() {
   const { data: aiConversations } = trpc.aiConversation.listRecent.useQuery(undefined, {
     enabled: !!user && tab === "history",
   });
+  const { data: myLabels } = trpc.labelGenerator.myLabels.useQuery(undefined, {
+    enabled: !!user && tab === "history",
+  });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
@@ -730,6 +733,43 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
+
+            {/* Мои этикетки — последние 3 сгенерированные */}
+            {myLabels && myLabels.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  Мои этикетки ({myLabels.length}/3)
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {myLabels.map((label) => {
+                    const src = label.imageBase64.startsWith("http")
+                      ? label.imageBase64
+                      : `data:image/png;base64,${label.imageBase64}`;
+                    return (
+                      <a
+                        key={label.id}
+                        href={src}
+                        download={`${label.title}.png`}
+                        className="block rounded-xl overflow-hidden relative group"
+                        style={{ border: "1px solid var(--border)", aspectRatio: "3 / 4" }}
+                        title={`Скачать «${label.title}»`}
+                      >
+                        <img src={src} alt={label.title} className="w-full h-full" style={{ objectFit: "cover" }} />
+                        <div
+                          className="absolute inset-0 flex items-end p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent 60%)" }}
+                        >
+                          <span className="text-xs text-white truncate">{label.title}</span>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+                <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  Хранятся только 3 последние — новая генерация вытесняет самую старую. Клик — скачать.
+                </p>
+              </div>
+            )}
 
             {/* История диалогов с ИИ */}
             <div>

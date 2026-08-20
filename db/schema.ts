@@ -3,6 +3,7 @@ import {
   serial,
   varchar,
   text,
+  mediumtext,
   timestamp,
   int,
   decimal,
@@ -507,3 +508,16 @@ export const aiConversations = mysqlTable("ai_conversations", {
 });
 
 export type AiConversation = typeof aiConversations.$inferSelect;
+
+// ─── Сгенерированные этикетки — храним сами картинки (base64), не только текст
+// в ai_conversations. Держим только 3 последние на пользователя — старые удаляются
+// в api/labelGeneratorRouter.ts при добавлении новой. ───
+export const generatedLabels = mysqlTable("generated_labels", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  title: varchar("title", { length: 100 }).notNull(),
+  imageBase64: mediumtext("image_base64").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type GeneratedLabel = typeof generatedLabels.$inferSelect;

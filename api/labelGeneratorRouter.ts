@@ -3,6 +3,9 @@ import { createRouter, authedQuery } from "./middleware";
 import { chargeImageRequest, getImageAccessState, logAiUsage, logAiFailure, refundAiRequest } from "./lib/aiAccess";
 import { generateImage } from "./lib/imageClient";
 import { saveConversationTurn } from "./lib/aiConversations";
+import { getDb } from "./queries/connection";
+import { generatedLabels } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
 
@@ -100,8 +103,30 @@ export const labelGeneratorRouter = createRouter({
 
       await logAiUsage({ userId: ctx.user.id, requestType: REQUEST_TYPE, tokensUsed: 0, charge });
 
-      // В историю пишем текстовое резюме запроса, не саму картинку — base64-изображение
-      // (сотни КБ) раздуло бы каждую выборку "последние 10 диалогов" в личном кабинете.
+      // Храним саму картинку — не только текстовое резюме — чтобы в личном
+      // кабинете можно было пересмотреть/перепечатать последние этикетки.
+      const db = getDb();
+      const imageData = image.imageBase64 ?? image.imageUrl ?? "";
+      await db.insert(generatedLabels).values({
+        userId: ctx.user.id,
+        title: input.title,
+        imageBase64: imageData,
+      });
+
+      // Держим только 3 последние на пользователя — старые удаляем.
+      const existing = await db
+        .select({ id: generatedLabels.id })
+        .from(generatedLabels)
+        .where(eq(generatedLabels.userId, ctx.user.id))
+        .orderBy(desc(generatedLabels.createdAt));
+      const idsToDelete = existing.slice(3).map((r) => r.id);
+      for (const id of idsToDelete) {
+        await db.delete(generatedLabels).where(eq(generatedLabels.id, id));
+      }
+
+      // В историю диалогов пишем текстовое резюме запроса, не саму картинку —
+      // ai_conversations рассчитан на текстовые диалоги, а не хранение изображений
+      // (для этого теперь есть отдельная generatedLabels выше).
       const requestSummary = [
         `Название: ${input.title}`,
         input.subtitle ? `Подпись: ${input.subtitle}` : null,
@@ -125,4 +150,15 @@ export const labelGeneratorRouter = createRouter({
       const access = await getImageAccessState(ctx.user.id);
       return { image, costKopecks: charge.costKopecks, access };
     }),
+
+  /* Последние 3 сгенерированные этикетки — для личного кабинета */
+  myLabels: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    return db
+      .select()
+      .from(generatedLabels)
+      .where(eq(generatedLabels.userId, ctx.user.id))
+      .orderBy(desc(generatedLabels.createdAt))
+      .limit(3);
+  }),
 });
