@@ -76,7 +76,13 @@ export default function ProfilePage() {
     onSuccess: () => setDeleteSubmitted(true),
   });
   const resumeConversationMutation = trpc.aiConversation.resume.useMutation({
-    onSuccess: (data) => navigate(data.resumeUrl),
+    onSuccess: (data) => {
+      navigate(data.resumeUrl);
+      utils.aiConversation.listRecent.invalidate();
+    },
+  });
+  const finishConversationMutation = trpc.aiConversation.finish.useMutation({
+    onSuccess: () => utils.aiConversation.listRecent.invalidate(),
   });
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
@@ -886,6 +892,19 @@ export default function ProfilePage() {
                               style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
                             >
                               Возобновить
+                            </button>
+                          )}
+                          {conv.status === "active" && conv.requestType !== "abv_ai_estimate" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                finishConversationMutation.mutate({ conversationId: conv.id });
+                              }}
+                              disabled={finishConversationMutation.isPending}
+                              className="text-xs font-medium underline shrink-0 disabled:opacity-50"
+                              style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                            >
+                              Завершить
                             </button>
                           )}
                           <ChevronDown
