@@ -43,6 +43,7 @@ function TasteCalculator() {
   const [conversationId, setConversationId] = useState<number | undefined>(undefined);
   const [restored, setRestored] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.tasteCalculator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -77,6 +78,14 @@ function TasteCalculator() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, generate.isPending]);
+
+  // Автоподгонка высоты textarea под содержимое (перенос строк вместо горизонтального скролла)
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }, [message]);
 
   const limitReached = limitInfo ? !limitInfo.allowed : false;
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
@@ -197,21 +206,35 @@ function TasteCalculator() {
           </Link>
         </div>
       ) : (
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder={messages.length === 0 ? "Например: вишня, ваниль, корица..." : "Продолжите разговор..."}
-            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
-            style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            rows={1}
+            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none resize-none"
+            style={{
+              background: "var(--bg-primary)",
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+              fontFamily: "var(--font-body)",
+              lineHeight: 1.5,
+              maxHeight: "160px",
+              overflowY: "auto",
+            }}
             disabled={generate.isPending}
           />
           <button
             onClick={() => handleSend()}
             disabled={!message.trim() || generate.isPending}
-            className="rounded-xl px-4 flex items-center justify-center text-white disabled:opacity-50"
+            className="rounded-xl px-4 py-2.5 flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--accent)" }}
           >
             <Wand2 size={18} />

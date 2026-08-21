@@ -65,6 +65,7 @@ export default function ProfilePage() {
     enabled: !!user,
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [lightboxLabel, setLightboxLabel] = useState<{ src: string; title: string } | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteReasonChoice, setDeleteReasonChoice] = useState<string | null>(null);
@@ -789,11 +790,11 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  {transactionsData.map((tx, i) => {
+                  {(showAllTransactions ? transactionsData : transactionsData.slice(0, 5)).map((tx, i, arr) => {
                     const meta = TX_LABELS[tx.type] ?? { label: tx.type, color: "var(--text-muted)" };
                     const amountRub = tx.amountKopecks / 100;
                     return (
-                      <div key={tx.id} className="flex items-center gap-4 px-5 py-3.5" style={{ borderBottom: i < transactionsData.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      <div key={tx.id} className="flex items-center gap-4 px-5 py-3.5" style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)" }}>
                           <Wallet size={16} style={{ color: "var(--accent)" }} />
                         </div>
@@ -811,6 +812,19 @@ export default function ProfilePage() {
                       </div>
                     );
                   })}
+                  {transactionsData.length > 5 && (
+                    <button
+                      onClick={() => setShowAllTransactions((v) => !v)}
+                      className="w-full flex items-center justify-center gap-1.5 px-5 py-3 text-sm font-medium"
+                      style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", borderTop: "1px solid var(--border)" }}
+                    >
+                      {showAllTransactions ? "Свернуть" : `Показать ещё (${transactionsData.length - 5})`}
+                      <ChevronDown
+                        size={16}
+                        style={{ transform: showAllTransactions ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+                      />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
