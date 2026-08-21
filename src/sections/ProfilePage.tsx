@@ -66,6 +66,7 @@ export default function ProfilePage() {
   });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [visibleConversationsCount, setVisibleConversationsCount] = useState(5);
   const [lightboxLabel, setLightboxLabel] = useState<{ src: string; title: string } | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteReasonChoice, setDeleteReasonChoice] = useState<string | null>(null);
@@ -839,7 +840,7 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {aiConversations.map((conv) => {
+                  {aiConversations.slice(0, visibleConversationsCount).map((conv) => {
                     const typeLabels: Record<string, string> = {
                       recipe_consultation: "Консультация по рецепту",
                       infusion_consult: "Консультант трекера",
@@ -893,6 +894,16 @@ export default function ProfilePage() {
                       </div>
                     );
                   })}
+                  {aiConversations.length > visibleConversationsCount && (
+                    <button
+                      onClick={() => setVisibleConversationsCount((v) => v + 5)}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-sm font-medium"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                    >
+                      Показать ещё ({Math.min(5, aiConversations.length - visibleConversationsCount)})
+                      <ChevronDown size={16} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
