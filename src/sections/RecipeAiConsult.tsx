@@ -53,6 +53,30 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
     },
   });
 
+  const finishConversation = trpc.aiConversation.finish.useMutation();
+
+  function endConversation() {
+    if (conversationId) finishConversation.mutate({ conversationId });
+    setMessages([]);
+    setConversationId(undefined);
+    setError("");
+  }
+
+  // Автозавершение при уходе со страницы рецепта (размонтирование компонента).
+  const conversationRef = useRef<{ id: number | undefined; hasMessages: boolean }>({ id: undefined, hasMessages: false });
+  useEffect(() => {
+    conversationRef.current = { id: conversationId, hasMessages: messages.length > 0 };
+  }, [conversationId, messages.length]);
+  useEffect(() => {
+    return () => {
+      const conv = conversationRef.current;
+      if (conv.id && conv.hasMessages) {
+        finishConversation.mutate({ conversationId: conv.id });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, ask.isPending]);
@@ -108,8 +132,8 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
         {limitInfo && (
           <div className="flex items-center gap-3">
             {messages.length > 0 && (
-              <button onClick={() => { setMessages([]); setConversationId(undefined); setError(""); }} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
-                Начать заново
+              <button onClick={endConversation} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
+                Завершить диалог
               </button>
             )}
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>

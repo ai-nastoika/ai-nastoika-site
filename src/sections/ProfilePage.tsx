@@ -75,6 +75,9 @@ export default function ProfilePage() {
   const requestDeletion = trpc.user.requestDeletion.useMutation({
     onSuccess: () => setDeleteSubmitted(true),
   });
+  const resumeConversationMutation = trpc.aiConversation.resume.useMutation({
+    onSuccess: (data) => navigate(data.resumeUrl),
+  });
   const [topupAmount, setTopupAmount] = useState<number | null>(null);
   const createTopupMutation = trpc.balance.createTopup.useMutation({
     onSuccess: (data) => {
@@ -853,9 +856,11 @@ export default function ProfilePage() {
                     const messages = conv.messages as { role: "user" | "assistant"; content: string }[];
                     return (
                       <div key={conv.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                        <button
+                        <div
                           onClick={() => setExpandedConversationId(isOpen ? null : conv.id)}
-                          className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+                          role="button"
+                          tabIndex={0}
+                          className="w-full flex items-center gap-3 px-5 py-3.5 text-left cursor-pointer"
                         >
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface)" }}>
                             <MessageCircle size={16} style={{ color: "var(--accent)" }} />
@@ -867,13 +872,27 @@ export default function ProfilePage() {
                             <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                               {new Date(conv.updatedAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                               {" · "}{messages.length} {messages.length === 1 ? "сообщение" : "сообщений"}
+                              {conv.status === "archived" ? " · Завершён" : " · Активен"}
                             </div>
                           </div>
+                          {conv.status === "archived" && conv.requestType !== "abv_ai_estimate" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                resumeConversationMutation.mutate({ conversationId: conv.id });
+                              }}
+                              disabled={resumeConversationMutation.isPending}
+                              className="text-xs font-medium underline shrink-0 disabled:opacity-50"
+                              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+                            >
+                              Возобновить
+                            </button>
+                          )}
                           <ChevronDown
                             size={18}
                             style={{ color: "var(--text-muted)", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
                           />
-                        </button>
+                        </div>
                         {isOpen && (
                           <div className="px-5 pb-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
                             {messages.map((m, i) => (

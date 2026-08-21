@@ -75,6 +75,36 @@ function TasteCalculator() {
     },
   });
 
+  const finishConversation = trpc.aiConversation.finish.useMutation();
+
+  function endConversation() {
+    if (conversationId) finishConversation.mutate({ conversationId });
+    setMessages([]);
+    setConversationId(undefined);
+    setError("");
+  }
+
+  // Автозавершение при уходе со страницы инструментов. ВАЖНО: этот компонент
+  // также размонтируется при переключении между вкладками "Вкус"/"Крепость"/
+  // "Этикетка" внутри страницы инструментов (см. ToolsPage: `if (tool.id !==
+  // activeTool) return null`) — то есть архивация сработает и просто при
+  // переключении вкладок, не только при полном уходе со страницы. Если это
+  // будет мешать — можно вынести отслеживание на уровень ToolsPage, чтобы
+  // архивировать только при настоящем уходе со страницы.
+  const conversationRef = useRef<{ id: number | undefined; hasMessages: boolean }>({ id: undefined, hasMessages: false });
+  useEffect(() => {
+    conversationRef.current = { id: conversationId, hasMessages: messages.length > 0 };
+  }, [conversationId, messages.length]);
+  useEffect(() => {
+    return () => {
+      const conv = conversationRef.current;
+      if (conv.id && conv.hasMessages) {
+        finishConversation.mutate({ conversationId: conv.id });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, generate.isPending]);
@@ -132,11 +162,11 @@ function TasteCalculator() {
         <div className="flex items-center gap-3">
           {messages.length > 0 && (
             <button
-              onClick={() => { setMessages([]); setConversationId(undefined); setError(""); }}
+              onClick={endConversation}
               className="text-xs underline"
               style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
             >
-              Начать заново
+              Завершить диалог
             </button>
           )}
           {limitInfo && (

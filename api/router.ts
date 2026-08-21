@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listRecentConversations } from "./lib/aiConversations";
+import { listRecentConversations, finishConversation, resumeConversation } from "./lib/aiConversations";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
 import { eq, count, desc, sql } from "drizzle-orm";
 import { comments, feedback, transactions, users as usersFull, places } from "../db/schema";
@@ -567,6 +567,23 @@ export const appRouter = router({
     listRecent: authedProcedure.query(async ({ ctx }) => {
       return listRecentConversations(ctx.userId, 10);
     }),
+
+    /* ── Завершить диалог (кнопка или уход со страницы) — уходит в архив,
+       перестаёт переоткрываться при следующем заходе. Ничего не удаляет. ── */
+    finish: authedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await finishConversation(ctx.userId, input.conversationId);
+        return { success: true };
+      }),
+
+    /* ── Возобновить архивный диалог из ЛК — снимает архивный статус,
+       возвращает ссылку, куда перейти (там диалог подхватится сам). ── */
+    resume: authedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        return resumeConversation(ctx.userId, input.conversationId);
+      }),
   }),
 
   // ─── Калькулятор вкуса с ИИ (требует логина, тарификация как у recipeConsult) ───

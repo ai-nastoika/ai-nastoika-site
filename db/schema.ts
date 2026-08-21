@@ -503,6 +503,7 @@ export const aiConversations = mysqlTable("ai_conversations", {
   contextId: int("context_id"), // recipeId или infusionId; null для taste_calculator (свободный диалог)
   contextLabel: varchar("context_label", { length: 200 }), // название рецепта/настойки на момент создания — для отображения без лишних join'ов
   messages: json("messages").$type<{ role: "user" | "assistant"; content: string }[]>().notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active | archived
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
