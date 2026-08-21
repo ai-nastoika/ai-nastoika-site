@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import InfusionTracker from "./InfusionTracker";
 import { ShotGlassIcon } from "@/components/ShotGlassRating";
+import { printLabelOnA4 } from "@/lib/printLabel";
 import {
   User,
   Mail,
@@ -32,6 +33,7 @@ import {
   Phone,
   CheckCircle2,
   Check,
+  Printer,
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
@@ -582,16 +584,25 @@ export default function ProfilePage() {
                           <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                             {new Date(genLabel.createdAt).toLocaleDateString("ru-RU")}
                           </div>
-                          <a
-                            href={src}
-                            download={`${genLabel.title}.png`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-center py-1.5 rounded-lg text-xs font-medium text-white"
-                            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-                          >
-                            Скачать
-                          </a>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => printLabelOnA4(src)}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium"
+                              style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                            >
+                              <Printer size={14} /> Печать
+                            </button>
+                            <a
+                              href={src}
+                              download={`${genLabel.title}.png`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
+                              style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                            >
+                              Скачать
+                            </a>
+                          </div>
                         </div>
                       </div>
                     );

@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import { printLabelOnA4 } from "@/lib/printLabel";
 import {
   ArrowLeft,
   Sparkles,
@@ -112,102 +113,9 @@ export default function LabelGeneratorPage() {
     generate.reset();
   }
 
-  /* ── Печать: 4 копии (2×2) на A4, 300dpi. Картинка вписывается ЦЕЛИКОМ
-     (contain-fit) в физический размер выбранной ориентации — без обрезки,
-     если пропорции ИИ-картинки не совпали идеально, останутся небольшие
-     поля, но ничего не будет обрезано. ── */
   function handlePrint() {
     if (!generatedImage) return;
-
-    const img = new Image();
-    img.onload = () => {
-      const DPI = 300;
-      const MM_TO_PX = DPI / 25.4;
-      const PAGE_W_MM = 210;
-      const PAGE_H_MM = 297;
-      const MARGIN_MM = 10;
-      const GAP_MM = 6;
-
-      const A4_PX_W = Math.round(PAGE_W_MM * MM_TO_PX);
-      const A4_PX_H = Math.round(PAGE_H_MM * MM_TO_PX);
-      const margin = Math.round(MARGIN_MM * MM_TO_PX);
-      const gap = Math.round(GAP_MM * MM_TO_PX);
-      const labW = Math.round(activeOrientation.printW * MM_TO_PX);
-      const labH = Math.round(activeOrientation.printH * MM_TO_PX);
-
-      // Сколько этикеток реально помещается на лист по ширине/высоте —
-      // считаем от печатной области (лист минус поля), а не жёстко 2×2,
-      // иначе широкие/горизонтальные этикетки вылезают за край.
-      const usableW = A4_PX_W - margin * 2;
-      const usableH = A4_PX_H - margin * 2;
-      const cols = Math.max(1, Math.floor((usableW + gap) / (labW + gap)));
-      const rows = Math.max(1, Math.floor((usableH + gap) / (labH + gap)));
-      const totalCount = cols * rows;
-
-      const a4 = document.createElement("canvas");
-      a4.width = A4_PX_W;
-      a4.height = A4_PX_H;
-      const ctx = a4.getContext("2d")!;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, A4_PX_W, A4_PX_H);
-
-      const totalW = labW * cols + gap * (cols - 1);
-      const totalH = labH * rows + gap * (rows - 1);
-      const startX = Math.round((A4_PX_W - totalW) / 2);
-      const startY = Math.round((A4_PX_H - totalH) / 2);
-
-      // contain-fit — вписываем картинку целиком, ничего не обрезаем
-      const scale = Math.min(labW / img.width, labH / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-
-      for (let i = 0; i < totalCount; i++) {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const boxX = startX + col * (labW + gap);
-        const boxY = startY + row * (labH + gap);
-        // тонкая рамка по границе физического размера этикетки — видно, где резать
-        ctx.strokeStyle = "#cccccc";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(boxX, boxY, labW, labH);
-        const dx = boxX + (labW - drawW) / 2;
-        const dy = boxY + (labH - drawH) / 2;
-        ctx.drawImage(img, dx, dy, drawW, drawH);
-      }
-
-      const printImg = document.createElement("img");
-      printImg.src = a4.toDataURL("image/png");
-      // Точный физический размер в мм, а не проценты — сумма реального размера
-      // страницы плюс собственные поля браузера на печати иногда превышает
-      // одну страницу при width:100%, из-за чего появляется лишний пустой лист.
-      printImg.style.cssText = `width:${PAGE_W_MM}mm;height:${PAGE_H_MM}mm;display:block;`;
-
-      const win = window.open("", "_blank");
-      if (!win) return;
-      win.document.write(`<!DOCTYPE html><html><head><title>Печать этикетки</title><style>
-        * { box-sizing: border-box; }
-        html, body { margin:0; padding:0; width:${PAGE_W_MM}mm; }
-        img { display:block; }
-        .no-print{display:flex;gap:8px;justify-content:center;padding:12px;background:#fff;border-bottom:1px solid #e5e5e5;}
-        .no-print button{font:inherit;font-size:16px;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;}
-        .btn-close{background:#f0f0f0;color:#333;}
-        .btn-print{background:#8B4513;color:#fff;}
-        @media print{
-          .no-print{display:none !important;}
-          @page{size:A4 portrait;margin:0;}
-          html, body { width:${PAGE_W_MM}mm; height:${PAGE_H_MM}mm; }
-        }
-      </style></head><body>
-      <div class="no-print">
-        <button class="btn-close" onclick="window.close()">← Закрыть и вернуться на сайт</button>
-        <button class="btn-print" onclick="window.print()">Печать</button>
-      </div>`);
-      win.document.write(printImg.outerHTML);
-      win.document.write(`</body></html>`);
-      win.document.close();
-      setTimeout(() => win.print(), 500);
-    };
-    img.src = generatedImage;
+    printLabelOnA4(generatedImage, orientation);
   }
 
   return (
