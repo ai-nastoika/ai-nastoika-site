@@ -870,7 +870,16 @@ function LabelConstructor({ editData }: { editData?: any }) {
     setShowCropper(false);
   }
 
+  // Скролл вверх при переходе между шагами мастера — но не при самом первом
+  // рендере компонента (иначе срабатывает просто при заходе на вкладку
+  // "Этикетка", т.к. LabelConstructor монтируется заново при каждом
+  // переключении вкладок инструментов).
+  const isFirstStepRender = useRef(true);
   useEffect(() => {
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+      return;
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
