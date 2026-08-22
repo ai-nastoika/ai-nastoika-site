@@ -30,6 +30,7 @@ const PlaceParserPage = lazy(() => import("./sections/PlaceParserPage"));
 const LoginPage = lazy(() => import("./sections/LoginPage"));
 const LabelGeneratorPage = lazy(() => import("./sections/LabelGeneratorPage"));
 const AboutPage = lazy(() => import("./sections/AboutPage"));
+const VinokurPage = lazy(() => import("./sections/VinokurPage"));
 
 
 function PageLoader() {
@@ -114,6 +115,7 @@ const router = createHashRouter([
       { path: "/recipes", element: <Suspense fallback={<PageLoader />}><RecipesPage /></Suspense> },
       { path: "/tools", element: <Suspense fallback={<PageLoader />}><ToolsPage /></Suspense> },
       { path: "/barmap", element: <Suspense fallback={<PageLoader />}><BarMap /></Suspense> },
+      { path: "/vinokur", element: <Suspense fallback={<PageLoader />}><VinokurPage /></Suspense> },
       { path: "/place/:slug", element: <Suspense fallback={<PageLoader />}><PlaceDetail /></Suspense> },
       { path: "/rules", element: <Suspense fallback={<PageLoader />}><RulesPage /></Suspense> },
       { path: "/about", element: <Suspense fallback={<PageLoader />}><AboutPage /></Suspense> },

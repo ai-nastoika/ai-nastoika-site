@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Menu, X, User, LogOut, Shield, Bot } from "lucide-react";
+import { Menu, X, User, LogOut, Shield, Bot, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
 import { trpc } from "@/providers/trpc";
@@ -9,8 +9,8 @@ const navItems = [
   { label: "Рецепты", href: "/recipes" },
   { label: "Инструменты", href: "/tools" },
   { label: "Барная карта", href: "/barmap" },
+  { label: "Винокур", href: "/vinokur" },
   { label: "Правила", href: "/rules" },
-  { label: "Обратная связь", href: "/feedback" },
 ];
 
 export default function Header() {
@@ -48,7 +48,7 @@ export default function Header() {
             />
           </Link>
 
-          {/* Donate + Auth — компактный блок, видим всегда на десктопе */}
+          {/* Donate + Feedback + Auth — компактный блок, видим всегда на десктопе */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
             <button
               onClick={() => alert("Способ оплаты скоро появится — следите за обновлениями")}
@@ -59,6 +59,21 @@ export default function Header() {
               <Heart size={14} />
               <span className="hidden lg:inline lg:ml-1">Поддержать</span>
             </button>
+
+            <Link
+              to="/feedback"
+              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
+              style={{
+                background: isActive("/feedback") ? "var(--accent)" : "var(--surface)",
+                color: isActive("/feedback") ? "#fff" : "var(--accent)",
+                border: "1px solid var(--border)",
+                fontFamily: "var(--font-body)",
+              }}
+              title="Обратная связь"
+            >
+              <MessageCircle size={14} />
+              <span className="hidden lg:inline lg:ml-1">Обратная связь</span>
+            </Link>
 
             {isLoggedIn ? (
               <div className="flex items-center gap-1">
@@ -274,6 +289,15 @@ export default function Header() {
           )}
 
           <div style={{ borderBottom: "1px solid var(--border)", margin: "4px 0" }} />
+          <Link
+            to="/feedback"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 py-2.5 text-base font-medium"
+            style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <MessageCircle size={18} />
+            Обратная связь
+          </Link>
           <button
             onClick={() => { setMobileOpen(false); alert("Способ оплаты скоро появится — следите за обновлениями"); }}
             className="flex items-center gap-2 py-2.5 text-base font-medium w-full text-left"
