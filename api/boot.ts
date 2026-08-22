@@ -9,9 +9,19 @@ import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
+import { transcribeAudio } from "./lib/sttClient";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { jwtVerify } from "jose";
+import { getDb } from "./queries/connection";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+
+const execFileAsync = promisify(execFile);
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "ai-nastoika-secret-key-2026");
 
 const __dirname = import.meta.dirname;
 const distPath = path.resolve(__dirname, "..", "dist");
@@ -44,6 +54,32 @@ if (!fs.existsSync(trackerDir)) {
 const avatarsDir = path.resolve(__dirname, "..", "uploads", "avatars");
 if (!fs.existsSync(avatarsDir)) {
   fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
+// Папка для временных файлов при разборе видео (звук извлекается и сразу удаляется)
+const tmpVideoDir = path.resolve(__dirname, "..", "uploads", "tmp-video");
+if (!fs.existsSync(tmpVideoDir)) {
+  fs.mkdirSync(tmpVideoDir, { recursive: true });
+}
+
+// Проверка прав администратора по тому же JWT, что и в api/context.ts —
+// нужна здесь отдельно, т.к. это обычный Hono-роут (загрузка файла), а не tRPC.
+// ПРИМЕЧАНИЕ: остальные /api/upload-* эндпоинты ниже такой проверки не имеют
+// (существующая особенность, не трогаю в рамках этой задачи) — этот новый
+// эндпоинт админом защищён, т.к. напрямую тратит платный ИИ-запрос.
+async function requireAdmin(authHeader: string | undefined): Promise<boolean> {
+  const token = authHeader?.replace("Bearer ", "");
+  if (!token) return false;
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, { clockTolerance: 60 });
+    const userId = payload.sub ? Number(payload.sub) : 0;
+    if (!userId) return false;
+    const db = getDb();
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    return dbUser?.role === "admin";
+  } catch {
+    return false;
+  }
 }
 
 const app = new Hono();
@@ -236,6 +272,68 @@ app.post("/api/upload-avatar", async (c) => {
   } catch (err) {
     console.error("Avatar upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── Видео → расшифровка речи (парсер рецептов из видео) ───
+// Скачивание по ссылке (YouTube/TikTok/Instagram) — это следующий этап,
+// сюда принимается уже готовый файл видео, загруженный вручную.
+// Требует ffmpeg, установленный на сервере (apt install ffmpeg) — без него
+// извлечение звука упадёт с понятной ошибкой ниже.
+app.post("/api/parse-recipe-video", async (c) => {
+  if (!(await requireAdmin(c.req.header("authorization")))) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
+
+  let videoPath: string | undefined;
+  let audioPath: string | undefined;
+
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+    if (!file.type.startsWith("video/")) {
+      return c.json({ error: "Ожидается видеофайл" }, 400);
+    }
+    const maxSize = 150 * 1024 * 1024; // 150 МБ — с запасом для короткого видео (TikTok/Reels/Shorts)
+    if (file.size > maxSize) {
+      return c.json({ error: "Файл слишком большой (макс. 150 МБ)" }, 400);
+    }
+
+    const hash = crypto.randomBytes(8).toString("hex");
+    videoPath = path.join(tmpVideoDir, `${hash}-in`);
+    audioPath = path.join(tmpVideoDir, `${hash}-out.mp3`);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(videoPath, Buffer.from(arrayBuffer));
+
+    try {
+      // -vn без видео, моно 16кГц — этого с запасом хватает для распознавания
+      // речи и заметно уменьшает файл, который дальше улетает в STT.
+      await execFileAsync("ffmpeg", [
+        "-y", "-i", videoPath,
+        "-vn", "-acodec", "libmp3lame", "-ar", "16000", "-ac", "1", "-q:a", "4",
+        audioPath,
+      ]);
+    } catch {
+      throw new Error(
+        "Не удалось извлечь звук из видео — проверьте, что на сервере установлен ffmpeg (sudo apt install ffmpeg)"
+      );
+    }
+
+    const audioBuffer = fs.readFileSync(audioPath);
+    const transcript = await transcribeAudio(audioBuffer, "audio.mp3");
+
+    return c.json({ success: true, transcript });
+  } catch (err) {
+    console.error("Video parse error:", err);
+    const message = err instanceof Error ? err.message : "Не удалось обработать видео";
+    return c.json({ error: message }, 500);
+  } finally {
+    if (videoPath) { try { fs.unlinkSync(videoPath); } catch { /* уже нет — не страшно */ } }
+    if (audioPath) { try { fs.unlinkSync(audioPath); } catch { /* уже нет — не страшно */ } }
   }
 });
 

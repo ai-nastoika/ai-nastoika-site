@@ -1,166 +1,152 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
-import { env } from "./lib/env";
-import { getDb } from "./queries/connection";
-import { aiUsage } from "@db/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
-import OpenAI from "openai";
+import { createRouter, adminQuery } from "./middleware";
+import { callChatCompletion } from "./lib/aiClient";
+import { generateImage } from "./lib/imageClient";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 
-const client = env.moonshotApiKey
-  ? new OpenAI({
-      apiKey: env.moonshotApiKey,
-      baseURL: "https://api.moonshot.cn/v1",
-    })
-  : null;
+/* Раньше здесь был отдельный клиент на Moonshot (Kimi, api.moonshot.cn) —
+   ОКАЗАЛОСЬ МЁРТВЫМ КОДОМ: не был подключён в api/router.ts вообще, там
+   вместо этого файла жил инлайновый заглушечный роутер с одним фейковым
+   checkLimit. Реальный флоу был полностью ручным: копипаст промпта в чат
+   Kimi → копипаст JSON-ответа обратно (см. историю RecipeParserPage.tsx).
 
-const SYSTEM_PROMPT = `Ты — эксперт по домашним настойкам. Тебе даётся текст рецепта напитка (вишнёвка, самогон, наливка, настойка и т.д.).
+   Теперь — через общий Timeweb AI Gateway (тот же AI_API_KEY/AI_MODEL, что
+   у всех остальных ИИ-фич сайта), без единого копипаста. Админский
+   инструмент — не тарифицируется через chargeAiRequest/aiAccess (это не
+   пользовательская фича с балансом, а внутренний рабочий инструмент). */
 
-Проанализируй текст и извлеки структурированные данные в формате JSON. Если какая-то информация отсутствует в тексте — предложи на основе своих знаний (вкусовой профиль, история, происхождение, сочетания).
+const __dirname = import.meta.dirname;
+// Та же папка, что в api/boot.ts для /api/upload-image (там из api/, тут тоже из api/ — один уровень вверх).
+const uploadsDir = path.resolve(__dirname, "..", "uploads", "recipes");
 
-Ответь ТОЛЬКО валидным JSON, без markdown, без объяснений:
+const SYSTEM_PROMPT = `Ты — эксперт по домашним настойкам. Разбери текст рецепта, который пришлёт пользователь
+(это может быть текст с сайта/форума ИЛИ расшифровка речи из видео — в последнем случае в тексте могут быть
+оговорки, слова-паразиты и разговорные обороты, не обращай на них внимания и вычленяй суть), и заполни ВСЕ
+поля JSON.
+
+ВАЖНЫЕ ПРАВИЛА:
+1. Если параметр не указан в тексте — заполни его сам на основе знаний о данном типе настойки (типичная крепость, время, вкусовой профиль)
+2. Для вкусового профиля используй шкалу 0-100 (0 = нет, 100 = максимум)
+3. Для historyText напиши 2-3 предложения об истории этого типа настойки
+4. Для tastingDescription опиши вкус, цвет, аромат
+5. Для tastingPairing укажи 3-5 продуктов, с которыми подаётся
+6. Для tips дай 2-3 полезных совета
+7. Определи category из списка: sweet, bitter, herbal, spicy, citrus, coffee, honey
+8. Определи categoryLabel по-русски (например: "Сладкая", "Острая", "Травяная")
+9. difficulty: "Легко", "Средне" или "Сложно"
+10. Для imagePrompt напиши описание на АНГЛИЙСКОМ для генерации красивой фотореалистичной картинки настойки в АЛЬБОМНОЙ ориентации (16:9). Промпт должен быть УНИКАЛЬНЫМ для каждого рецепта — варьируй: посуду (бутылка, графин, декантер, стакан со льдом, рюмка, глиняный кувшин), фон (тёмный мрамор, состаренное дерево, льняная ткань, каменная поверхность, осенние листья, зимний снег, летний сад), освещение (свечи, боковой свет, рассеянный дневной свет, золотой закатный свет), подачу (ингредиенты рядом, специи, травы, фрукты в разрезе, цветы). Стиль выбирай исходя из характера настойки: для ягодных — warm moody, для травяных — botanical editorial, для цитрусовых — bright mediterranean, для острых — dramatic dark, для кофейных — café aesthetic. ОБЯЗАТЕЛЬНО добавь в конец: "photorealistic, food photography, horizontal composition, landscape orientation, 16:9 aspect ratio".
+
+Отвечай ТОЛЬКО валидным JSON, без markdown, без объяснений, строго такой структуры:
 
 {
-  "slug": "krasnaya-smorodinovka",
-  "title": "Красная смородиновка",
-  "subtitle": "Классическая ягодная настойка с богатым вкусом",
-  "category": "berry",
-  "categoryLabel": "Ягодная",
+  "title": "название",
+  "subtitle": "краткое описание",
+  "category": "sweet",
+  "categoryLabel": "Сладкая",
   "abv": "25%",
-  "time": "21-30 дней",
-  "difficulty": "Средняя",
-  "year": "XIX век",
-  "origin": "Россия, Средняя полоса",
-  "historyTitle": "История смородиновки",
-  "historyText": "2-3 абзаца истории напитка...",
-  "tastingColor": "Насыщенный рубиново-красный",
-  "tastingDescription": "Описание вкуса, аромата, послевкусия...",
-  "tastingTemp": "12-14°C",
-  "tastingGlass": "Бокал для ликёра или маленький винный",
-  "tastingPairing": ["Тёмный шоколад", "Сливочный чизкейк", "Свежие ягоды"],
-  "sweet": 70,
-  "sour": 50,
-  "bitter": 20,
+  "time": "14 дней",
+  "difficulty": "Легко",
+  "year": "XVIII век",
+  "origin": "Россия",
+  "historyTitle": "Заголовок истории",
+  "historyText": "2-3 предложения об истории",
+  "tastingColor": "описание цвета",
+  "tastingDescription": "описание вкуса, аромата",
+  "tastingTemp": "10-12°C",
+  "tastingGlass": "тип бокала",
+  "tastingPairing": ["Шоколад", "Сыр", "Мясо"],
+  "sweet": 85,
+  "sour": 30,
+  "bitter": 25,
   "spicy": 10,
-  "fruity": 85,
-  "herbal": 15,
-  "tips": ["Используйте только спелые ягоды", "Сахар можно заменить мёдом"],
-  "authorName": "Народный рецепт",
-  "authorDate": "2025",
+  "fruity": 90,
+  "herbal": 5,
+  "tips": ["Совет 1", "Совет 2", "Совет 3"],
+  "imagePrompt": "Generate a UNIQUE scene matching the spirit of this specific infusion — vary vessel, background, lighting and props creatively. End with: photorealistic, food photography, horizontal composition, landscape orientation, 16:9 aspect ratio",
+  "authorName": "",
+  "authorDate": "",
   "ingredients": [
-    { "name": "Красная смородина", "amount": "1 кг", "note": "свежая или замороженная" },
-    { "name": "Водка/спирт", "amount": "0.5 л", "note": "40%" },
-    { "name": "Сахар", "amount": "400 г", "note": "можно больше по вкусу" }
+    {"name": "Название", "amount": "500 мл", "note": "примечание"}
   ],
   "steps": [
-    { "stepNum": 1, "title": "Подготовка ягод", "text": "Промойте смородину..." },
-    { "stepNum": 2, "title": "Заливка", "text": "Залейте ягоды спиртом..." }
+    {"stepNum": 1, "title": "Заголовок шага", "text": "Описание действия"}
   ],
   "trackerStages": [
-    { "stageType": "pour", "title": "Поставить: залить ягоды спиртом", "dayOffset": 0 },
-    { "stageType": "shake", "title": "Взболтать", "dayOffset": 3, "repeatEveryDays": 3 },
-    { "stageType": "strain", "title": "Процедить и разлить", "dayOffset": 21 },
-    { "stageType": "taste", "title": "Дегустация", "dayOffset": 25 }
+    {"stageType": "pour", "title": "Поставить: залить ягоды водкой", "dayOffset": 0},
+    {"stageType": "shake", "title": "Взболтать", "dayOffset": 3, "repeatEveryDays": 3},
+    {"stageType": "strain", "title": "Процедить и разлить", "dayOffset": 21},
+    {"stageType": "taste", "title": "Дегустация", "dayOffset": 25}
   ]
 }
 
-Правила:
-- slug: латиница через дефис, маленькие буквы
-- category: выбери одно из: berry (ягодная), fruit (фруктовая), citrus (цитрусовая), herbal (травяная), spiced (пряная), bitter (горькая), sweet (сладкая), honey (медовая), coffee (кофейная), floral (цветочная), nut (ореховая), root (корневая), chocolate (шоколадная), vegetable (овощная)
-- categoryLabel: русское название выбранной категории (Ягодная / Фруктовая / Цитрусовая / Травяная / Пряная / Горькая / Сладкая / Медовая / Кофейная / Цветочная / Ореховая / Корневая / Шоколадная / Овощная)
-- difficulty: Простая | Средняя | Сложная
-- sweet/sour/bitter/spicy/fruity/herbal: число от 0 до 100
-- tastingPairing: массив строк (закуски/сочетания)
-- tips: массив советов (3-5 штук)
-- Всегда предлагай историю напитка (2-3 абзаца), даже если в тексте её нет
-- Всегда предлагай вкусовой профиль на основе ингредиентов
-- Всегда предлагай подходящие закуски
-- steps должны быть подробными, с конкретными пропорциями и временем
-- trackerStages — ОТДЕЛЬНЫЙ от steps план для календаря напоминаний (Трекер созревания), не пересказ шагов:
-  stageType одно из pour/shake/strain/rest/taste/add_ingredient/custom; dayOffset — день от старта (0=день заливки);
-  repeatEveryDays указывай только для явно периодических действий ("встряхивайте каждые N дней");
-  всегда начинай с pour на dayOffset=0 и заканчивай taste на последнем дне; обычно 4-7 этапов достаточно;
-  не выдумывай сроки, которых нет в тексте и которые нельзя разумно вывести из контекста`;
+ВАЖНО про поле "trackerStages" — НЕ ПРОПУСКАЙ ЕГО, это отдельная обязательная часть ответа:
+Это план для календаря напоминаний (Трекер созревания), а НЕ пересказ шагов рецепта.
+Один шаг рецепта в прозе может содержать несколько отслеживаемых событий (или ни одного —
+если шаг чисто подготовительный, напр. "нарежьте цедру"). Вычлени именно ДЕЙСТВИЯ И ДАТЫ:
+- stageType — одно из: pour (поставить/залить), shake (взболтать/помешать), strain (слить/процедить/разлить),
+  rest (дать отстояться без действий), taste (дегустация), add_ingredient (досыпать/долить что-то в процессе),
+  custom (любое другое разовое действие).
+- dayOffset — день от даты старта настойки (0 = день заливки), по срокам, упомянутым в тексте.
+- repeatEveryDays — указывай ТОЛЬКО если в тексте явно сказано про периодическое действие
+  ("встряхивайте каждые 2-3 дня"). Для разовых действий это поле не указывай.
+- Всегда начинай с этапа pour на dayOffset=0 и заканчивай этапом taste на последнем дне.
+- Не выдумывай сроки, которых нет в тексте. Обычно 4-7 этапов достаточно.`;
+
+function saveGeneratedImage(base64: string): string {
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  const fileName = `recipe-ai-${crypto.randomBytes(8).toString("hex")}.png`;
+  fs.writeFileSync(path.join(uploadsDir, fileName), Buffer.from(base64, "base64"));
+  return `/uploads/recipes/${fileName}`;
+}
 
 export const recipeParserRouter = createRouter({
-  parse: publicQuery
-    .input(z.object({
-      rawText: z.string().min(10),
-      fingerprint: z.string().optional(),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      if (!client) {
-        return { ok: false as const, error: "MOONSHOT_API_KEY не настроен на сервере" };
+  /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
+  generate: adminQuery
+    .input(z.object({ rawText: z.string().min(10).max(20000) }))
+    .mutation(async ({ input }) => {
+      const messages = [
+        { role: "system" as const, content: SYSTEM_PROMPT },
+        { role: "user" as const, content: input.rawText },
+      ];
+
+      const res = await callChatCompletion(messages, { temperature: 0.7, maxTokens: 4000, jsonMode: true });
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(res.answer);
+      } catch {
+        throw new Error("ИИ вернул невалидный JSON — попробуйте ещё раз (иногда помогает повторный запрос)");
       }
 
-      /* Проверка лимитов */
-      const db = getDb();
-      if (!ctx.user) {
-        const fp = input.fingerprint || "unknown";
-        const countRes = await db.select({ count: sql<number>`count(*)` })
-          .from(aiUsage)
-          .where(and(
-            eq(aiUsage.fingerprint, fp),
-            eq(aiUsage.requestType, "recipe_parse"),
-          ));
-        if ((countRes[0]?.count ?? 0) >= 2) {
-          return {
-            ok: false as const,
-            error: "Лимит бесплатных запросов исчерпан (2 из 2). Войдите в аккаунт для продолжения.",
-          };
+      // Картинку генерируем сразу следом, промпт для неё приходит только
+      // из этого же JSON-ответа — раньше эту генерацию делали руками отдельно.
+      // Сбой картинки не должен ронять весь результат — карточку можно
+      // сохранить и без неё, добавить картинку вручную или перегенерировать
+      // отдельной кнопкой (recipeParser.regenerateImage).
+      let heroImage: string | undefined;
+      let imageError: string | undefined;
+      const imagePrompt = typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : "";
+      if (imagePrompt) {
+        try {
+          const image = await generateImage(imagePrompt, "1536x1024");
+          heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+        } catch (err) {
+          imageError = err instanceof Error ? err.message : "Не удалось сгенерировать картинку";
         }
       }
 
-      try {
-        const completion = await client.chat.completions.create({
-          model: "moonshot-v1-8k",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: input.rawText },
-          ],
-          temperature: 0.7,
-          response_format: { type: "json_object" },
-        });
-
-        const raw = completion.choices[0]?.message?.content ?? "{}";
-        const parsed = JSON.parse(raw);
-
-        /* Сохраняем использование */
-        await db.insert(aiUsage).values({
-          userId: ctx.user?.id ?? null,
-          fingerprint: input.fingerprint || null,
-          requestType: "recipe_parse",
-          tokensUsed: completion.usage?.total_tokens ?? 0,
-        });
-
-        return { ok: true as const, data: parsed };
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        return { ok: false as const, error: message };
-      }
+      return { ...parsed, heroImage, imageError };
     }),
 
-  checkLimit: publicQuery
-    .input(z.object({ fingerprint: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const db = getDb();
-      if (ctx.user) {
-        const todayCount = await db.select({ count: sql<number>`count(*)` })
-          .from(aiUsage)
-          .where(and(
-            eq(aiUsage.userId, ctx.user.id),
-            eq(aiUsage.requestType, "recipe_parse"),
-            gte(aiUsage.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
-          ));
-        const remaining = Math.max(0, 5 - (todayCount[0]?.count ?? 0));
-        return { allowed: remaining > 0, remaining, isLoggedIn: true };
-      }
-      const totalCount = await db.select({ count: sql<number>`count(*)` })
-        .from(aiUsage)
-        .where(and(
-          eq(aiUsage.fingerprint, input.fingerprint),
-          eq(aiUsage.requestType, "recipe_parse"),
-        ));
-      const count = totalCount[0]?.count ?? 0;
-      return { allowed: count < 2, remaining: Math.max(0, 2 - count), isLoggedIn: false };
+  /* ── Перегенерировать только картинку (если автоматическая не понравилась) ── */
+  regenerateImage: adminQuery
+    .input(z.object({ prompt: z.string().min(3).max(2000) }))
+    .mutation(async ({ input }) => {
+      const image = await generateImage(input.prompt, "1536x1024");
+      const heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+      if (!heroImage) throw new Error("ИИ не вернул изображение — попробуйте ещё раз");
+      return { heroImage };
     }),
 });

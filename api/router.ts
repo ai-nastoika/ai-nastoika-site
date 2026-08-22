@@ -23,6 +23,7 @@ import { labelGeneratorRouter } from "./labelGeneratorRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
 import { balanceRouter } from "./balanceRouter";
 import { donationRouter } from "./donationRouter";
+import { recipeParserRouter } from "./recipeParser";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -602,9 +603,7 @@ export const appRouter = router({
   balance: balanceRouter,
   donation: donationRouter,
 
-  recipeParser: router({
-    checkLimit: publicProcedure.input(z.object({ fingerprint: z.string() })).query(() => ({ allowed: true, isLoggedIn: false })),
-  }),
+  recipeParser: recipeParserRouter,
 
   labelTemplate: labelTemplateRouter,
   savedLabels: savedLabelsRouter,
