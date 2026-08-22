@@ -15,6 +15,16 @@ function PlaceRatingBadge({ placeId }: { placeId: number }) {
 
 const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
 
+// Примерные координаты центров городов — только для автовыбора ближайшего
+// города по геолокации при заходе на страницу (см. useEffect ниже).
+// Не путать с DEFAULT_CENTER (это центр карты по умолчанию, Москва).
+const CITY_CENTERS: Record<string, [number, number]> = {
+  "Москва": [55.7558, 37.6173],
+  "Санкт-Петербург": [59.9311, 30.3609],
+  "Казань": [55.7963, 49.1088],
+  "Нижний Новгород": [56.2965, 43.9361],
+};
+
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY as string | undefined;
 
 // Дефолтный центр — Москва (используется, пока не знаем координаты заведений)
@@ -102,6 +112,7 @@ export default function BarMap() {
 
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "granted" | "denied" | "unsupported">("idle");
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const cityManuallyChosenRef = useRef(false);
 
   function handleLocate() {
     if (!("geolocation" in navigator)) {
@@ -118,6 +129,29 @@ export default function BarMap() {
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     );
   }
+
+  /* ── Автовыбор ближайшего города при заходе на страницу — молча, отдельно
+     от кнопки "рядом со мной" выше (та осталась строго по клику, своё
+     состояние geoStatus не трогаем, чтобы не всплывал баннер "отказано в
+     доступе", если пользователь ничего не нажимал). При отказе/отсутствии
+     геолокации просто остаёмся на "Все города" — никакого видимого следа. ── */
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (cityManuallyChosenRef.current) return; // пользователь уже сам выбрал город — не перебиваем
+        let nearestCity: string | null = null;
+        let nearestDist = Infinity;
+        for (const [city, [lat, lng]] of Object.entries(CITY_CENTERS)) {
+          const d = haversineKm(pos.coords.latitude, pos.coords.longitude, lat, lng);
+          if (d < nearestDist) { nearestDist = d; nearestCity = city; }
+        }
+        if (nearestCity) setActiveCity(nearestCity);
+      },
+      () => { /* тихо игнорируем — остаёмся на "Все города" */ },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    );
+  }, []);
 
   const venues = places ?? [];
 
@@ -379,7 +413,7 @@ export default function BarMap() {
           <div className="flex flex-wrap gap-2 mt-8 items-center justify-between">
             <div className="flex flex-wrap gap-2">
               {cities.map((city) => (
-                <button key={city} onClick={() => setActiveCity(city)} className="rounded-full px-5 py-2 text-base font-medium transition-all" style={{ background: activeCity === city ? "var(--accent)" : "var(--bg-card)", color: activeCity === city ? "#fff" : "var(--text-secondary)", border: activeCity === city ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                <button key={city} onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }} className="rounded-full px-5 py-2 text-base font-medium transition-all" style={{ background: activeCity === city ? "var(--accent)" : "var(--bg-card)", color: activeCity === city ? "#fff" : "var(--text-secondary)", border: activeCity === city ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                   {city}
                 </button>
               ))}

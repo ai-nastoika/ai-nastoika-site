@@ -48,6 +48,18 @@ const sortOptions = [
   { id: "time", label: "По времени настаивания" },
 ];
 
+/* Точное число рецептов не показываем — округляем вниз, чтобы не выглядело
+   как призыв пересчитать вручную и не "прыгало" на 1 при каждом новом рецепте:
+   до 100 — шаг 10, 100-300 — шаг 20, от 300 — шаг 50. */
+function roundRecipeCount(n: number): number {
+  if (n < 100) {
+    const rounded = Math.floor(n / 10) * 10;
+    return rounded > 0 ? rounded : n; // маленькие числа (1-9) не обнуляем
+  }
+  if (n < 300) return Math.floor(n / 20) * 20;
+  return Math.floor(n / 50) * 50;
+}
+
 export default function RecipesPage() {
   const navigate = useNavigate();
   const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
@@ -148,7 +160,7 @@ export default function RecipesPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
                 <Grape size={22} />
-                {allRecipes.length}+ рецептов
+                {roundRecipeCount(allRecipes.length)}+ рецептов
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Рецепты <span style={{ color: "var(--accent)" }}>настоек</span>
