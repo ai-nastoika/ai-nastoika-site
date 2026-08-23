@@ -9,6 +9,7 @@ import Tools from "./sections/Tools";
 import Recipes from "./sections/Recipes";
 import Footer from "./sections/Footer";
 import BarMapPreview from "./sections/BarMapPreview";
+import VinokurPreview from "./sections/VinokurPreview";
 import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
 import ScrollToTop from "./components/ScrollToTop";
@@ -58,6 +59,7 @@ function HomePage() {
       <About />
       <Tools />
       <BarMapPreview />
+      <VinokurPreview />
       <Recipes />
     </main>
   );
