@@ -24,6 +24,7 @@ import { adminStatsRouter } from "./adminStatsRouter";
 import { balanceRouter } from "./balanceRouter";
 import { donationRouter } from "./donationRouter";
 import { recipeParserRouter } from "./recipeParser";
+import { distillerConsultRouter } from "./distillerConsultRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -604,6 +605,7 @@ export const appRouter = router({
   donation: donationRouter,
 
   recipeParser: recipeParserRouter,
+  distillerConsult: distillerConsultRouter,
 
   labelTemplate: labelTemplateRouter,
   savedLabels: savedLabelsRouter,

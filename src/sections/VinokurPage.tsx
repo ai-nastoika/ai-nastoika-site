@@ -1,4 +1,8 @@
-import { useState, type ComponentType } from "react";
+import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router";
+import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
+import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import {
   Sparkles,
   History,
@@ -10,30 +14,48 @@ import {
   Droplet,
   Flame,
   Gauge,
-  AlertTriangle,
   Info,
+  Send,
+  MessageCircleQuestion,
+  LogIn,
+  Wallet,
+  ShieldAlert,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Контент страницы — статический хардкод, по тому же принципу, что
    RulesPage.tsx / AboutPage.tsx. Ничего не тянется из БД: это редакторский
-   лонгрид, а не пользовательский контент. Если понадобится редактирование
-   через админку — отдельная задача (нужна БД-таблица + UI), тут её
-   сознательно нет.
+   лонгрид, а не пользовательский контент.
 
-   ИИ-советники по каждому этапу — следующая фаза (отдельный requestType в
-   уже существующей ai_conversations на каждый этап, без новой схемы).
-   Здесь только тизер-плашка "скоро" — компонент под замену, когда роутер
-   будет готов.
+   ИИ-советники по каждому этапу — работают через api/distillerConsultRouter.ts
+   (три system-промпта, requestType вида distiller_mash/distiller_first_run/
+   distiller_second_run в уже существующей ai_conversations, без новой схемы).
+
+   Цвет по этапам — только из уже существующих токенов темы (var(--success),
+   var(--accent), var(--accent-dark)), новых цветов не вводим, чтобы не
+   сломать тёмную/другие темы сайта.
    ───────────────────────────────────────────────────────────────────────── */
 
-const stages = [
+type StageId = "mash" | "first-run" | "second-run";
+
+const stages: {
+  id: StageId;
+  icon: typeof Wheat;
+  num: string;
+  title: string;
+  subtitle: string;
+  color: string;
+  tint: string;
+  blocks: { heading: string; icon: typeof Wheat; text: string }[];
+}[] = [
   {
     id: "mash",
     icon: Wheat,
     num: "01",
     title: "Брага",
     subtitle: "Ферментация — превращаем сахар в спирт",
+    color: "var(--success)",
+    tint: "var(--success-tint)",
     blocks: [
       {
         heading: "Биология процесса",
@@ -48,7 +70,7 @@ const stages = [
       {
         heading: "Сроки",
         icon: Thermometer,
-        text: `Обычно брожение занимает от 4 до 14 дней в зависимости от температуры, штамма дрожжей и количества сахара — при более тёплой погоде (24–28°C) процесс идёт быстрее, при прохладной (18–20°C) медленнее, но чище по вкусу. Признаки готовности: гидрозатвор перестал пускать пузыри (или перчатка сдулась), брага на вкус горчит без сладости, на поверхности почти нет пены, а сама жидкость частично осветлилась и на дне появился осадок. Если сомневаетесь — лучше выдержать на день-два дольше, чем снять рано: неперебродивший остаточный сахар — это упущенный выход спирта, а не проблема для перегонки как таковая.`,
+        text: `Обычно брожение занимает от 4 до 14 дней в зависимости от температуры, штамма дрожжей и количества сахара — при более тёплой погоде (24–28°C) процесс идёт быстрее, при прохладной (18–20°C) медленнее, но чище по вкусу. Признаки готовности: гидрозатвор перестал пускать пузыри (или перчатка сдулась), брага на вкус горчит без сладости, на поверхности почти нет пены, а сама жидкость частично осветлилась и на дне появился осадок. Если сомневаетесь — лучше выдержать на день-два дольше, чем снять рано: неперебродивший остаточный сахар — это упущенный выход спирта, а не проблема для перегонки как таковой.`,
       },
       {
         heading: "Частые ошибки и советы",
@@ -63,12 +85,13 @@ const stages = [
     num: "02",
     title: "Первый перегон",
     subtitle: "Спирт-сырец — отделяем спирт от воды и барды",
+    color: "var(--accent)",
+    tint: "var(--surface)",
     blocks: [
       {
-        heading: "Схема аппарата",
+        heading: "Принцип и оборудование",
         icon: FlaskConical,
         text: `Для первого перегона обычно достаточно самой простой схемы — прямоточного дистиллятора: куб (ёмкость для нагрева браги) → трубка для пара → холодильник (змеевик, погружённый в проточную или сменяемую холодную воду) → приёмная ёмкость. Никаких дополнительных узлов на этом этапе не требуется — здесь не стоит задача точно разделить фракции, только максимально полно и быстро извлечь спирт из браги.`,
-        diagram: "first-run",
       },
       {
         heading: "Физика процесса",
@@ -93,12 +116,13 @@ const stages = [
     num: "03",
     title: "Второй перегон",
     subtitle: "Разделение на фракции — очищаем и получаем чистый дистиллят",
+    color: "var(--accent-dark)",
+    tint: "var(--surface-hover)",
     blocks: [
       {
-        heading: "Схема аппарата",
+        heading: "Принцип и оборудование",
         icon: FlaskConical,
-        text: `Для второго перегона к базовой схеме часто добавляют сухопарник — промежуточную ёмкость между кубом и холодильником, которая задерживает часть капель и лёгких сивушных масел, не давая им напрямую попасть в дистиллят. Более продвинутые аппараты используют дефлегматор — узел частичного возврата пара (флегмы) обратно в колонну, который повышает крепость и чистоту выходящего продукта за счёт своеобразной внутренней «многократной перегонки» пара на месте.`,
-        diagram: "second-run",
+        text: `К базовой схеме часто добавляют сухопарник — промежуточную ёмкость между кубом и холодильником, которая задерживает часть капель и лёгких сивушных масел, не давая им напрямую попасть в дистиллят. Более продвинутые аппараты используют дефлегматор — узел частичного возврата пара (флегмы) обратно в колонну, который повышает крепость и чистоту выходящего продукта за счёт своеобразной внутренней «многократной перегонки» пара на месте.`,
       },
       {
         heading: "Дополнительное оборудование",
@@ -124,14 +148,13 @@ const stages = [
   },
 ];
 
-/* ─── Простые встроенные SVG-схемы аппаратов (без внешних картинок) ─── */
-
+/* ─── Общая схема процесса — единственная схема, которую оставляем ─── */
 function ProcessOverviewDiagram() {
   const steps = [
-    { label: "Брага", sub: "ферментация" },
-    { label: "Первый перегон", sub: "спирт-сырец" },
-    { label: "Второй перегон", sub: "разделение фракций" },
-    { label: "Дистиллят", sub: "готовый продукт" },
+    { label: "Брага", sub: "ферментация", color: "var(--success)" },
+    { label: "Первый перегон", sub: "спирт-сырец", color: "var(--accent)" },
+    { label: "Второй перегон", sub: "разделение фракций", color: "var(--accent-dark)" },
+    { label: "Дистиллят", sub: "готовый продукт", color: "var(--accent-dark)" },
   ];
   return (
     <svg viewBox="0 0 900 160" className="w-full h-auto" style={{ maxWidth: "100%" }}>
@@ -139,16 +162,8 @@ function ProcessOverviewDiagram() {
         const x = 20 + i * 220;
         return (
           <g key={s.label}>
-            <rect
-              x={x}
-              y={40}
-              width={180}
-              height={80}
-              rx={14}
-              fill="var(--bg-card)"
-              stroke={i === steps.length - 1 ? "var(--accent)" : "var(--border)"}
-              strokeWidth={i === steps.length - 1 ? 2 : 1.5}
-            />
+            <rect x={x} y={40} width={180} height={80} rx={14} fill="var(--bg-card)" stroke={s.color} strokeWidth={i === steps.length - 1 ? 2 : 1.5} />
+            <circle cx={x + 20} cy={40} r={5} fill={s.color} />
             <text x={x + 90} y={78} textAnchor="middle" fontSize="16" fontWeight="600" fill="var(--text-primary)">
               {s.label}
             </text>
@@ -156,12 +171,7 @@ function ProcessOverviewDiagram() {
               {s.sub}
             </text>
             {i < steps.length - 1 && (
-              <path
-                d={`M ${x + 185} 80 L ${x + 213} 80`}
-                stroke="var(--accent)"
-                strokeWidth={2}
-                markerEnd="url(#arrowhead)"
-              />
+              <path d={`M ${x + 185} 80 L ${x + 213} 80`} stroke="var(--accent)" strokeWidth={2} markerEnd="url(#arrowhead)" />
             )}
           </g>
         );
@@ -175,116 +185,209 @@ function ProcessOverviewDiagram() {
   );
 }
 
-function FirstRunDiagram() {
-  return (
-    <svg viewBox="0 0 500 220" className="w-full h-auto max-w-md mx-auto">
-      {/* Куб */}
-      <rect x="30" y="100" width="130" height="90" rx="10" fill="var(--bg-card)" stroke="var(--border)" strokeWidth="1.5" />
-      <text x="95" y="150" textAnchor="middle" fontSize="14" fontWeight="600" fill="var(--text-primary)">Куб</text>
-      <text x="95" y="168" textAnchor="middle" fontSize="11" fill="var(--text-muted)">брага + нагрев</text>
-      {/* Пламя */}
-      <path d="M85 195 q10 -15 0 -25 q10 10 15 0 q-2 20 -15 25 Z" fill="var(--accent)" opacity="0.6" />
+/* ─── Рабочий ИИ-советник по этапу — тот же паттерн, что RecipeAiConsult ─── */
+type ChatMessage = { role: "user" | "assistant"; content: string };
 
-      {/* Трубка пара */}
-      <path d="M160 115 L 260 60" stroke="var(--border)" strokeWidth="6" fill="none" strokeLinecap="round" />
+function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stageTitle: string; color: string }) {
+  const { isLoggedIn } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [question, setQuestion] = useState("");
+  const [error, setError] = useState("");
+  const [conversationId, setConversationId] = useState<number | undefined>(undefined);
+  const [restored, setRestored] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-      {/* Холодильник (змеевик) */}
-      <rect x="255" y="20" width="70" height="130" rx="10" fill="var(--bg-secondary)" stroke="var(--border)" strokeWidth="1.5" />
-      <path
-        d="M270 30 q15 10 0 20 q15 10 0 20 q15 10 0 20 q15 10 0 20 q15 10 0 20 q15 10 0 20"
-        stroke="var(--accent)"
-        strokeWidth="3"
-        fill="none"
-      />
-      <text x="290" y="12" textAnchor="middle" fontSize="11" fill="var(--text-muted)">холодильник</text>
+  const { data: limitInfo, refetch: refetchLimit } = trpc.distillerConsult.checkLimit.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
 
-      {/* Выход в приёмник */}
-      <path d="M290 150 L 290 175" stroke="var(--border)" strokeWidth="4" />
-      <ellipse cx="290" cy="195" rx="35" ry="18" fill="var(--bg-card)" stroke="var(--accent)" strokeWidth="1.5" />
-      <text x="290" y="199" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-primary)">спирт-сырец</text>
-    </svg>
+  const { data: lastConversation } = trpc.distillerConsult.getLastConversation.useQuery(
+    { stage },
+    { enabled: isLoggedIn }
   );
-}
 
-function SecondRunDiagram() {
-  return (
-    <svg viewBox="0 0 560 220" className="w-full h-auto max-w-lg mx-auto">
-      {/* Куб */}
-      <rect x="20" y="100" width="120" height="90" rx="10" fill="var(--bg-card)" stroke="var(--border)" strokeWidth="1.5" />
-      <text x="80" y="148" textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text-primary)">Куб</text>
-      <text x="80" y="165" textAnchor="middle" fontSize="10" fill="var(--text-muted)">разбавленный сырец</text>
-      <path d="M70 195 q10 -15 0 -25 q10 10 15 0 q-2 20 -15 25 Z" fill="var(--accent)" opacity="0.6" />
+  useEffect(() => {
+    setRestored(false);
+    setMessages([]);
+    setConversationId(undefined);
+  }, [stage]);
 
-      {/* Труба к сухопарнику */}
-      <path d="M140 115 L 190 90" stroke="var(--border)" strokeWidth="6" fill="none" strokeLinecap="round" />
+  useEffect(() => {
+    if (!restored && lastConversation) {
+      setMessages(lastConversation.messages as ChatMessage[]);
+      setConversationId(lastConversation.id);
+      setRestored(true);
+    }
+  }, [lastConversation, restored]);
 
-      {/* Сухопарник */}
-      <rect x="185" y="55" width="60" height="55" rx="10" fill="var(--bg-secondary)" stroke="var(--border)" strokeWidth="1.5" />
-      <text x="215" y="45" textAnchor="middle" fontSize="10" fill="var(--text-muted)">сухопарник</text>
+  const generate = trpc.distillerConsult.generate.useMutation({
+    onSuccess: (data) => {
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setConversationId(data.conversationId);
+      refetchLimit();
+    },
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
+      refetchLimit();
+    },
+  });
 
-      {/* Труба к дефлегматору */}
-      <path d="M245 80 L 300 55" stroke="var(--border)" strokeWidth="6" fill="none" strokeLinecap="round" />
+  const finishConversation = trpc.aiConversation.finish.useMutation();
 
-      {/* Дефлегматор */}
-      <rect x="295" y="20" width="55" height="60" rx="10" fill="var(--bg-secondary)" stroke="var(--accent)" strokeWidth="1.5" />
-      <text x="322" y="12" textAnchor="middle" fontSize="10" fill="var(--text-muted)">дефлегматор</text>
+  function endConversation() {
+    if (conversationId) finishConversation.mutate({ conversationId });
+    setMessages([]);
+    setConversationId(undefined);
+    setError("");
+  }
 
-      {/* Труба к холодильнику */}
-      <path d="M350 45 L 400 45" stroke="var(--border)" strokeWidth="6" fill="none" strokeLinecap="round" />
+  // Автозавершение при уходе со страницы. ВАЖНО: этот компонент также
+  // размонтируется при переключении вкладок этапов (как и калькулятор вкуса
+  // в ToolsPage) — значит архивация сработает и просто при переключении
+  // вкладки "Брага"/"Первый перегон"/"Второй перегон", не только при полном
+  // уходе со страницы Винокура.
+  const conversationRef = useRef<{ id: number | undefined; hasMessages: boolean }>({ id: undefined, hasMessages: false });
+  useEffect(() => {
+    conversationRef.current = { id: conversationId, hasMessages: messages.length > 0 };
+  }, [conversationId, messages.length]);
+  useEffect(() => {
+    return () => {
+      const conv = conversationRef.current;
+      if (conv.id && conv.hasMessages) {
+        finishConversation.mutate({ conversationId: conv.id });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      {/* Холодильник */}
-      <rect x="395" y="20" width="60" height="120" rx="10" fill="var(--bg-secondary)" stroke="var(--border)" strokeWidth="1.5" />
-      <path
-        d="M410 30 q15 8 0 16 q15 8 0 16 q15 8 0 16 q15 8 0 16 q15 8 0 16 q15 8 0 16 q15 8 0 16"
-        stroke="var(--accent)"
-        strokeWidth="3"
-        fill="none"
-      />
-      <text x="425" y="12" textAnchor="middle" fontSize="10" fill="var(--text-muted)">холодильник</text>
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, generate.isPending]);
 
-      {/* Выход в приёмник + термометр */}
-      <path d="M425 140 L 425 165" stroke="var(--border)" strokeWidth="4" />
-      <ellipse cx="425" cy="185" rx="38" ry="18" fill="var(--bg-card)" stroke="var(--accent)" strokeWidth="1.5" />
-      <text x="425" y="189" textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--text-primary)">головы→тело→хвосты</text>
+  function handleAsk() {
+    const q = question.trim();
+    if (!q || generate.isPending) return;
+    setError("");
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: q }];
+    setMessages(nextMessages);
+    setQuestion("");
+    generate.mutate({ stage, message: q, history: messages.slice(-10), conversationId });
+  }
 
-      <rect x="140" y="70" width="8" height="35" rx="3" fill="var(--bg-secondary)" stroke="var(--accent)" strokeWidth="1" />
-      <text x="144" y="65" textAnchor="middle" fontSize="9" fill="var(--text-muted)">t°</text>
-    </svg>
-  );
-}
-
-const diagrams: Record<string, ComponentType> = {
-  "first-run": FirstRunDiagram,
-  "second-run": SecondRunDiagram,
-};
-
-/* ─── ИИ-советник — тизер, роутер ещё не подключён ─── */
-function AiAdvisorTeaser({ stageTitle }: { stageTitle: string }) {
-  return (
-    <div
-      className="rounded-2xl p-6 flex items-center gap-4"
-      style={{ background: "var(--bg-secondary)", border: "1px dashed var(--border)" }}
-    >
-      <div
-        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: "var(--surface)" }}
-      >
-        <Sparkles size={20} style={{ color: "var(--accent)" }} />
-      </div>
-      <div className="flex-1">
-        <div className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+  if (!isLoggedIn) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <Sparkles size={32} style={{ color }} className="mx-auto mb-3" />
+        <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           ИИ-советник по разделу «{stageTitle}»
-        </div>
-        <div className="text-sm mt-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Скоро здесь можно будет задать вопрос про свою конкретную ситуацию — пока раздел в разработке.
-        </div>
+        </h3>
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Опишите свою ситуацию — оборудование, сырьё, что пошло не так — и получите конкретный совет. Доступно после входа в аккаунт.
+        </p>
+        <Link to="/login" className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white" style={{ background: color, fontFamily: "var(--font-body)" }}>
+          <LogIn size={16} /> Войти, чтобы спросить
+        </Link>
       </div>
+    );
+  }
+
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
+
+  return (
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: `1px solid ${color}` }}>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+          <Sparkles size={20} style={{ color }} />
+          Советник по разделу «{stageTitle}»
+        </h3>
+        {limitInfo && (
+          <div className="flex items-center gap-3">
+            {messages.length > 0 && (
+              <button onClick={endConversation} className="text-xs underline" style={{ color: "var(--text-muted)" }}>
+                Завершить диалог
+              </button>
+            )}
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              {limitInfo.freeRequestsLeft > 0 ? (
+                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+              ) : (
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+              )}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {messages.length === 0 && (
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Расскажите про своё оборудование и ситуацию — чем точнее опишете, тем конкретнее будет совет.
+        </p>
+      )}
+
+      {messages.length > 0 && (
+        <div className="space-y-3 mb-4 max-h-[32rem] overflow-y-auto pr-1">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className="rounded-xl p-4 text-base"
+              style={
+                m.role === "user"
+                  ? { background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
+                  : { background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }
+              }
+            >
+              {m.role === "assistant" && (
+                <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color }}>
+                  <MessageCircleQuestion size={14} /> Ответ ИИ
+                </div>
+              )}
+              {m.content}
+            </div>
+          ))}
+          {generate.isPending && <BottleThinkingIndicator />}
+          <div ref={messagesEndRef} />
+        </div>
+      )}
+
+      {error && <p className="text-sm mb-3" style={{ color: "#dc2626" }}>{error}</p>}
+
+      {limitReached ? (
+        <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color }}>
+            Пополнить баланс
+          </Link>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAsk()}
+            placeholder="Опишите свою ситуацию..."
+            className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            disabled={generate.isPending}
+          />
+          <button
+            onClick={() => handleAsk()}
+            disabled={!question.trim() || generate.isPending}
+            className="rounded-xl px-4 flex items-center justify-center text-white disabled:opacity-50"
+            style={{ background: color }}
+          >
+            <Send size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function VinokurPage() {
-  const [activeStage, setActiveStage] = useState(stages[0].id);
+  const [activeStage, setActiveStage] = useState<StageId>(stages[0].id);
   const stage = stages.find((s) => s.id === activeStage)!;
 
   return (
@@ -292,6 +395,7 @@ export default function VinokurPage() {
       {/* Hero */}
       <section className="relative overflow-hidden py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
+        <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--success)", transform: "translate(-30%, 30%)" }} />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
@@ -300,10 +404,7 @@ export default function VinokurPage() {
             <Flame size={20} />
             База знаний
           </div>
-          <h1
-            className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
             Винокур
           </h1>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
@@ -316,9 +417,9 @@ export default function VinokurPage() {
       {/* История + правовое положение */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-6">
-          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--success)" }}>
             <div className="flex items-center gap-2 mb-3">
-              <History size={20} style={{ color: "var(--accent)" }} />
+              <History size={20} style={{ color: "var(--success)" }} />
               <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Немного истории
               </h2>
@@ -334,7 +435,7 @@ export default function VinokurPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--accent)" }}>
             <div className="flex items-center gap-2 mb-3">
               <Scale size={20} style={{ color: "var(--accent)" }} />
               <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -374,7 +475,7 @@ export default function VinokurPage() {
       {/* Этапы — табы */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Табы выбора этапа */}
+          {/* Табы выбора этапа — цвет таба совпадает с цветом этапа */}
           <div className="flex flex-wrap gap-2 justify-center mb-10">
             {stages.map((s) => {
               const StageIcon = s.icon;
@@ -385,7 +486,7 @@ export default function VinokurPage() {
                   onClick={() => setActiveStage(s.id)}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={{
-                    background: isActive ? "var(--accent)" : "var(--bg-card)",
+                    background: isActive ? s.color : "var(--bg-card)",
                     color: isActive ? "#fff" : "var(--text-secondary)",
                     border: isActive ? "none" : "1px solid var(--border)",
                     fontFamily: "var(--font-body)",
@@ -400,6 +501,9 @@ export default function VinokurPage() {
 
           {/* Заголовок активного этапа */}
           <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ background: stage.tint }}>
+              <stage.icon size={26} style={{ color: stage.color }} />
+            </div>
             <h2 className="text-xl sm:text-2xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               {stage.title}
             </h2>
@@ -408,25 +512,20 @@ export default function VinokurPage() {
             </p>
           </div>
 
-          {/* Схема аппарата (если есть на этом этапе) */}
-          {stage.blocks.some((b) => b.diagram) && (
-            <div className="rounded-2xl p-6 mb-8" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              {(() => {
-                const diagramKey = stage.blocks.find((b) => b.diagram)?.diagram;
-                const Diagram = diagramKey ? diagrams[diagramKey] : null;
-                return Diagram ? <Diagram /> : null;
-              })()}
-            </div>
-          )}
-
-          {/* Подразделы */}
+          {/* Подразделы — цветной левый бордер + иконка в тон этапа */}
           <div className="space-y-5">
             {stage.blocks.map((block) => {
               const BlockIcon = block.icon;
               return (
-                <div key={block.heading} className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <div
+                  key={block.heading}
+                  className="rounded-2xl p-6"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderLeft: `4px solid ${stage.color}` }}
+                >
                   <div className="flex items-center gap-2 mb-3">
-                    <BlockIcon size={18} style={{ color: "var(--accent)" }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stage.tint }}>
+                      <BlockIcon size={16} style={{ color: stage.color }} />
+                    </div>
                     <h3 className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                       {block.heading}
                     </h3>
@@ -439,9 +538,26 @@ export default function VinokurPage() {
             })}
           </div>
 
-          {/* ИИ-советник тизер */}
-          <div className="mt-8">
-            <AiAdvisorTeaser stageTitle={stage.title} />
+          {/* ИИ-советник: сначала честный посыл про уникальность процесса, потом сам чат */}
+          <div className="mt-10 space-y-4">
+            <div className="rounded-2xl p-6 flex gap-4" style={{ background: stage.tint, border: `1px solid ${stage.color}` }}>
+              <Sparkles size={24} style={{ color: stage.color, flexShrink: 0 }} />
+              <div>
+                <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  Зачем здесь ИИ-советник
+                </h3>
+                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+                  Схема получения дистиллята в общих чертах стандартна, но на практике каждый винокур выстраивает
+                  свой собственный процесс — конкретные дрожжи, модель аппарата, самодельные насадки, свой способ
+                  угольной очистки и десяток других нюансов. Уместить все эти тонкости в единый мануал невозможно,
+                  да и бессмысленно — у каждого своя комбинация. Поэтому вместо ещё одной универсальной инструкции
+                  мы сделали ИИ-помощника с полной базой знаний по процессу, который разберёт именно вашу ситуацию
+                  и даст конкретный совет под неё. Но помните: это всё-таки ИИ, и доверять ему на 100% не стоит —
+                  относитесь к ответам как к мнению опытного собеседника, а не как к истине в последней инстанции.
+                </p>
+              </div>
+            </div>
+            <DistillerAiConsult stage={stage.id} stageTitle={stage.title} color={stage.color} />
           </div>
         </div>
       </section>
@@ -449,8 +565,8 @@ export default function VinokurPage() {
       {/* Безопасность — общий блок под всеми этапами */}
       <section className="py-14" style={{ background: "var(--bg-secondary)" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl p-6 flex gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <AlertTriangle size={24} style={{ color: "var(--accent)", flexShrink: 0 }} />
+          <div className="rounded-2xl p-6 flex gap-4" style={{ background: "var(--danger-tint)", border: "1px solid var(--danger)" }}>
+            <ShieldAlert size={24} style={{ color: "var(--danger)", flexShrink: 0 }} />
             <div>
               <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Про безопасность — коротко
