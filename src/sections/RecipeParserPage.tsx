@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft, Sparkles, Loader2,
   Plus, Trash2, Save, Bot, Wand2, Film, FileText,
@@ -69,6 +70,7 @@ export default function RecipeParserPage() {
   const [recipeText, setRecipeText] = useState("");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
+  const [generateImageEnabled, setGenerateImageEnabled] = useState(true);
   const [transcribing, setTranscribing] = useState(false);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -153,7 +155,7 @@ export default function RecipeParserPage() {
   const handleGenerate = () => {
     if (!recipeText.trim()) return;
     setGenerating(true);
-    generateRecipe.mutate({ rawText: recipeText });
+    generateRecipe.mutate({ rawText: recipeText, generateImage: generateImageEnabled });
   };
 
   /* ── Видео → расшифровка речи (заполняет текстовое поле, дальше — как обычный текст) ── */
@@ -458,9 +460,17 @@ export default function RecipeParserPage() {
                   />
                 </div>
 
+                <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <div className="flex items-center gap-2">
+                    <ImageIcon size={16} style={{ color: "var(--text-muted)" }} />
+                    <Label htmlFor="generate-image-toggle" className="cursor-pointer">Генерировать картинку</Label>
+                  </div>
+                  <Switch id="generate-image-toggle" checked={generateImageEnabled} onCheckedChange={setGenerateImageEnabled} />
+                </div>
+
                 <Button onClick={handleGenerate} disabled={!recipeText.trim() || generating} size="lg" className="w-full">
                   {generating ? (
-                    <><Loader2 size={18} className="mr-2 animate-spin" /> ИИ собирает карточку и рисует картинку...</>
+                    <><Loader2 size={18} className="mr-2 animate-spin" /> {generateImageEnabled ? "ИИ собирает карточку и рисует картинку..." : "ИИ собирает карточку..."}</>
                   ) : (
                     <><Wand2 size={18} className="mr-2" /> Сгенерировать карточку</>
                   )}

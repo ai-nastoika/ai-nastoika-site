@@ -105,7 +105,7 @@ function saveGeneratedImage(base64: string): string {
 export const recipeParserRouter = createRouter({
   /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
   generate: adminQuery
-    .input(z.object({ rawText: z.string().min(10).max(20000) }))
+    .input(z.object({ rawText: z.string().min(10).max(20000), generateImage: z.boolean().default(true) }))
     .mutation(async ({ input }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },
@@ -129,7 +129,7 @@ export const recipeParserRouter = createRouter({
       let heroImage: string | undefined;
       let imageError: string | undefined;
       const imagePrompt = typeof parsed.imagePrompt === "string" ? parsed.imagePrompt : "";
-      if (imagePrompt) {
+      if (input.generateImage && imagePrompt) {
         try {
           const image = await generateImage(imagePrompt, "1536x1024");
           heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
