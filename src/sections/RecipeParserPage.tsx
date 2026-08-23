@@ -510,13 +510,20 @@ export default function RecipeParserPage() {
                     <div><Label>Категория</Label>
                       <select className="w-full h-10 rounded-md border px-3 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} value={form.category} onChange={(e) => patch({ category: e.target.value })}>
                         {[
-                          { value: "sweet", label: "🍒 Сладкая" },
-                          { value: "bitter", label: "🌿 Горькая" },
-                          { value: "herbal", label: "🌱 Травяная" },
-                          { value: "spicy", label: "🌶️ Острая" },
+                          { value: "berry", label: "🫐 Ягодная" },
+                          { value: "fruit", label: "🍎 Фруктовая" },
                           { value: "citrus", label: "🍋 Цитрусовая" },
-                          { value: "coffee", label: "☕ Кофейная" },
+                          { value: "herbal", label: "🌿 Травяная" },
+                          { value: "spiced", label: "🌶️ Пряная" },
+                          { value: "bitter", label: "🌱 Горькая" },
+                          { value: "sweet", label: "🍒 Сладкая" },
                           { value: "honey", label: "🍯 Медовая" },
+                          { value: "coffee", label: "☕ Кофейная" },
+                          { value: "floral", label: "🌸 Цветочная" },
+                          { value: "nut", label: "🌰 Ореховая" },
+                          { value: "root", label: "🫚 Корневая" },
+                          { value: "chocolate", label: "🍫 Шоколадная" },
+                          { value: "vegetable", label: "🥬 Овощная" },
                         ].map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </div>

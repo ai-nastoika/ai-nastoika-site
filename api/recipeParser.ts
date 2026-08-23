@@ -40,8 +40,8 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
 4. Для tastingDescription опиши вкус, цвет, аромат
 5. Для tastingPairing укажи 3-5 продуктов, с которыми подаётся
 6. Для tips дай 2-3 полезных совета
-7. Определи category из списка: sweet, bitter, herbal, spicy, citrus, coffee, honey
-8. Определи categoryLabel по-русски (например: "Сладкая", "Острая", "Травяная")
+7. Определи category из списка (используй именно эти id, это реальные категории фильтра на сайте): berry, fruit, citrus, herbal, spiced, bitter, sweet, honey, coffee, floral, nut, root, chocolate, vegetable
+8. Определи categoryLabel по-русски (например: "Сладкая", "Пряная", "Травяная")
 9. difficulty: "Легко", "Средне" или "Сложно"
 10. Для imagePrompt напиши на АНГЛИЙСКОМ простое, спокойное описание сцены для фото этой настойки в альбомной ориентации (16:9) — без вычурности и "рекламной" перенасыщенности, просто аппетитно и естественно, умеренные природные тона (не кислотно-яркие, не глянцевый пересвет). Опиши: красивую или оригинальную бутылку/графин, по форме и стилю подходящую характеру именно этой настойки (например, гранёный графин для крепкой пряной, изящная узкая бутылка для лёгкой цитрусовой, глиняный кувшин для травяной) — сосуд полностью в кадре вместе с пробкой/крышкой, ничего не обрезано; рядом — 2-3 главных ингредиента из состава этого рецепта; и что-то из раздела "с чем подавать" (tastingPairing) этого же рецепта в качестве закуски рядом. Больше ничего не добавляй — не нужно нагромождать реквизит, специи россыпью, ткани, цветы и т.п., если их не назвал сам рецепт.
    ОБЯЗАТЕЛЬНЫЕ технические требования, добавляй в конец дословно (эта часть не варьируется): "the liquid inside the vessel itself must be completely clear with no berries, fruit pieces or herbs floating inside it — ingredients and pairing food are placed around the vessel, never inside it; the entire bottle or decanter including its cork or cap fully visible within the frame, nothing cropped; bright, evenly lit scene with no dark shadows; natural, moderate colors, not oversaturated; photorealistic, horizontal composition, landscape orientation, 16:9 aspect ratio".
