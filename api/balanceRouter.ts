@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, notInArray, sql } from "drizzle-orm";
 import { createRouter, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { transactions, users } from "@db/schema";
+import { transactions, users, aiUsage } from "@db/schema";
 import { AI_REQUEST_COST_KOPECKS, getAiAccessState } from "./lib/aiAccess";
 import { createTopupPayment, isPaymentsConfigured } from "./lib/payments";
 
@@ -15,8 +15,27 @@ export const balanceRouter = createRouter({
   /* ── Баланс, бесплатные запросы, доступность оплаты ── */
   me: authedQuery.query(async ({ ctx }) => {
     const access = await getAiAccessState(ctx.user.id);
+
+    // Реальное число выполненных ИИ-запросов — раньше в ЛК считали "5 -
+    // freeRequestsLeft", что упирается в потолок 5 и замирает там навсегда,
+    // как только бесплатные заканчиваются и начинаются платные запросы.
+    // Считаем по факту из лога ai_usage. Админский парсер рецептов
+    // (recipe_parser/recipe_parser_image) не тарифицируется и не является
+    // "личным ИИ-запросом" пользователя — исключаем из этого счётчика.
+    const db = getDb();
+    const [{ count: totalRequests }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(aiUsage)
+      .where(
+        and(
+          eq(aiUsage.userId, ctx.user.id),
+          notInArray(aiUsage.requestType, ["recipe_parser", "recipe_parser_image"])
+        )
+      );
+
     return {
       ...access,
+      totalRequests: Number(totalRequests),
       paymentsConfigured: isPaymentsConfigured(),
       topupPresetsRub: TOPUP_PRESETS_RUB,
     };
