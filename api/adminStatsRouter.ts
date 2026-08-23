@@ -1,7 +1,12 @@
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { feedback, userRecipeSubmissions, placeSubmissions, aiUsage } from "@db/schema";
-import { eq, count, and, ne, desc, gte, sql } from "drizzle-orm";
+import { eq, count, and, ne, desc, gte, sql, inArray } from "drizzle-orm";
+
+// Все requestType, которые считаются "генерацией изображения" — раньше тут
+// была только этикетка, теперь картинки рецептов из ИИ-парсера тоже сюда
+// пишут (api/recipeParser.ts), иначе indicator в админке их не видел.
+const IMAGE_REQUEST_TYPES = ["label_image", "recipe_parser_image"];
 
 export const adminStatsRouter = createRouter({
   /* ── Сводный счётчик для бейджа на кнопке "Админка" в шапке ──
@@ -68,7 +73,7 @@ export const adminStatsRouter = createRouter({
     const [lastAttempt] = await db
       .select({ failed: aiUsage.failed, createdAt: aiUsage.createdAt })
       .from(aiUsage)
-      .where(eq(aiUsage.requestType, "label_image"))
+      .where(inArray(aiUsage.requestType, IMAGE_REQUEST_TYPES))
       .orderBy(desc(aiUsage.createdAt))
       .limit(1);
 
@@ -79,7 +84,7 @@ export const adminStatsRouter = createRouter({
         failedCount: sql<number>`sum(${aiUsage.failed})`,
       })
       .from(aiUsage)
-      .where(and(eq(aiUsage.requestType, "label_image"), gte(aiUsage.createdAt, hourAgo)));
+      .where(and(inArray(aiUsage.requestType, IMAGE_REQUEST_TYPES), gte(aiUsage.createdAt, hourAgo)));
 
     return {
       lastAttemptFailed: lastAttempt?.failed === 1,

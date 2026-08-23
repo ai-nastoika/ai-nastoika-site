@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, adminQuery } from "./middleware";
 import { callChatCompletion } from "./lib/aiClient";
 import { generateImage } from "./lib/imageClient";
+import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -15,7 +16,13 @@ import crypto from "crypto";
    Теперь — через общий Timeweb AI Gateway (тот же AI_API_KEY/AI_MODEL, что
    у всех остальных ИИ-фич сайта), без единого копипаста. Админский
    инструмент — не тарифицируется через chargeAiRequest/aiAccess (это не
-   пользовательская фича с балансом, а внутренний рабочий инструмент). */
+   пользовательская фича с балансом, а внутренний рабочий инструмент), но
+   в ai_usage всё равно логируем (costKopecks: 0, wasFree: true) — иначе
+   индикаторы aiHealth/imageHealth в админке не видят эту активность вообще
+   и показывают устаревшие данные от других фич. */
+
+const REQUEST_TYPE_TEXT = "recipe_parser";
+const REQUEST_TYPE_IMAGE = "recipe_parser_image";
 
 const __dirname = import.meta.dirname;
 // Та же папка, что в api/boot.ts для /api/upload-image (там из api/, тут тоже из api/ — один уровень вверх).
@@ -126,7 +133,7 @@ export const recipeParserRouter = createRouter({
   /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
   generate: adminQuery
     .input(z.object({ rawText: z.string().min(10).max(20000), generateImage: z.boolean().default(true) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },
         { role: "user" as const, content: input.rawText },
@@ -138,9 +145,19 @@ export const recipeParserRouter = createRouter({
       try {
         parsed = JSON.parse(res.answer);
       } catch {
+        await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE_TEXT });
         throw new Error("ИИ вернул невалидный JSON — попробуйте ещё раз (иногда помогает повторный запрос)");
       }
       sanitizeTrackerStages(parsed);
+
+      await logAiUsage({
+        userId: ctx.user.id,
+        requestType: REQUEST_TYPE_TEXT,
+        tokensUsed: res.tokensUsed,
+        charge: { wasFree: true, costKopecks: 0 },
+        modelUsed: res.modelUsed,
+        usedFallback: res.usedFallback,
+      });
 
       // Картинку генерируем сразу следом, промпт для неё приходит только
       // из этого же JSON-ответа — раньше эту генерацию делали руками отдельно.
@@ -154,8 +171,15 @@ export const recipeParserRouter = createRouter({
         try {
           const image = await generateImage(imagePrompt, "1536x1024");
           heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+          await logAiUsage({
+            userId: ctx.user.id,
+            requestType: REQUEST_TYPE_IMAGE,
+            tokensUsed: 0,
+            charge: { wasFree: true, costKopecks: 0 },
+          });
         } catch (err) {
           imageError = err instanceof Error ? err.message : "Не удалось сгенерировать картинку";
+          await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE_IMAGE });
         }
       }
 
@@ -165,10 +189,21 @@ export const recipeParserRouter = createRouter({
   /* ── Перегенерировать только картинку (если автоматическая не понравилась) ── */
   regenerateImage: adminQuery
     .input(z.object({ prompt: z.string().min(3).max(2000) }))
-    .mutation(async ({ input }) => {
-      const image = await generateImage(input.prompt, "1536x1024");
-      const heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
-      if (!heroImage) throw new Error("ИИ не вернул изображение — попробуйте ещё раз");
-      return { heroImage };
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const image = await generateImage(input.prompt, "1536x1024");
+        const heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+        if (!heroImage) throw new Error("ИИ не вернул изображение — попробуйте ещё раз");
+        await logAiUsage({
+          userId: ctx.user.id,
+          requestType: REQUEST_TYPE_IMAGE,
+          tokensUsed: 0,
+          charge: { wasFree: true, costKopecks: 0 },
+        });
+        return { heroImage };
+      } catch (err) {
+        await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE_IMAGE });
+        throw err;
+      }
     }),
 });
