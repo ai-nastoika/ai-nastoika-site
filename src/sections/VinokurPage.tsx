@@ -31,9 +31,11 @@ import {
    (три system-промпта, requestType вида distiller_mash/distiller_first_run/
    distiller_second_run в уже существующей ai_conversations, без новой схемы).
 
-   Цвет по этапам — только из уже существующих токенов темы (var(--success),
-   var(--accent), var(--accent-dark)), новых цветов не вводим, чтобы не
-   сломать тёмную/другие темы сайта.
+   Цвет по этапам — три оттенка одного и того же акцента (var(--accent-light),
+   var(--accent), var(--accent-dark)) — без сторонних цветов вроде зелёного,
+   который на сайте используется только в рюмках-рейтингах и здесь смотрелся
+   бы чужеродно. Фоновые "тинты" собраны через color-mix() из тех же токенов,
+   поэтому автоматически подстраиваются под тёмную/другие темы сайта.
    ───────────────────────────────────────────────────────────────────────── */
 
 type StageId = "mash" | "first-run" | "second-run";
@@ -54,8 +56,8 @@ const stages: {
     num: "01",
     title: "Брага",
     subtitle: "Ферментация — превращаем сахар в спирт",
-    color: "var(--success)",
-    tint: "var(--success-tint)",
+    color: "var(--accent-light)",
+    tint: "color-mix(in srgb, var(--accent-light) 18%, var(--bg-card))",
     blocks: [
       {
         heading: "Биология процесса",
@@ -86,7 +88,7 @@ const stages: {
     title: "Первый перегон",
     subtitle: "Спирт-сырец — отделяем спирт от воды и барды",
     color: "var(--accent)",
-    tint: "var(--surface)",
+    tint: "color-mix(in srgb, var(--accent) 15%, var(--bg-card))",
     blocks: [
       {
         heading: "Принцип и оборудование",
@@ -117,7 +119,7 @@ const stages: {
     title: "Второй перегон",
     subtitle: "Разделение на фракции — очищаем и получаем чистый дистиллят",
     color: "var(--accent-dark)",
-    tint: "var(--surface-hover)",
+    tint: "color-mix(in srgb, var(--accent-dark) 15%, var(--bg-card))",
     blocks: [
       {
         heading: "Принцип и оборудование",
@@ -151,7 +153,7 @@ const stages: {
 /* ─── Общая схема процесса — единственная схема, которую оставляем ─── */
 function ProcessOverviewDiagram() {
   const steps = [
-    { label: "Брага", sub: "ферментация", color: "var(--success)" },
+    { label: "Брага", sub: "ферментация", color: "var(--accent-light)" },
     { label: "Первый перегон", sub: "спирт-сырец", color: "var(--accent)" },
     { label: "Второй перегон", sub: "разделение фракций", color: "var(--accent-dark)" },
     { label: "Дистиллят", sub: "готовый продукт", color: "var(--accent-dark)" },
@@ -395,7 +397,7 @@ export default function VinokurPage() {
       {/* Hero */}
       <section className="relative overflow-hidden py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--success)", transform: "translate(-30%, 30%)" }} />
+        <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--accent-dark)", transform: "translate(-30%, 30%)" }} />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
@@ -417,9 +419,9 @@ export default function VinokurPage() {
       {/* История + правовое положение */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-6">
-          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--success)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--accent-light)" }}>
             <div className="flex items-center gap-2 mb-3">
-              <History size={20} style={{ color: "var(--success)" }} />
+              <History size={20} style={{ color: "var(--accent-light)" }} />
               <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Немного истории
               </h2>
