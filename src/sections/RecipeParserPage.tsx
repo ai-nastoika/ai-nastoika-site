@@ -70,7 +70,7 @@ export default function RecipeParserPage() {
   const [recipeText, setRecipeText] = useState("");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
-  const [generateImageEnabled, setGenerateImageEnabled] = useState(true);
+  const [generateImageEnabled, setGenerateImageEnabled] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [saving, setSaving] = useState(false);
