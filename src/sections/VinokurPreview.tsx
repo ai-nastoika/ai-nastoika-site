@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Flame, ArrowRight, Wheat, Droplet } from "lucide-react";
+import { Flame, ArrowRight } from "lucide-react";
 
 /* Иллюстрация — временно переиспользуем /recipe-label.jpg (та же картинка,
    что во втором блоке главной, "О проекте"/About.tsx) по просьбе заказчика,
@@ -11,38 +11,16 @@ export default function VinokurPreview() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           {/* ── Картинка ── */}
-          <Link
-            to="/vinokur"
-            className="group relative block rounded-3xl overflow-hidden order-2 lg:order-1 transition-all hover:shadow-2xl"
-            style={{ border: "2px solid var(--border)", height: 340 }}
+          <div
+            className="relative rounded-3xl overflow-hidden order-2 lg:order-1 shadow-xl"
+            style={{ border: "1px solid var(--border)", height: 340 }}
           >
             <img
               src="/recipe-label.jpg"
               alt="Винокур — база знаний по домашней перегонке"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0) 70%)" }} />
-
-            {/* Три бейджа-этапа поверх картинки — тот же язык, что и на самой странице Винокура */}
-            <div className="absolute top-4 left-4 flex gap-2">
-              {[Wheat, Flame, Droplet].map((Icon, i) => (
-                <div
-                  key={i}
-                  className="w-9 h-9 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(255,255,255,0.92)", border: "1px solid var(--border)" }}
-                >
-                  <Icon size={16} style={{ color: "var(--accent-dark)" }} />
-                </div>
-              ))}
-            </div>
-
-            <div
-              className="absolute bottom-4 left-4 rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-2"
-              style={{ background: "var(--bg-card)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-            >
-              <Flame size={14} /> Открыть базу знаний
-            </div>
-          </Link>
+          </div>
 
           {/* ── Текст ── */}
           <div className="order-1 lg:order-2">

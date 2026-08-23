@@ -12,8 +12,8 @@ export default function About() {
               style={{ border: "1px solid var(--border)" }}
             >
               <img
-                src="/recipe-label.jpg"
-                alt="Этикетка ручной работы"
+                src="/tasting-flight.png"
+                alt="Дегустационный сет настоек с декантером и ингредиентами"
                 className="w-full h-auto object-cover"
               />
             </div>
