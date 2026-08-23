@@ -119,7 +119,7 @@ export default function Tools() {
             className="text-base"
             style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
           >
-            Для глубоких экспериментов с продвинутыми моделями — небольшая оплата за запрос, без подписки.
+            После исчерпания лимита бесплатных запросов — небольшая оплата за запрос, без подписки.
           </p>
         </div>
       </div>
