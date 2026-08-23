@@ -14,12 +14,12 @@ import {
   Droplet,
   Flame,
   Gauge,
+  AlertTriangle,
   Info,
   Send,
   MessageCircleQuestion,
   LogIn,
   Wallet,
-  ShieldAlert,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -27,15 +27,14 @@ import {
    RulesPage.tsx / AboutPage.tsx. Ничего не тянется из БД: это редакторский
    лонгрид, а не пользовательский контент.
 
+   Стиль сверен с RulesPage.tsx — единая карточка везде (var(--bg-card) +
+   1px solid var(--border), без теней), иконки в кружке var(--surface) с
+   цветом var(--accent), кнопки var(--accent). Никаких индивидуальных цветов
+   по этапам — на сайте так нигде не делают.
+
    ИИ-советники по каждому этапу — работают через api/distillerConsultRouter.ts
    (три system-промпта, requestType вида distiller_mash/distiller_first_run/
    distiller_second_run в уже существующей ai_conversations, без новой схемы).
-
-   Цвет по этапам — три оттенка одного и того же акцента (var(--accent-light),
-   var(--accent), var(--accent-dark)) — без сторонних цветов вроде зелёного,
-   который на сайте используется только в рюмках-рейтингах и здесь смотрелся
-   бы чужеродно. Фоновые "тинты" собраны через color-mix() из тех же токенов,
-   поэтому автоматически подстраиваются под тёмную/другие темы сайта.
    ───────────────────────────────────────────────────────────────────────── */
 
 type StageId = "mash" | "first-run" | "second-run";
@@ -46,8 +45,6 @@ const stages: {
   num: string;
   title: string;
   subtitle: string;
-  color: string;
-  tint: string;
   blocks: { heading: string; icon: typeof Wheat; text: string }[];
 }[] = [
   {
@@ -56,8 +53,6 @@ const stages: {
     num: "01",
     title: "Брага",
     subtitle: "Ферментация — превращаем сахар в спирт",
-    color: "var(--accent-light)",
-    tint: "color-mix(in srgb, var(--accent-light) 18%, var(--bg-card))",
     blocks: [
       {
         heading: "Биология процесса",
@@ -87,8 +82,6 @@ const stages: {
     num: "02",
     title: "Первый перегон",
     subtitle: "Спирт-сырец — отделяем спирт от воды и барды",
-    color: "var(--accent)",
-    tint: "color-mix(in srgb, var(--accent) 15%, var(--bg-card))",
     blocks: [
       {
         heading: "Принцип и оборудование",
@@ -118,8 +111,6 @@ const stages: {
     num: "03",
     title: "Второй перегон",
     subtitle: "Разделение на фракции — очищаем и получаем чистый дистиллят",
-    color: "var(--accent-dark)",
-    tint: "color-mix(in srgb, var(--accent-dark) 15%, var(--bg-card))",
     blocks: [
       {
         heading: "Принцип и оборудование",
@@ -150,13 +141,13 @@ const stages: {
   },
 ];
 
-/* ─── Общая схема процесса — единственная схема, которую оставляем ─── */
+/* ─── Общая схема процесса ─── */
 function ProcessOverviewDiagram() {
   const steps = [
-    { label: "Брага", sub: "ферментация", color: "var(--accent-light)" },
-    { label: "Первый перегон", sub: "спирт-сырец", color: "var(--accent)" },
-    { label: "Второй перегон", sub: "разделение фракций", color: "var(--accent-dark)" },
-    { label: "Дистиллят", sub: "готовый продукт", color: "var(--accent-dark)" },
+    { label: "Брага", sub: "ферментация" },
+    { label: "Первый перегон", sub: "спирт-сырец" },
+    { label: "Второй перегон", sub: "разделение фракций" },
+    { label: "Дистиллят", sub: "готовый продукт" },
   ];
   return (
     <svg viewBox="0 0 900 160" className="w-full h-auto" style={{ maxWidth: "100%" }}>
@@ -164,8 +155,7 @@ function ProcessOverviewDiagram() {
         const x = 20 + i * 220;
         return (
           <g key={s.label}>
-            <rect x={x} y={40} width={180} height={80} rx={14} fill="var(--bg-card)" stroke={s.color} strokeWidth={i === steps.length - 1 ? 2 : 1.5} />
-            <circle cx={x + 20} cy={40} r={5} fill={s.color} />
+            <rect x={x} y={40} width={180} height={80} rx={14} fill="var(--bg-card)" stroke="var(--border)" strokeWidth={1.5} />
             <text x={x + 90} y={78} textAnchor="middle" fontSize="16" fontWeight="600" fill="var(--text-primary)">
               {s.label}
             </text>
@@ -190,7 +180,7 @@ function ProcessOverviewDiagram() {
 /* ─── Рабочий ИИ-советник по этапу — тот же паттерн, что RecipeAiConsult ─── */
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stageTitle: string; color: string }) {
+function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle: string }) {
   const { isLoggedIn } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
@@ -279,14 +269,14 @@ function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stag
   if (!isLoggedIn) {
     return (
       <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <Sparkles size={32} style={{ color }} className="mx-auto mb-3" />
+        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
         <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           ИИ-советник по разделу «{stageTitle}»
         </h3>
         <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
           Опишите свою ситуацию — оборудование, сырьё, что пошло не так — и получите конкретный совет. Доступно после входа в аккаунт.
         </p>
-        <Link to="/login" className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white" style={{ background: color, fontFamily: "var(--font-body)" }}>
+        <Link to="/login" className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
           <LogIn size={16} /> Войти, чтобы спросить
         </Link>
       </div>
@@ -298,10 +288,10 @@ function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stag
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
 
   return (
-    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: `1px solid ${color}` }}>
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          <Sparkles size={20} style={{ color }} />
+          <Sparkles size={20} style={{ color: "var(--accent)" }} />
           Советник по разделу «{stageTitle}»
         </h3>
         {limitInfo && (
@@ -341,7 +331,7 @@ function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stag
               }
             >
               {m.role === "assistant" && (
-                <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color }}>
+                <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
                   <MessageCircleQuestion size={14} /> Ответ ИИ
                 </div>
               )}
@@ -358,7 +348,7 @@ function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stag
       {limitReached ? (
         <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
           Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
-          <Link to="/profile?tab=history" className="underline font-medium" style={{ color }}>
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
         </div>
@@ -378,7 +368,7 @@ function DistillerAiConsult({ stage, stageTitle, color }: { stage: StageId; stag
             onClick={() => handleAsk()}
             disabled={!question.trim() || generate.isPending}
             className="rounded-xl px-4 flex items-center justify-center text-white disabled:opacity-50"
-            style={{ background: color }}
+            style={{ background: "var(--accent)" }}
           >
             <Send size={18} />
           </button>
@@ -397,7 +387,7 @@ export default function VinokurPage() {
       {/* Hero */}
       <section className="relative overflow-hidden py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full opacity-10" style={{ background: "var(--accent-dark)", transform: "translate(-30%, 30%)" }} />
+        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-10" style={{ background: "var(--accent)", transform: "translate(-30%, 30%)" }} />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
           <div
             className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
@@ -419,9 +409,9 @@ export default function VinokurPage() {
       {/* История + правовое положение */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-6">
-          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--accent-light)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2 mb-3">
-              <History size={20} style={{ color: "var(--accent-light)" }} />
+              <History size={20} style={{ color: "var(--accent)" }} />
               <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                 Немного истории
               </h2>
@@ -437,7 +427,7 @@ export default function VinokurPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderTop: "3px solid var(--accent)" }}>
+          <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2 mb-3">
               <Scale size={20} style={{ color: "var(--accent)" }} />
               <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -477,7 +467,7 @@ export default function VinokurPage() {
       {/* Этапы — табы */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Табы выбора этапа — цвет таба совпадает с цветом этапа */}
+          {/* Табы выбора этапа */}
           <div className="flex flex-wrap gap-2 justify-center mb-10">
             {stages.map((s) => {
               const StageIcon = s.icon;
@@ -488,7 +478,7 @@ export default function VinokurPage() {
                   onClick={() => setActiveStage(s.id)}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={{
-                    background: isActive ? s.color : "var(--bg-card)",
+                    background: isActive ? "var(--accent)" : "var(--bg-card)",
                     color: isActive ? "#fff" : "var(--text-secondary)",
                     border: isActive ? "none" : "1px solid var(--border)",
                     fontFamily: "var(--font-body)",
@@ -503,8 +493,8 @@ export default function VinokurPage() {
 
           {/* Заголовок активного этапа */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ background: stage.tint }}>
-              <stage.icon size={26} style={{ color: stage.color }} />
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ background: "var(--surface)" }}>
+              <stage.icon size={26} style={{ color: "var(--accent)" }} />
             </div>
             <h2 className="text-xl sm:text-2xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               {stage.title}
@@ -514,19 +504,15 @@ export default function VinokurPage() {
             </p>
           </div>
 
-          {/* Подразделы — цветной левый бордер + иконка в тон этапа */}
+          {/* Подразделы */}
           <div className="space-y-5">
             {stage.blocks.map((block) => {
               const BlockIcon = block.icon;
               return (
-                <div
-                  key={block.heading}
-                  className="rounded-2xl p-6"
-                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderLeft: `4px solid ${stage.color}` }}
-                >
+                <div key={block.heading} className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stage.tint }}>
-                      <BlockIcon size={16} style={{ color: stage.color }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface)" }}>
+                      <BlockIcon size={16} style={{ color: "var(--accent)" }} />
                     </div>
                     <h3 className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                       {block.heading}
@@ -542,8 +528,8 @@ export default function VinokurPage() {
 
           {/* ИИ-советник: сначала честный посыл про уникальность процесса, потом сам чат */}
           <div className="mt-10 space-y-4">
-            <div className="rounded-2xl p-6 flex gap-4" style={{ background: stage.tint, border: `1px solid ${stage.color}` }}>
-              <Sparkles size={24} style={{ color: stage.color, flexShrink: 0 }} />
+            <div className="rounded-2xl p-6 flex gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <Sparkles size={24} style={{ color: "var(--accent)", flexShrink: 0 }} />
               <div>
                 <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                   Зачем здесь ИИ-советник
@@ -559,21 +545,21 @@ export default function VinokurPage() {
                 </p>
               </div>
             </div>
-            <DistillerAiConsult stage={stage.id} stageTitle={stage.title} color={stage.color} />
+            <DistillerAiConsult stage={stage.id} stageTitle={stage.title} />
           </div>
         </div>
       </section>
 
-      {/* Безопасность — общий блок под всеми этапами */}
+      {/* Безопасность — тот же жёлтый стиль "Важно", что в Правилах */}
       <section className="py-14" style={{ background: "var(--bg-secondary)" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl p-6 flex gap-4" style={{ background: "var(--danger-tint)", border: "1px solid var(--danger)" }}>
-            <ShieldAlert size={24} style={{ color: "var(--danger)", flexShrink: 0 }} />
+          <div className="rounded-2xl p-6 flex gap-4" style={{ background: "#fef3c7", border: "1px solid #fde68a" }}>
+            <AlertTriangle size={24} style={{ color: "#92400e", flexShrink: 0 }} />
             <div>
-              <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              <h3 className="text-base font-bold mb-2" style={{ color: "#78350f", fontFamily: "var(--font-heading)" }}>
                 Про безопасность — коротко
               </h3>
-              <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+              <p className="text-base" style={{ color: "#78350f", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
                 Спиртовые пары огнеопасны — держите аппарат подальше от открытого огня и обеспечьте вентиляцию
                 помещения. Никогда не пробуйте головную фракцию на вкус и не используйте её для питья — это
                 технический продукт. Не оставляйте работающий аппарат без присмотра. И главное — мера: домашний

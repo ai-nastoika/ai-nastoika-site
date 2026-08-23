@@ -181,17 +181,32 @@ export default function RecipeParserPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
-      const data = await res.json();
-      if (data.success && typeof data.transcript === "string") {
+
+      let data: { success?: boolean; transcript?: string; error?: string } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Сервер вернул не-JSON — обычно это HTML-страница ошибки от nginx
+        // (например, при превышении client_max_body_size на большом видео),
+        // а не наш код. Показываем код статуса, а не немую ошибку "не удалось".
+        throw new Error(
+          `Сервер вернул некорректный ответ (HTTP ${res.status}). Файл, похоже, не дошёл до сервера целиком — ` +
+          `если видео большое, проверьте лимит client_max_body_size в конфиге nginx.`
+        );
+      }
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || `Ошибка сервера (HTTP ${res.status})`);
+      }
+
+      if (typeof data.transcript === "string") {
         setRecipeText(data.transcript);
         if (!data.transcript.trim()) {
           alert("Речь в видео не распознана — если рецепт показан текстом на экране без озвучки, впишите его вручную в поле ниже.");
         }
-      } else {
-        alert("Ошибка распознавания: " + (data.error || "неизвестная ошибка"));
       }
-    } catch {
-      alert("Ошибка загрузки видео");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Ошибка загрузки видео");
     } finally {
       setTranscribing(false);
       if (videoInputRef.current) videoInputRef.current.value = "";
