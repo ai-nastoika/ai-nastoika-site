@@ -102,6 +102,26 @@ function saveGeneratedImage(base64: string): string {
   return `/uploads/recipes/${fileName}`;
 }
 
+const VALID_STAGE_TYPES = ["pour", "shake", "strain", "rest", "taste", "add_ingredient", "custom"];
+
+// ИИ иногда придумывает stageType, которого нет в допустимом списке (например
+// "steep" или русское слово вместо кода) — recipe.upsert такое не сохранит
+// и уронит весь рецепт ошибкой валидации. Подстраховываемся здесь же:
+// всё, что не входит в список, тихо приводим к "custom" — название шага
+// (title) при этом не теряется, только тип иконки в трекере.
+function sanitizeTrackerStages(parsed: Record<string, unknown>) {
+  if (!Array.isArray(parsed.trackerStages)) return;
+  parsed.trackerStages = parsed.trackerStages.map((stage) => {
+    if (stage && typeof stage === "object" && "stageType" in stage) {
+      const s = stage as Record<string, unknown>;
+      if (typeof s.stageType !== "string" || !VALID_STAGE_TYPES.includes(s.stageType)) {
+        return { ...s, stageType: "custom" };
+      }
+    }
+    return stage;
+  });
+}
+
 export const recipeParserRouter = createRouter({
   /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
   generate: adminQuery
@@ -120,6 +140,7 @@ export const recipeParserRouter = createRouter({
       } catch {
         throw new Error("ИИ вернул невалидный JSON — попробуйте ещё раз (иногда помогает повторный запрос)");
       }
+      sanitizeTrackerStages(parsed);
 
       // Картинку генерируем сразу следом, промпт для неё приходит только
       // из этого же JSON-ответа — раньше эту генерацию делали руками отдельно.
