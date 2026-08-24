@@ -6,7 +6,7 @@ import { eq, count, and, ne, desc, gte, sql, inArray } from "drizzle-orm";
 // Все requestType, которые считаются "генерацией изображения" — раньше тут
 // была только этикетка, теперь картинки рецептов из ИИ-парсера тоже сюда
 // пишут (api/recipeParser.ts), иначе indicator в админке их не видел.
-const IMAGE_REQUEST_TYPES = ["label_image", "recipe_parser_image"];
+const IMAGE_REQUEST_TYPES = ["label_image", "recipe_parser_image", "label_photo_edit"];
 
 export const adminStatsRouter = createRouter({
   /* ── Сводный счётчик для бейджа на кнопке "Админка" в шапке ──

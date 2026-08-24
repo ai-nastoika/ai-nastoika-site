@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,13 @@ import {
   RotateCcw,
   Printer,
   Tag,
+  Camera,
+  FileText,
+  Loader2,
+  Upload,
 } from "lucide-react";
+
+type SourceMode = "scratch" | "photo";
 
 type Orientation = "vertical" | "square" | "horizontal";
 
@@ -41,6 +47,8 @@ export default function LabelGeneratorPage() {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
 
+  const [sourceMode, setSourceMode] = useState<SourceMode>("scratch");
+
   const [description, setDescription] = useState("");
   const [style, setStyle] = useState("");
   const [colors, setColors] = useState("");
@@ -53,6 +61,15 @@ export default function LabelGeneratorPage() {
   const [labelDate, setLabelDate] = useState("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
+  // ── Режим "своё фото + ИИ" ──
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [photoDescription, setPhotoDescription] = useState("");
+  const [photoResult, setPhotoResult] = useState<string>("");
+  const [photoGenerating, setPhotoGenerating] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
   });
@@ -62,9 +79,77 @@ export default function LabelGeneratorPage() {
     onError: () => refetchLimit(),
   });
 
-  const generatedImage = generate.data
-    ? generate.data.image.imageUrl ?? (generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : "")
-    : "";
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Выберите изображение (JPG/PNG/WebP)");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPhotoError("Максимальный размер фото — 10 МБ");
+      return;
+    }
+    setPhotoError("");
+    setPhotoFile(file);
+    setPhotoResult("");
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handlePhotoGenerate() {
+    if (!photoFile || !photoDescription.trim() || photoGenerating) return;
+    setPhotoGenerating(true);
+    setPhotoError("");
+    try {
+      const token = localStorage.getItem("auth-token") || "";
+      const formData = new FormData();
+      formData.append("file", photoFile);
+      formData.append("prompt", photoDescription.trim());
+      const res = await fetch("/api/edit-label-photo", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      let data: { success?: boolean; image?: { imageBase64?: string; imageUrl?: string }; error?: string } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Сервер вернул некорректный ответ (HTTP ${res.status}) — попробуйте ещё раз`);
+      }
+
+      if (!res.ok || !data?.success || !data.image) {
+        throw new Error(data?.error || `Ошибка сервера (HTTP ${res.status})`);
+      }
+
+      const img = data.image;
+      setPhotoResult(img.imageUrl ?? (img.imageBase64 ? `data:image/png;base64,${img.imageBase64}` : ""));
+      refetchLimit();
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Не удалось обработать фото");
+      refetchLimit();
+    } finally {
+      setPhotoGenerating(false);
+    }
+  }
+
+  function handlePhotoReset() {
+    setPhotoFile(null);
+    setPhotoPreview("");
+    setPhotoDescription("");
+    setPhotoResult("");
+    setPhotoError("");
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  const generatedImage =
+    sourceMode === "photo"
+      ? photoResult
+      : generate.data
+      ? generate.data.image.imageUrl ?? (generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : "")
+      : "";
 
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 10;
@@ -115,7 +200,9 @@ export default function LabelGeneratorPage() {
 
   function handlePrint() {
     if (!generatedImage) return;
-    printLabelOnA4(generatedImage, orientation);
+    // В режиме "своё фото" ориентация неизвестна заранее (зависит от снимка) —
+    // printLabelOnA4 сама определит её по факту пропорций картинки.
+    printLabelOnA4(generatedImage, sourceMode === "photo" ? undefined : orientation);
   }
 
   return (
@@ -153,6 +240,83 @@ export default function LabelGeneratorPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 grid lg:grid-cols-2 gap-8">
         {/* ─── Левая колонка: форма ─── */}
         <div className="space-y-6">
+          {/* Переключатель режима */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSourceMode("scratch")}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: sourceMode === "scratch" ? "var(--accent)" : "var(--bg-card)",
+                color: sourceMode === "scratch" ? "#fff" : "var(--text-secondary)",
+                border: sourceMode === "scratch" ? "none" : "1px solid var(--border)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              <FileText size={16} /> С нуля по описанию
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceMode("photo")}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+              style={{
+                background: sourceMode === "photo" ? "var(--accent)" : "var(--bg-card)",
+                color: sourceMode === "photo" ? "#fff" : "var(--text-secondary)",
+                border: sourceMode === "photo" ? "none" : "1px solid var(--border)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              <Camera size={16} /> Своё фото + ИИ
+            </button>
+          </div>
+
+          {sourceMode === "photo" ? (
+            <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <h3 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Своё фото + описание
+              </h3>
+              <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                Загрузите фото своей бутылки (или любое референсное изображение) и опишите, что с ним сделать — ИИ отредактирует именно это фото, а не нарисует с нуля.
+              </p>
+
+              <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelect} className="hidden" />
+
+              {photoPreview ? (
+                <div className="relative rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--border)" }}>
+                  <img src={photoPreview} alt="Загруженное фото" className="w-full max-h-64 object-contain" style={{ background: "var(--surface)" }} />
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    className="absolute top-2 right-2 rounded-lg px-3 py-1.5 text-xs font-medium"
+                    style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                  >
+                    Заменить
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  className="w-full h-40 rounded-xl flex flex-col items-center justify-center gap-2 mb-4 transition-all hover:opacity-70"
+                  style={{ border: "2px dashed var(--border)", color: "var(--text-muted)" }}
+                >
+                  <Upload size={28} />
+                  <span className="text-sm font-medium">Загрузить фото</span>
+                  <span className="text-xs">JPG, PNG или WebP · до 10 МБ</span>
+                </button>
+              )}
+
+              <label className="flex items-center gap-2 text-sm font-medium mb-2" style={{ color: "var(--text-muted)" }}>
+                <Wand2 size={16} /> Что сделать с этим фото
+              </label>
+              <textarea
+                value={photoDescription}
+                onChange={(e) => setPhotoDescription(e.target.value)}
+                placeholder={`Например: "Добавь на бутылку этикетку с текстом «Вишнёвая настойка», в винтажном стиле, тёмно-бордовые и золотые тона" или "Замени фон на нейтральный светлый, добавь мягкие тени"`}
+                className="w-full rounded-lg px-4 py-3 text-base outline-none resize-none"
+                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", minHeight: 100, fontFamily: "var(--font-body)" }}
+              />
+            </div>
+          ) : (
+          <>
           {/* Design wishes */}
           <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <h3 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -302,6 +466,8 @@ export default function LabelGeneratorPage() {
               </div>
             </div>
           </div>
+          </>
+          )}
 
           {/* Generate */}
           <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -339,6 +505,16 @@ export default function LabelGeneratorPage() {
                       Пополнить баланс
                     </Link>
                   </div>
+                ) : sourceMode === "photo" ? (
+                  <button
+                    onClick={handlePhotoGenerate}
+                    disabled={!photoFile || !photoDescription.trim() || photoGenerating}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                    style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                  >
+                    {photoGenerating ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
+                    {photoGenerating ? "Обрабатываю фото..." : `Сгенерировать (${costRub} ₽)`}
+                  </button>
                 ) : (
                   <button
                     onClick={handleGenerate}
@@ -350,24 +526,34 @@ export default function LabelGeneratorPage() {
                     {generate.isPending ? "Генерирую..." : `Сгенерировать (${costRub} ₽)`}
                   </button>
                 )}
-                {!labelTitle.trim() && !limitReached && (
+                {sourceMode === "scratch" && !labelTitle.trim() && !limitReached && (
                   <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Заполните название напитка выше.</p>
                 )}
+                {sourceMode === "photo" && !photoFile && !limitReached && (
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Загрузите фото выше.</p>
+                )}
 
-                {generate.isPending && <div className="mt-3"><BottleThinkingIndicator label="Рисую этикетку..." /></div>}
+                {sourceMode === "scratch" && generate.isPending && <div className="mt-3"><BottleThinkingIndicator label="Рисую этикетку..." /></div>}
+                {sourceMode === "photo" && photoGenerating && <div className="mt-3"><BottleThinkingIndicator label="Обрабатываю фото..." /></div>}
 
-                {generate.error && (
+                {sourceMode === "scratch" && generate.error && (
                   <p className="text-sm mt-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
                     {generate.error.message}
+                  </p>
+                )}
+                {sourceMode === "photo" && photoError && (
+                  <p className="text-sm mt-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                    {photoError}
                   </p>
                 )}
               </>
             )}
           </div>
 
-          {(description || labelTitle || generatedImage) && (
+          {((sourceMode === "scratch" && (description || labelTitle || generatedImage)) ||
+            (sourceMode === "photo" && (photoFile || photoDescription || generatedImage))) && (
             <button
-              onClick={handleReset}
+              onClick={sourceMode === "photo" ? handlePhotoReset : handleReset}
               className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
               style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
             >
@@ -383,7 +569,7 @@ export default function LabelGeneratorPage() {
               <button
                 onClick={() => setLightboxOpen(true)}
                 className="w-full rounded-lg overflow-hidden flex items-center justify-center transition-transform hover:scale-[1.02] cursor-zoom-in"
-                style={{ maxWidth: 420, aspectRatio: activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
+                style={{ maxWidth: 420, aspectRatio: sourceMode === "photo" ? "auto" : activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
                 title="Нажмите, чтобы увеличить"
               >
                 <img
@@ -406,7 +592,9 @@ export default function LabelGeneratorPage() {
 
             {generatedImage && (
               <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задаётся напрямую в запросе к ИИ.
+                {sourceMode === "photo"
+                  ? "Показано и печатается целиком, без обрезки — пропорция берётся из вашего фото автоматически."
+                  : `Показано и печатается целиком, без обрезки — пропорция «${activeOrientation.label.toLowerCase()}» задаётся напрямую в запросе к ИИ.`}
               </p>
             )}
 
@@ -417,7 +605,7 @@ export default function LabelGeneratorPage() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
                   style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
                 >
-                  <Printer size={20} /> Печать ({printGrid.count} шт. на листе A4)
+                  <Printer size={20} /> {sourceMode === "photo" ? "Печать на листе A4" : `Печать (${printGrid.count} шт. на листе A4)`}
                 </button>
                 <a
                   href={generatedImage}

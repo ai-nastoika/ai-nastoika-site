@@ -6,9 +6,13 @@
    использованием стоит один раз проверить его вручную (curl/PowerShell),
    как и для текстовых моделей — см. переписку по подключению.
 
+   /v1/images/edits (editImage ниже) — проверен вручную через curl,
+   подтверждённо работает (GPT Image 2 через Timeweb Gateway).
+
    Переменные окружения:
    AI_API_KEY       — тот же ключ AI Gateway, что и для текста
    AI_IMAGE_API_URL — по умолчанию https://api.timeweb.ai/v1/images/generations
+   AI_IMAGE_EDIT_API_URL — по умолчанию https://api.timeweb.ai/v1/images/edits
    AI_IMAGE_MODEL   — обязательна, точный slug модели из панели (например, Gemini image-preview)
 */
 
@@ -44,6 +48,55 @@ export async function generateImage(prompt: string, size: "1024x1024" | "1024x15
       );
     }
     throw new Error(`Ошибка генерации изображения (${res.status}): ${errText.slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as { data?: { b64_json?: string; url?: string }[] };
+  const item = json.data?.[0];
+
+  if (item?.b64_json) return { imageBase64: item.b64_json };
+  if (item?.url) return { imageUrl: item.url };
+
+  throw new Error("ИИ не вернул изображение — попробуйте ещё раз или измените описание");
+}
+
+/* Редактирование существующего фото по текстовой инструкции (GPT Image 2
+   /images/edits) — в отличие от generateImage (с нуля, фиксированные
+   размеры), здесь на входе реальное фото пользователя, и модель сама
+   определяет размер выходного изображения по входному (не форсируем один
+   из трёх фиксированных размеров — они актуальны только для generateImage). */
+export async function editImage(prompt: string, imageBuffer: Buffer, filename: string): Promise<GeneratedImage> {
+  const apiKey = process.env.AI_API_KEY;
+  const apiUrl = process.env.AI_IMAGE_EDIT_API_URL || "https://api.timeweb.ai/v1/images/edits";
+  const model = process.env.AI_IMAGE_MODEL;
+
+  if (!apiKey) {
+    throw new Error("Редактирование изображений недоступно: не задан AI_API_KEY на сервере");
+  }
+  if (!model) {
+    throw new Error("Редактирование изображений недоступно: не задан AI_IMAGE_MODEL на сервере");
+  }
+
+  const form = new FormData();
+  form.append("model", model);
+  form.append("prompt", prompt);
+  form.append("n", "1");
+  form.append("image[]", new Blob([new Uint8Array(imageBuffer)]), filename);
+
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    if (errText.includes("safety system") || errText.includes("rejected by the safety")) {
+      throw new Error(
+        "Настройки безопасности ИИ-модели не позволяют обработать это фото или описание. " +
+          "Попробуйте другое фото или измените описание. Плата за запрос не взималась."
+      );
+    }
+    throw new Error(`Ошибка редактирования изображения (${res.status}): ${errText.slice(0, 200)}`);
   }
 
   const json = (await res.json()) as { data?: { b64_json?: string; url?: string }[] };

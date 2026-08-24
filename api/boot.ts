@@ -10,12 +10,14 @@ import { startTrackerReminderCron } from "./lib/trackerReminders";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { transcribeAudio } from "./lib/sttClient";
+import { editImage } from "./lib/imageClient";
+import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { jwtVerify } from "jose";
 import { getDb } from "./queries/connection";
-import { users } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { users, generatedLabels } from "@db/schema";
+import { eq, desc } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -61,7 +63,6 @@ const tmpVideoDir = path.resolve(__dirname, "..", "uploads", "tmp-video");
 if (!fs.existsSync(tmpVideoDir)) {
   fs.mkdirSync(tmpVideoDir, { recursive: true });
 }
-
 // Проверка прав администратора по тому же JWT, что и в api/context.ts —
 // нужна здесь отдельно, т.к. это обычный Hono-роут (загрузка файла), а не tRPC.
 // ПРИМЕЧАНИЕ: остальные /api/upload-* эндпоинты ниже такой проверки не имеют
@@ -79,6 +80,20 @@ async function requireAdmin(authHeader: string | undefined): Promise<boolean> {
     return dbUser?.role === "admin";
   } catch {
     return false;
+  }
+}
+
+// То же самое, но для обычного авторизованного пользователя (не только
+// админа) — нужен userId для списания баланса за платную генерацию.
+async function getAuthedUserId(authHeader: string | undefined): Promise<number | null> {
+  const token = authHeader?.replace("Bearer ", "");
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET, { clockTolerance: 60 });
+    const userId = payload.sub ? Number(payload.sub) : 0;
+    return userId || null;
+  } catch {
+    return null;
   }
 }
 
@@ -334,6 +349,75 @@ app.post("/api/parse-recipe-video", async (c) => {
   } finally {
     if (videoPath) { try { fs.unlinkSync(videoPath); } catch { /* уже нет — не страшно */ } }
     if (audioPath) { try { fs.unlinkSync(audioPath); } catch { /* уже нет — не страшно */ } }
+  }
+});
+
+// ─── Этикетка по своему фото + текстовое описание (GPT Image 2 /images/edits,
+// проверено вручную curl'ом — работает через Timeweb Gateway). В отличие от
+// генератора с нуля (labelGeneratorRouter.ts, tRPC, /images/generations),
+// здесь на входе реальное фото пользователя — тарифицируется так же
+// (10 ₽/генерация, без бесплатного лимита), но через обычный Hono-роут,
+// т.к. нужна загрузка файла. ───
+app.post("/api/edit-label-photo", async (c) => {
+  const userId = await getAuthedUserId(c.req.header("authorization"));
+  if (!userId) {
+    return c.json({ error: "Требуется авторизация" }, 401);
+  }
+
+  let charge: Awaited<ReturnType<typeof chargeImageRequest>> | undefined;
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    const prompt = body["prompt"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+    if (typeof prompt !== "string" || !prompt.trim()) {
+      return c.json({ error: "Опишите, что нужно сделать с фото" }, 400);
+    }
+    if (!file.type.startsWith("image/")) {
+      return c.json({ error: "Ожидается изображение (JPG/PNG/WebP)" }, 400);
+    }
+    const maxSize = 10 * 1024 * 1024; // 10 МБ — с запасом для фото с телефона
+    if (file.size > maxSize) {
+      return c.json({ error: "Файл слишком большой (макс. 10 МБ)" }, 400);
+    }
+
+    // Списываем ДО обращения к ИИ — так же, как в labelGeneratorRouter.ts.
+    charge = await chargeImageRequest(userId);
+
+    const arrayBuffer = await file.arrayBuffer();
+    const image = await editImage(prompt.trim(), Buffer.from(arrayBuffer), file.name || "photo.png");
+
+    await logAiUsage({ userId, requestType: "label_photo_edit", tokensUsed: 0, charge });
+
+    // Сохраняем в ту же таблицу, что и обычную генерацию — те же "последние 3"
+    // видны в ЛК, независимо от того, каким способом этикетка была создана.
+    const db = getDb();
+    const imageData = image.imageBase64 ?? image.imageUrl ?? "";
+    await db.insert(generatedLabels).values({
+      userId,
+      title: prompt.trim().slice(0, 100),
+      imageBase64: imageData,
+    });
+    const existing = await db
+      .select({ id: generatedLabels.id })
+      .from(generatedLabels)
+      .where(eq(generatedLabels.userId, userId))
+      .orderBy(desc(generatedLabels.createdAt));
+    for (const row of existing.slice(3)) {
+      await db.delete(generatedLabels).where(eq(generatedLabels.id, row.id));
+    }
+
+    return c.json({ success: true, image });
+  } catch (err) {
+    console.error("Label photo edit error:", err);
+    if (charge) {
+      await refundAiRequest(userId, charge);
+      await logAiFailure({ userId, requestType: "label_photo_edit" });
+    }
+    const message = err instanceof Error ? err.message : "Не удалось обработать фото";
+    return c.json({ error: message }, 500);
   }
 });
 
