@@ -11,6 +11,7 @@ import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { transcribeAudio } from "./lib/sttClient";
 import { editImage } from "./lib/imageClient";
+import { compressImageIfNeeded } from "./lib/imageCompress";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -387,7 +388,11 @@ app.post("/api/edit-label-photo", async (c) => {
     charge = await chargeImageRequest(userId);
 
     const arrayBuffer = await file.arrayBuffer();
-    const image = await editImage(prompt.trim(), Buffer.from(arrayBuffer), file.name || "photo.png");
+    const { buffer: photoBuffer, filename: photoFilename, mimeType: photoMimeType } = await compressImageIfNeeded(
+      Buffer.from(arrayBuffer),
+      file.type
+    );
+    const image = await editImage(prompt.trim(), photoBuffer, photoFilename, photoMimeType);
 
     await logAiUsage({ userId, requestType: "label_photo_edit", tokensUsed: 0, charge });
 

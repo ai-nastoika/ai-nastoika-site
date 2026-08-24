@@ -63,8 +63,10 @@ export async function generateImage(prompt: string, size: "1024x1024" | "1024x15
    /images/edits) — в отличие от generateImage (с нуля, фиксированные
    размеры), здесь на входе реальное фото пользователя, и модель сама
    определяет размер выходного изображения по входному (не форсируем один
-   из трёх фиксированных размеров — они актуальны только для generateImage). */
-export async function editImage(prompt: string, imageBuffer: Buffer, filename: string): Promise<GeneratedImage> {
+   из трёх фиксированных размеров — они актуальны только для generateImage).
+   mimeType обязателен явно — без него Blob уходит без Content-Type у части
+   multipart-запроса, что API может трактовать как ошибку формата. */
+export async function editImage(prompt: string, imageBuffer: Buffer, filename: string, mimeType: string): Promise<GeneratedImage> {
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_IMAGE_EDIT_API_URL || "https://api.timeweb.ai/v1/images/edits";
   const model = process.env.AI_IMAGE_MODEL;
@@ -80,7 +82,7 @@ export async function editImage(prompt: string, imageBuffer: Buffer, filename: s
   form.append("model", model);
   form.append("prompt", prompt);
   form.append("n", "1");
-  form.append("image[]", new Blob([new Uint8Array(imageBuffer)]), filename);
+  form.append("image[]", new Blob([new Uint8Array(imageBuffer)], { type: mimeType }), filename);
 
   const res = await fetch(apiUrl, {
     method: "POST",
