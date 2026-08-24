@@ -73,10 +73,13 @@ export const placeRouter = createRouter({
       }));
     }),
 
-  /* ── Ручной запуск проверки сайтов (не ждать ночного cron) ── */
+  /* ── Ручной запуск проверки сайтов (не ждать ночного cron) — force=true,
+     иначе кнопка "проверить сейчас" молча проверяла бы 0 сайтов, если все
+     уже проверялись в последние 90 дней (обычное поведение checkDueWebsites,
+     но не то, что ожидает админ от кнопки с таким названием). ── */
   checkWebsitesNow: adminQuery.mutation(async () => {
     const { checkDueWebsites } = await import("./lib/websiteChecker");
-    return checkDueWebsites();
+    return checkDueWebsites(true);
   }),
 
   /* ── Точные координаты из ссылки на Яндекс.Карты (карточка организации

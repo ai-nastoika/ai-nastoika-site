@@ -43,7 +43,7 @@ const EMPTY_RECIPE = {
 
 const EMPTY_PLACE = {
   slug: "", name: "", city: "", address: "", metro: "", phone: "",
-  website: "", lat: "", lng: "", rating: "", reviews: 0, price: "", hours: "", image: "",
+  website: "", yandexUrl: "", lat: "", lng: "", rating: "", reviews: 0, price: "", hours: "", image: "",
   tags: [] as string[], description: "", infusionsHighlight: "", infusionsSignature: "",
   externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
 };
@@ -223,6 +223,9 @@ function AdminPanel() {
       utils.place.list.invalidate();
       alert(`Проверено: ${result.checked}\nДоступно: ${result.ok}\nНедоступно: ${result.unreachable}`);
     },
+    onError: (err) => {
+      alert("Ошибка проверки сайтов: " + err.message);
+    },
   });
   const upsertRecipe = trpc.recipe.upsert.useMutation({
     onSuccess: () => { utils.recipe.list.invalidate(); setRecipeOpen(false); resetRecipe(); setSaveNotice(""); },
@@ -371,7 +374,7 @@ function AdminPanel() {
     setPForm({
       ...EMPTY_PLACE,
       slug: p.slug, name: p.name, city: p.city ?? "", address: p.address ?? "",
-      metro: p.metro ?? "", phone: p.phone ?? "", website: p.website ?? "",
+      metro: p.metro ?? "", phone: p.phone ?? "", website: p.website ?? "", yandexUrl: p.yandexUrl ?? "",
       lat: p.lat !== null && p.lat !== undefined ? String(p.lat) : "",
       lng: p.lng !== null && p.lng !== undefined ? String(p.lng) : "",
       rating: String(p.rating ?? ""), reviews: p.reviews ?? 0,
@@ -1100,6 +1103,8 @@ function PlaceForm({
   const f = form;
   const update = (patch: Partial<typeof f>) => setForm((prev) => ({ ...prev, ...patch }));
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const resolveCoords = trpc.place.resolveCoords.useMutation();
+  const [coordsError, setCoordsError] = useState("");
 
   return (
     <div className="space-y-4">
@@ -1118,12 +1123,35 @@ function PlaceForm({
         <Field label="Часы работы" value={f.hours} onChange={(v) => update({ hours: v })} />
       </div>
       <div>
+        <label className="text-sm font-medium mb-1 block">Ссылка на Яндекс.Карты (карточка организации или кнопка «Поделиться»)</label>
+        <div className="flex gap-2">
+          <Input value={f.yandexUrl} onChange={(e) => update({ yandexUrl: e.target.value })} placeholder="https://yandex.ru/maps/... или короткая ссылка с «Поделиться»" />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!f.yandexUrl.trim() || resolveCoords.isPending}
+            onClick={async () => {
+              setCoordsError("");
+              try {
+                const { lat, lng } = await resolveCoords.mutateAsync({ url: f.yandexUrl });
+                update({ lat: String(lat), lng: String(lng) });
+              } catch (err) {
+                setCoordsError(err instanceof Error ? err.message : "Не удалось определить координаты");
+              }
+            }}
+          >
+            {resolveCoords.isPending ? "Ищем..." : "Определить координаты"}
+          </Button>
+        </div>
+        {coordsError && <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{coordsError}</p>}
+      </div>
+      <div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Широта (lat)" value={f.lat} onChange={(v) => update({ lat: v })} placeholder="55.751244" />
           <Field label="Долгота (lng)" value={f.lng} onChange={(v) => update({ lng: v })} placeholder="37.618423" />
         </div>
         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          Откройте заведение на Яндекс.Картах → нажмите на точку → в адресной строке появится <code>ll=37.618423%2C55.751244</code> (это долгота,широта — в обратном порядке!) либо возьмите координаты из панели «Поделиться». Вставьте широту и долготу в соответствующие поля.
+          Координаты лучше не вводить руками — вставьте ссылку выше и нажмите «Определить координаты», это точнее (без угадывания).
         </p>
       </div>
       <div className="grid grid-cols-3 gap-4">

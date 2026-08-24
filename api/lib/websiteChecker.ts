@@ -24,15 +24,17 @@ async function checkOne(url: string): Promise<"ok" | "unreachable"> {
  * Проверяет заведения, у которых ЕСТЬ сайт и он не проверялся >= 90 дней
  * (или не проверялся вообще). Заведения без сайта не трогаем — им это не применимо.
  */
-export async function checkDueWebsites(): Promise<{ checked: number; ok: number; unreachable: number }> {
+export async function checkDueWebsites(force = false): Promise<{ checked: number; ok: number; unreachable: number }> {
   const db = getDb();
   const cutoff = new Date(Date.now() - CHECK_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
 
   const due = await db.query.places.findMany({
-    where: and(
-      isNotNull(places.website),
-      or(isNull(places.websiteLastCheckedAt), lt(places.websiteLastCheckedAt, cutoff))
-    ),
+    where: force
+      ? isNotNull(places.website)
+      : and(
+          isNotNull(places.website),
+          or(isNull(places.websiteLastCheckedAt), lt(places.websiteLastCheckedAt, cutoff))
+        ),
     limit: BATCH_SIZE,
   });
 
