@@ -602,16 +602,13 @@ export default function ProfilePage() {
                             >
                               <Printer size={14} /> Печать
                             </button>
-                            <a
-                              href={src}
-                              download={`${genLabel.title}.png`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => setLightboxLabel({ src, title: genLabel.title })}
                               className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
                               style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                             >
                               Скачать
-                            </a>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1222,6 +1219,9 @@ export default function ProfilePage() {
             style={{ objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
           />
           <div className="mt-4 text-white text-base" style={{ fontFamily: "var(--font-body)" }}>{lightboxLabel.title}</div>
+          <div className="mt-1 text-white text-sm opacity-70 text-center px-6" style={{ fontFamily: "var(--font-body)" }}>
+            Зажмите картинку пальцем и выберите «Сохранить изображение» (на компьютере — правой кнопкой мыши → «Сохранить как»)
+          </div>
           <button
             onClick={() => setLightboxLabel(null)}
             className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white text-2xl"
