@@ -99,7 +99,7 @@ export const placeParserRouter = createRouter({
       try {
         res = await callChatCompletion(messages, {
           temperature: 0.75,
-          maxTokens: 3000,
+          maxTokens: 5000,
           jsonMode: true,
           model: input.model === "qwen" ? PLACE_PARSER_MODEL_QWEN : input.model === "glm" ? PLACE_PARSER_MODEL_GLM : PLACE_PARSER_MODEL_DEEPSEEK,
         });
@@ -124,9 +124,11 @@ export const placeParserRouter = createRouter({
       } catch {
         console.error("[placeParser] невалидный JSON от модели, сырой ответ:", res.answer.slice(0, 500));
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
-        // Показываем кусок настоящего ответа модели прямо в ошибке — так видно
-        // сразу в интерфейсе, что она вернула, без похода в логи сервера.
-        throw new Error(`ИИ (${res.modelUsed}) вернул невалидный JSON. Начало ответа: "${res.answer.slice(0, 200)}"`);
+        const looksTruncated = !res.answer.trim().endsWith("}");
+        const hint = looksTruncated
+          ? " Похоже, ответ модели оборвался на середине (не хватило лимита токенов) — попробуйте ещё раз, а если повторится часто, дайте знать."
+          : "";
+        throw new Error(`ИИ (${res.modelUsed}) вернул невалидный JSON.${hint} Начало ответа: "${res.answer.slice(0, 200)}"`);
       }
 
       await logAiUsage({
