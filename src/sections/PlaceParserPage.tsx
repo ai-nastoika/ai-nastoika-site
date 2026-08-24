@@ -8,67 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowLeft, Sparkles, Copy, Check,
+  ArrowLeft, Sparkles, Loader2,
   Save, Bot, MapPin,
   Upload,
 } from "lucide-react";
-
-/* ═══════════════════════════════════════════
-   Готовый промпт для Kimi
-   ═══════════════════════════════════════════ */
-const KIMI_PROMPT_PLACE = `Ты — эксперт по барам и заведениям, где подают домашние настойки (хреновуха, вишнёвка, наливки и т.д.).
-Тебе дан текст о заведении — адрес, ссылка на сайт или Яндекс.Карты, метро, отзывы, особенности и что угодно ещё,
-скопированное вперемешку.
-
-ВАЖНЫЕ ПРАВИЛА:
-1. Если в тексте есть ссылка на Яндекс.Карты или сайт заведения — открой её (используй поиск/браузинг) и найди
-   недостающие данные: точный адрес, телефон, часы работы, отзывы за последний год.
-2. Координаты (lat, lng): НЕ вычисляй и не угадывай их сам ни по адресу, ни по названию — только два источника допустимы:
-   а) если в присланном тексте координаты УЖЕ УКАЗАНЫ явно (например "координаты: 55.7558, 37.6173" или похожим
-      образом) — перенеси эти числа в lat/lng ТОЧНО как есть, не меняя и не пересчитывая;
-   б) если явных координат в тексте нет, но есть ссылка на Яндекс.Карты (карточка организации или ссылка с
-      кнопки "Поделиться") — оставь lat/lng равными null, а саму ссылку перенеси как есть в поле yandexUrl
-      (координаты определятся отдельно, напрямую из ссылки, без участия ИИ — угадывание по адресу раньше давало
-      неточный результат, не совпадающий с точкой заведения на карте).
-   Если нет ни явных координат, ни ссылки — оставь lat, lng и yandexUrl пустыми/null. Никогда не заполняй
-   координаты собственной оценкой "на глаз" ни в каком случае.
-3. Если что-то не удаётся найти даже через поиск — заполни разумным предположением на основе типа заведения
-   (например, типичные часы работы бара), но никогда не выдумывай телефон, адрес или координаты.
-4. Проанализируй отзывы (из текста или найденные через поиск) за последний год: найди упоминания настоек,
-   хреновухи, наливок и т.п. Напиши краткое резюме с акцентом именно на них.
-5. Выдели 2-4 реальных плюса и 1-3 минуса на основе отзывов — только то, что действительно следует из текста/поиска.
-6. slug — латиницей, через дефис, на основе названия и города.
-7. tags — 3-5 тегов на русском (например: "настойки", "домашние наливки", "уютная атмосфера").
-8. price (ценовая категория) — определяй СТРОГО по среднему чеку на человека, если он упоминается
-   в тексте или отзывах: до 800₽ → "₽", 800-2000₽ → "₽₽", от 2000₽ → "₽₽₽".
-   Если информации о чеке нет вообще — оставь поле пустой строкой "". Не угадывай и не оценивай "на глаз"
-   по общему впечатлению о заведении — это поле должно отражать реальные цифры, а не догадку.
-
-Верни ТОЛЬКО JSON, без markdown, без объяснений:
-
-{
-  "slug": "bar-name-city",
-  "name": "Название бара",
-  "city": "Москва",
-  "address": "ул. Примерная, 10",
-  "metro": "Пушкинская",
-  "phone": "+7 900 000-00-00",
-  "website": "https://...",
-  "yandexUrl": "https://yandex.ru/maps/.../ или ссылка с кнопки Поделиться, если была в тексте — иначе null",
-  "lat": null,
-  "lng": null,
-  "hours": "Пн-Вс 12:00–00:00",
-  "price": "₽₽",
-  "infusionsHighlight": "Большой выбор ягодных настоек собственного производства",
-  "infusionsSignature": "Хреновуха домашняя",
-  "description": "2-3 предложения общего описания заведения",
-  "externalSummary": "Краткое резюме на основе отзывов, с акцентом на настойки",
-  "externalPros": ["Плюс 1", "Плюс 2"],
-  "externalCons": ["Минус 1"],
-  "tags": ["настойки", "домашние наливки", "уютная атмосфера"]
-}
-
-Вот текст о заведении:`;
 
 /* ═══════════════════════════════════════════
    Types
@@ -109,11 +52,10 @@ function slugify(input: string): string {
    ═══════════════════════════════════════════ */
 export default function PlaceParserPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState("prompt");
+  const [tab, setTab] = useState("source");
   const [placeText, setPlaceText] = useState("");
-  const [jsonInput, setJsonInput] = useState("");
   const [form, setForm] = useState<PlaceForm>(emptyForm);
-  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -150,12 +92,25 @@ export default function PlaceParserPage() {
     },
   });
 
-  /* ── Copy prompt ── */
-  const fullPrompt = KIMI_PROMPT_PLACE + "\n\n" + placeText;
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(fullPrompt);
-    setCopied(true);
-    setTimeout(() => { setCopied(false); setTab("json"); }, 1500);
+  /* ── Шаг 1 → карточка одним запросом (Timeweb AI Gateway, DeepSeek) ── */
+  const generatePlace = trpc.placeParser.generate.useMutation({
+    onSuccess: (data) => {
+      applyParsedData(data);
+      setGenerating(false);
+      setTab("edit");
+      if (data.yandexUrl) {
+        handleResolveCoords(data.yandexUrl);
+      }
+    },
+    onError: (err) => {
+      setGenerating(false);
+      alert("Ошибка генерации: " + err.message);
+    },
+  });
+  const handleGenerate = () => {
+    if (!placeText.trim()) return;
+    setGenerating(true);
+    generatePlace.mutate({ rawText: placeText });
   };
 
   /* ── Upload image ── */
@@ -206,45 +161,33 @@ export default function PlaceParserPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  /* ── Parse JSON from Kimi ── */
-  const handleParseJson = () => {
-    try {
-      const raw = jsonInput.trim();
-      const jsonStr = raw.replace(/^```json\s*/, "").replace(/```\s*$/, "").trim();
-      const data = JSON.parse(jsonStr);
-
-      const newForm: PlaceForm = {
-        slug: data.slug ? slugify(data.slug) : slugify(`${data.name || ""} ${data.city || ""}`),
-        name: data.name || "",
-        city: data.city || "",
-        address: data.address || "",
-        metro: data.metro || "",
-        phone: data.phone || "",
-        website: data.website || "",
-        yandexUrl: data.yandexUrl || "",
-        lat: data.lat !== null && data.lat !== undefined ? String(data.lat) : "",
-        lng: data.lng !== null && data.lng !== undefined ? String(data.lng) : "",
-        hours: data.hours || "",
-        price: data.price || "",
-        image: "",
-        infusionsHighlight: data.infusionsHighlight || "",
-        infusionsSignature: data.infusionsSignature || "",
-        description: data.description || "",
-        externalSummary: data.externalSummary || "",
-        externalPros: Array.isArray(data.externalPros) ? data.externalPros : [],
-        externalCons: Array.isArray(data.externalCons) ? data.externalCons : [],
-        tags: Array.isArray(data.tags) ? data.tags : [],
-      };
-
-      setForm(newForm);
-      setTab("edit");
-      if (newForm.yandexUrl) {
-        handleResolveCoords(newForm.yandexUrl);
-      }
-    } catch {
-      alert("Ошибка парсинга JSON. Убедитесь, что вставили валидный JSON от Kimi.\n\nСовет: скопируйте ТОЛЬКО текст между фигурными скобками { ... }");
-    }
-  };
+  /* ── Заполняет форму из ответа ИИ (yandexUrl уже извлечён на бэкенде
+     регуляркой из исходного текста, а не получен от модели — см. api/placeParser.ts) ── */
+  function applyParsedData(data: Record<string, any>) {
+    const newForm: PlaceForm = {
+      slug: data.slug ? slugify(data.slug) : slugify(`${data.name || ""} ${data.city || ""}`),
+      name: data.name || "",
+      city: data.city || "",
+      address: data.address || "",
+      metro: data.metro || "",
+      phone: data.phone || "",
+      website: data.website || "",
+      yandexUrl: data.yandexUrl || "",
+      lat: data.lat !== null && data.lat !== undefined ? String(data.lat) : "",
+      lng: data.lng !== null && data.lng !== undefined ? String(data.lng) : "",
+      hours: data.hours || "",
+      price: data.price || "",
+      image: "",
+      infusionsHighlight: data.infusionsHighlight || "",
+      infusionsSignature: data.infusionsSignature || "",
+      description: data.description || "",
+      externalSummary: data.externalSummary || "",
+      externalPros: Array.isArray(data.externalPros) ? data.externalPros : [],
+      externalCons: Array.isArray(data.externalCons) ? data.externalCons : [],
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    };
+    setForm(newForm);
+  }
 
   /* ── Save (с проверкой на дубликаты) ── */
   const [duplicateMatches, setDuplicateMatches] = useState<
@@ -308,21 +251,20 @@ export default function PlaceParserPage() {
         </button>
         <h1 className="text-3xl font-bold" style={{ fontFamily: "var(--font-heading)", color: "var(--accent)" }}>
           <Bot size={28} className="inline mr-2" />
-          AI-парсер заведений (через Kimi)
+          AI-парсер заведений
         </h1>
         <p className="mt-1 mb-8" style={{ color: "var(--text-secondary)" }}>
-          Kimi разбирает данные о заведении, ищет недостающее и анализирует отзывы на упоминания настоек
+          Разбирает данные о заведении и анализирует отзывы на упоминания настоек — через Timeweb AI Gateway (DeepSeek)
         </p>
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6">
-            <TabsTrigger value="prompt">1. Вставить текст</TabsTrigger>
-            <TabsTrigger value="json" disabled={!placeText}>2. Вставить JSON от Kimi</TabsTrigger>
-            <TabsTrigger value="edit" disabled={!form.name}>3. Редактировать</TabsTrigger>
+            <TabsTrigger value="source">1. Источник</TabsTrigger>
+            <TabsTrigger value="edit" disabled={!form.name}>2. Редактировать</TabsTrigger>
           </TabsList>
 
-          {/* ═════ STEP 1: Source text ═════ */}
-          <TabsContent value="prompt">
+          {/* ═════ STEP 1: Source text → auto-generated card ═════ */}
+          <TabsContent value="source">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -335,9 +277,9 @@ export default function PlaceParserPage() {
                   <MapPin size={20} style={{ color: "#92400e", flexShrink: 0 }} />
                   <p className="text-sm" style={{ color: "#78350f" }}>
                     <strong>Обязательно включите ссылку на Яндекс.Карты</strong> — откройте карточку заведения на
-                    Яндекс.Картах, нажмите «Поделиться» и вставьте ссылку прямо в текст ниже. ИИ переносит эту
-                    ссылку, но <strong>не умеет найти её сам</strong> — без неё точные координаты не определить,
-                    придётся сходить на карту вручную уже после разбора.
+                    Яндекс.Картах, нажмите «Поделиться» и вставьте ссылку прямо в текст ниже. Она достаётся из
+                    текста напрямую кодом, ИИ её не трогает и не может найти сама — без неё точные координаты
+                    не определить, придётся сходить на карту вручную уже после разбора.
                   </p>
                 </div>
                 <Textarea
@@ -350,52 +292,18 @@ export default function PlaceParserPage() {
                   className="min-h-[250px]"
                 />
 
-                <div className="rounded-xl p-4" style={{ background: "var(--accent)", color: "#fff" }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Bot size={18} />
-                    <span className="font-semibold">Что дальше?</span>
-                  </div>
-                  <ol className="space-y-1 text-sm opacity-95 list-decimal list-inside">
-                    <li>Нажмите кнопку «Скопировать промпт» ниже</li>
-                    <li>Откройте <a href="https://kimi.ai" target="_blank" rel="noopener noreferrer" className="underline font-medium">kimi.ai</a> в новой вкладке</li>
-                    <li>Вставьте промпт в чат Kimi и отправьте</li>
-                    <li>Kimi найдёт недостающие данные по ссылке и вернёт заполненный JSON</li>
-                    <li>Скопируйте JSON и вернитесь на вкладку «Вставить JSON»</li>
-                  </ol>
-                </div>
-
-                <Button onClick={handleCopy} disabled={!placeText.trim()} size="lg" className="w-full">
-                  {copied ? <><Check size={18} className="mr-2" /> Скопировано!</> : <><Copy size={18} className="mr-2" /> Скопировать промпт для Kimi</>}
+                <Button onClick={handleGenerate} disabled={!placeText.trim() || generating} size="lg" className="w-full">
+                  {generating ? (
+                    <><Loader2 size={18} className="mr-2 animate-spin" /> ИИ собирает карточку заведения...</>
+                  ) : (
+                    <><Sparkles size={18} className="mr-2" /> Сгенерировать карточку</>
+                  )}
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* ═════ STEP 2: JSON from Kimi ═════ */}
-          <TabsContent value="json">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles size={20} />
-                  Шаг 2: Вставьте ответ Kimi
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Textarea
-                  value={jsonInput}
-                  onChange={(e) => setJsonInput(e.target.value)}
-                  placeholder={`Вставьте сюда JSON, который вернул Kimi. Пример:\n\n{\n  "name": "Тоник",\n  "city": "Санкт-Петербург",\n  "lat": 59.934811,\n  "lng": 30.310980,\n  ...\n}`}
-                  className="min-h-[300px] font-mono text-sm"
-                />
-                <Button onClick={handleParseJson} disabled={!jsonInput.trim()} size="lg">
-                  <Sparkles size={18} className="mr-2" />
-                  Разобрать JSON и перейти к редактированию
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ═════ STEP 3: Edit form ═════ */}
+          {/* ═════ STEP 2: Edit form ═════ */}
           <TabsContent value="edit">
             <div className="space-y-6">
               <Card>
@@ -526,9 +434,9 @@ export default function PlaceParserPage() {
 
               {/* Save bar */}
               <div className="flex items-center justify-between pt-4 pb-12">
-                <Button variant="outline" onClick={() => setTab("json")}>← Назад к JSON</Button>
+                <Button variant="outline" onClick={() => setTab("source")}>← Назад к источнику</Button>
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setImagePreview(null); setTab("prompt"); }}>Новое заведение</Button>
+                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setPlaceText(""); setImagePreview(null); setTab("source"); }}>Новое заведение</Button>
                   <Button onClick={() => handleSave()} disabled={saving} size="lg">
                     <Save size={18} className="mr-2" />
                     {saving ? "Сохранение..." : "Сохранить заведение"}

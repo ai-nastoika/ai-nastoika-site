@@ -57,11 +57,13 @@ async function callModel(
 
 export async function callChatCompletion(
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number; jsonMode?: boolean } = {}
+  opts: { temperature?: number; maxTokens?: number; jsonMode?: boolean; model?: string } = {}
 ): Promise<AiCallResult> {
   const apiKey = process.env.AI_API_KEY;
   const apiUrl = process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions";
-  const primaryModel = process.env.AI_MODEL || "gpt-4o-mini";
+  // opts.model — точечное переопределение модели для конкретной фичи (например,
+  // парсер заведений всегда просит DeepSeek, независимо от общей AI_MODEL сайта).
+  const primaryModel = opts.model || process.env.AI_MODEL || "gpt-4o-mini";
   const fallbackModel = process.env.AI_MODEL_FALLBACK; // может быть не задана
 
   const temperature = opts.temperature ?? 0.7;
