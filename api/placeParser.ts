@@ -16,7 +16,8 @@ import { logAiUsage, logAiFailure } from "./lib/aiAccess";
    отдельно от суждения модели — см. extractYandexMapsUrl ниже. */
 
 const REQUEST_TYPE = "place_parser";
-const PLACE_PARSER_MODEL = process.env.AI_MODEL_PLACES || "deepseek/deepseek-v4-flash";
+const PLACE_PARSER_MODEL_DEEPSEEK = process.env.AI_MODEL_PLACES || "deepseek/deepseek-v4-flash";
+const PLACE_PARSER_MODEL_QWEN = process.env.AI_MODEL_PLACES_QWEN || "dashscope/qwen3.5-flash";
 
 const SYSTEM_PROMPT = `Ты — эксперт по барам и заведениям, где подают домашние настойки (хреновуха, вишнёвка, наливки и т.д.).
 Тебе присылают текст о заведении — адрес, ссылку на сайт или Яндекс.Карты, метро, отзывы, особенности и что угодно
@@ -74,7 +75,7 @@ function extractYandexMapsUrl(text: string): string {
 
 export const placeParserRouter = createRouter({
   generate: adminQuery
-    .input(z.object({ rawText: z.string().min(10).max(20000) }))
+    .input(z.object({ rawText: z.string().min(10).max(20000), model: z.enum(["deepseek", "qwen"]).default("deepseek") }))
     .mutation(async ({ input, ctx }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },
@@ -87,7 +88,7 @@ export const placeParserRouter = createRouter({
           temperature: 0.5,
           maxTokens: 3000,
           jsonMode: true,
-          model: PLACE_PARSER_MODEL,
+          model: input.model === "qwen" ? PLACE_PARSER_MODEL_QWEN : PLACE_PARSER_MODEL_DEEPSEEK,
         });
       } catch (err) {
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
