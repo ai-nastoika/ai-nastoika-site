@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -1126,6 +1126,13 @@ function PlaceForm({
         <label className="text-sm font-medium mb-1 block">Ссылка на Яндекс.Карты (карточка организации или кнопка «Поделиться»)</label>
         <div className="flex gap-2">
           <Input value={f.yandexUrl} onChange={(e) => update({ yandexUrl: e.target.value })} placeholder="https://yandex.ru/maps/... или короткая ссылка с «Поделиться»" />
+          {f.yandexUrl.trim() && (
+            <Button type="button" variant="outline" size="icon" asChild title="Открыть на Яндекс.Картах">
+              <a href={f.yandexUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={16} />
+              </a>
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
