@@ -5,6 +5,7 @@ import { places, placeInfusions } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { normalizeText, diceCoefficient, haversineMeters } from "./lib/similarity";
 import { normalizeWebsite } from "./lib/normalize";
+import { resolveYandexMapsCoords, YandexLinkError } from "./lib/yandexMapsLink";
 
 export const placeRouter = createRouter({
   /* ── Публичный список — только одобренные места (для барной карты) ── */
@@ -78,6 +79,22 @@ export const placeRouter = createRouter({
     return checkDueWebsites();
   }),
 
+  /* ── Точные координаты из ссылки на Яндекс.Карты (карточка организации
+     или кнопка "Поделиться") — без угадывания через ИИ или геокодер по
+     адресу. См. api/lib/yandexMapsLink.ts. ── */
+  resolveCoords: adminQuery
+    .input(z.object({ url: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await resolveYandexMapsCoords(input.url);
+      } catch (err) {
+        if (err instanceof YandexLinkError) {
+          throw new Error(err.message);
+        }
+        throw err;
+      }
+    }),
+
   delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
@@ -103,6 +120,7 @@ export const placeRouter = createRouter({
         website: z.string().optional(),
         lat: z.number().optional(),
         lng: z.number().optional(),
+        yandexUrl: z.string().optional(),
         rating: z.string().optional(),
         reviews: z.number().optional(),
         price: z.string().optional(),

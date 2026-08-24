@@ -22,8 +22,11 @@ const KIMI_PROMPT_PLACE = `Ты — эксперт по барам и завед
 
 ВАЖНЫЕ ПРАВИЛА:
 1. Если в тексте есть ссылка на Яндекс.Карты или сайт заведения — открой её (используй поиск/браузинг) и найди
-   недостающие данные: точный адрес, телефон, часы работы, координаты, отзывы за последний год.
-2. Координаты (lat, lng) определи по адресу или ссылке максимально точно. Если определить не удалось — оставь null.
+   недостающие данные: точный адрес, телефон, часы работы, отзывы за последний год.
+2. Координаты (lat, lng) НЕ указывай и не угадывай — оставь оба поля null. Они определяются отдельно, напрямую
+   из ссылки на Яндекс.Карты (без участия ИИ — угадывание по адресу давало неточные координаты, не совпадающие
+   с точкой заведения на карте). Если в тексте есть ссылка на Яндекс.Карты (карточка организации или ссылка
+   с кнопки "Поделиться") — перенеси её как есть в поле yandexUrl.
 3. Если что-то не удаётся найти даже через поиск — заполни разумным предположением на основе типа заведения
    (например, типичные часы работы бара), но никогда не выдумывай телефон, адрес или координаты.
 4. Проанализируй отзывы (из текста или найденные через поиск) за последний год: найди упоминания настоек,
@@ -46,8 +49,9 @@ const KIMI_PROMPT_PLACE = `Ты — эксперт по барам и завед
   "metro": "Пушкинская",
   "phone": "+7 900 000-00-00",
   "website": "https://...",
-  "lat": 55.751244,
-  "lng": 37.618423,
+  "yandexUrl": "https://yandex.ru/maps/.../ или ссылка с кнопки Поделиться, если была в тексте — иначе null",
+  "lat": null,
+  "lng": null,
   "hours": "Пн-Вс 12:00–00:00",
   "price": "₽₽",
   "infusionsHighlight": "Большой выбор ягодных настоек собственного производства",
@@ -66,7 +70,7 @@ const KIMI_PROMPT_PLACE = `Ты — эксперт по барам и завед
    ═══════════════════════════════════════════ */
 interface PlaceForm {
   slug: string; name: string; city: string; address: string; metro: string;
-  phone: string; website: string;
+  phone: string; website: string; yandexUrl: string;
   lat: string; lng: string;
   hours: string; price: string; image: string;
   infusionsHighlight: string; infusionsSignature: string;
@@ -77,7 +81,7 @@ interface PlaceForm {
 
 function emptyForm(): PlaceForm {
   return {
-    slug: "", name: "", city: "", address: "", metro: "", phone: "", website: "",
+    slug: "", name: "", city: "", address: "", metro: "", phone: "", website: "", yandexUrl: "",
     lat: "", lng: "",
     hours: "", price: "", image: "",
     infusionsHighlight: "", infusionsSignature: "",
@@ -108,9 +112,27 @@ export default function PlaceParserPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [resolvingCoords, setResolvingCoords] = useState(false);
+  const [coordsError, setCoordsError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
+  const resolveCoords = trpc.place.resolveCoords.useMutation();
+
+  async function handleResolveCoords(url: string) {
+    if (!url.trim()) return;
+    setResolvingCoords(true);
+    setCoordsError("");
+    try {
+      const { lat, lng } = await resolveCoords.mutateAsync({ url });
+      patch({ lat: String(lat), lng: String(lng) });
+    } catch (err) {
+      setCoordsError(err instanceof Error ? err.message : "Не удалось определить координаты");
+    } finally {
+      setResolvingCoords(false);
+    }
+  }
+
   const upsertPlace = trpc.place.upsert.useMutation({
     onSuccess: () => {
       utils.place.list.invalidate();
@@ -194,6 +216,7 @@ export default function PlaceParserPage() {
         metro: data.metro || "",
         phone: data.phone || "",
         website: data.website || "",
+        yandexUrl: data.yandexUrl || "",
         lat: data.lat !== null && data.lat !== undefined ? String(data.lat) : "",
         lng: data.lng !== null && data.lng !== undefined ? String(data.lng) : "",
         hours: data.hours || "",
@@ -210,6 +233,9 @@ export default function PlaceParserPage() {
 
       setForm(newForm);
       setTab("edit");
+      if (newForm.yandexUrl) {
+        handleResolveCoords(newForm.yandexUrl);
+      }
     } catch {
       alert("Ошибка парсинга JSON. Убедитесь, что вставили валидный JSON от Kimi.\n\nСовет: скопируйте ТОЛЬКО текст между фигурными скобками { ... }");
     }
@@ -228,6 +254,7 @@ export default function PlaceParserPage() {
       slug: form.slug, name: form.name,
       city: form.city || undefined, address: form.address || undefined, metro: form.metro || undefined,
       phone: form.phone || undefined, website: form.website || undefined,
+      yandexUrl: form.yandexUrl || undefined,
       lat: Number.isFinite(latNum) ? latNum : undefined,
       lng: Number.isFinite(lngNum) ? lngNum : undefined,
       hours: form.hours || undefined, price: form.price || undefined, image: form.image || undefined,
@@ -373,6 +400,28 @@ export default function PlaceParserPage() {
                     <div><Label>Телефон</Label><Input value={form.phone} onChange={(e) => patch({ phone: e.target.value })} /></div>
                     <div><Label>Сайт</Label><Input value={form.website} onChange={(e) => patch({ website: e.target.value })} /></div>
                     <div><Label>Часы работы</Label><Input value={form.hours} onChange={(e) => patch({ hours: e.target.value })} /></div>
+                  </div>
+                  <div>
+                    <Label>Ссылка на Яндекс.Карты (карточка организации или кнопка «Поделиться»)</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={form.yandexUrl}
+                        onChange={(e) => patch({ yandexUrl: e.target.value })}
+                        placeholder="https://yandex.ru/maps/... или короткая ссылка с «Поделиться»"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleResolveCoords(form.yandexUrl)}
+                        disabled={!form.yandexUrl.trim() || resolvingCoords}
+                      >
+                        {resolvingCoords ? "Ищем..." : "Определить координаты"}
+                      </Button>
+                    </div>
+                    {coordsError && <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{coordsError}</p>}
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      Координаты берутся напрямую из ссылки — точно та же точка, что видна по кнопке «Поделиться» на карте, без угадывания.
+                    </p>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div><Label>Широта (lat)</Label><Input value={form.lat} onChange={(e) => patch({ lat: e.target.value })} placeholder="55.751244" /></div>

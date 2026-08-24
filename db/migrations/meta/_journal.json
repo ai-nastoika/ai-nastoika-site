@@ -113,6 +113,13 @@
       "when": 1787310108612,
       "tag": "0015_misty_archivist",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1787557867868,
+      "tag": "0016_yandex_url",
+      "breakpoints": true
     }
   ]
 }

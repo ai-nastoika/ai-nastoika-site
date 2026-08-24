@@ -713,6 +713,7 @@ function AdminPanel() {
                         <TableHead>ID</TableHead>
                         <TableHead>Название</TableHead>
                         <TableHead>Город</TableHead>
+                        <TableHead>Адрес</TableHead>
                         <TableHead>Сайт</TableHead>
                         <TableHead className="text-right">Действия</TableHead>
                       </TableRow>
@@ -723,6 +724,9 @@ function AdminPanel() {
                           <TableCell>{p.id}</TableCell>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>{p.city}</TableCell>
+                          <TableCell className="max-w-[220px] truncate" title={p.address ?? ""}>
+                            {p.address || <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>}
+                          </TableCell>
                           <TableCell>
                             {!p.website ? (
                               <span className="text-xs" style={{ color: "var(--text-muted)" }}>—</span>

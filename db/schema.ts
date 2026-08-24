@@ -102,6 +102,9 @@ export const places = mysqlTable("places", {
   // ─ координаты для реальной карты (Яндекс.Карты) ─
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
+  // ссылка на Яндекс.Карты, из которой были извлечены координаты (ll=) —
+  // хранится для будущей перепроверки/повторного парсинга, не для показа
+  yandexUrl: varchar("yandex_url", { length: 500 }),
   // ─ контроль актуальности сайта: раз в ~90 дней сервер сам проверяет доступность ─
   websiteStatus: varchar("website_status", { length: 20 }).default("unknown"), // unknown | ok | unreachable
   websiteLastCheckedAt: timestamp("website_last_checked_at"),
