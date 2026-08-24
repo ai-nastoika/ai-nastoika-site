@@ -18,6 +18,11 @@ import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 const REQUEST_TYPE = "place_parser";
 const PLACE_PARSER_MODEL_DEEPSEEK = process.env.AI_MODEL_PLACES || "deepseek/deepseek-v4-flash";
 const PLACE_PARSER_MODEL_QWEN = process.env.AI_MODEL_PLACES_QWEN || "dashscope/qwen3.5-flash";
+// Точный slug не задокументирован явно у Timeweb (в отличие от dashscope/deepseek) —
+// предположен по аналогии с остальными провайдерами. Стоит проверить одним запросом
+// перед тем как полагаться на этот вариант в бою — если Timeweb использует другую
+// строку, здесь вернётся ошибка "модель не найдена", легко поправить через .env.
+const PLACE_PARSER_MODEL_GLM = process.env.AI_MODEL_PLACES_GLM || "zhipu/glm-4.7-flashx";
 
 const SYSTEM_PROMPT = `Ты — эксперт по барам и заведениям, где подают домашние настойки (хреновуха, вишнёвка, наливки и т.д.).
 Тебе присылают текст о заведении — адрес, ссылку на сайт или Яндекс.Карты, метро, отзывы, особенности и что угодно
@@ -75,7 +80,7 @@ function extractYandexMapsUrl(text: string): string {
 
 export const placeParserRouter = createRouter({
   generate: adminQuery
-    .input(z.object({ rawText: z.string().min(10).max(20000), model: z.enum(["deepseek", "qwen"]).default("deepseek") }))
+    .input(z.object({ rawText: z.string().min(10).max(20000), model: z.enum(["deepseek", "qwen", "glm"]).default("deepseek") }))
     .mutation(async ({ input, ctx }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },
@@ -88,7 +93,7 @@ export const placeParserRouter = createRouter({
           temperature: 0.5,
           maxTokens: 3000,
           jsonMode: true,
-          model: input.model === "qwen" ? PLACE_PARSER_MODEL_QWEN : PLACE_PARSER_MODEL_DEEPSEEK,
+          model: input.model === "qwen" ? PLACE_PARSER_MODEL_QWEN : input.model === "glm" ? PLACE_PARSER_MODEL_GLM : PLACE_PARSER_MODEL_DEEPSEEK,
         });
       } catch (err) {
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });

@@ -56,7 +56,7 @@ export default function PlaceParserPage() {
   const [placeText, setPlaceText] = useState("");
   const [form, setForm] = useState<PlaceForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
-  const [aiModel, setAiModel] = useState<"deepseek" | "qwen">("deepseek");
+  const [aiModel, setAiModel] = useState<"deepseek" | "qwen" | "glm">("deepseek");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -319,6 +319,18 @@ export default function PlaceParserPage() {
                       }}
                     >
                       Qwen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiModel("glm")}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: aiModel === "glm" ? "var(--accent)" : "var(--bg-card)",
+                        color: aiModel === "glm" ? "#fff" : "var(--text-secondary)",
+                        border: aiModel === "glm" ? "none" : "1px solid var(--border)",
+                      }}
+                    >
+                      GLM 4.7 FlashX
                     </button>
                   </div>
                 </div>
