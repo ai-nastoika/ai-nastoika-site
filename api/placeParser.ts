@@ -96,8 +96,12 @@ export const placeParserRouter = createRouter({
 
       let parsed: Record<string, unknown>;
       try {
-        parsed = JSON.parse(res.answer);
+        // DeepSeek через этот шлюз не всегда честно соблюдает jsonMode и иногда
+        // заворачивает ответ в markdown-код-блок — снимаем его перед парсингом.
+        const cleaned = res.answer.trim().replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/```\s*$/, "").trim();
+        parsed = JSON.parse(cleaned);
       } catch {
+        console.error("[placeParser] невалидный JSON от модели, сырой ответ:", res.answer.slice(0, 500));
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
         throw new Error("ИИ вернул невалидный JSON — попробуйте ещё раз");
       }
