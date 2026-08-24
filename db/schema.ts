@@ -519,7 +519,7 @@ export type AiConversation = typeof aiConversations.$inferSelect;
 export const generatedLabels = mysqlTable("generated_labels", {
   id: serial("id").primaryKey(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  title: varchar("title", { length: 100 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
   imageBase64: mediumtext("image_base64").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

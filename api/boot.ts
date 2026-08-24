@@ -402,7 +402,7 @@ app.post("/api/edit-label-photo", async (c) => {
     const imageData = image.imageBase64 ?? image.imageUrl ?? "";
     await db.insert(generatedLabels).values({
       userId,
-      title: prompt.trim().slice(0, 100),
+      title: prompt.trim().slice(0, 500),
       imageBase64: imageData,
     });
     const existing = await db

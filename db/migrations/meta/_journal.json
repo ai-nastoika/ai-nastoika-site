@@ -120,6 +120,13 @@
       "when": 1787557867868,
       "tag": "0016_yandex_url",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1787573521388,
+      "tag": "0017_widen_label_title",
+      "breakpoints": true
     }
   ]
 }
