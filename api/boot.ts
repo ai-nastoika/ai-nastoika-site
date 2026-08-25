@@ -10,8 +10,8 @@ import { startTrackerReminderCron } from "./lib/trackerReminders";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { transcribeAudio } from "./lib/sttClient";
-import { editImage } from "./lib/imageClient";
-import { compressImageIfNeeded } from "./lib/imageCompress";
+import { editImage, buildPhotoEditPrompt } from "./lib/imageClient";
+import { compressImageIfNeeded, cropToOrientation } from "./lib/imageCompress";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -370,6 +370,10 @@ app.post("/api/edit-label-photo", async (c) => {
     const body = await c.req.parseBody();
     const file = body["file"];
     const prompt = body["prompt"];
+    const style = body["style"];
+    const orientation = body["orientation"];
+    const labelText = body["labelText"];
+    const textPlacement = body["textPlacement"];
     if (!file || typeof file === "string") {
       return c.json({ error: "No file uploaded" }, 400);
     }
@@ -388,21 +392,40 @@ app.post("/api/edit-label-photo", async (c) => {
     charge = await chargeImageRequest(userId);
 
     const arrayBuffer = await file.arrayBuffer();
+    let workingBuffer = Buffer.from(arrayBuffer);
+
+    // Обрезаем под нужную ориентацию ДО сжатия — так итоговый файл меньше
+    // и не тратим лишние токены на пиксели, которые всё равно обрежутся.
+    if (orientation === "vertical" || orientation === "square" || orientation === "horizontal") {
+      workingBuffer = await cropToOrientation(workingBuffer, orientation);
+    }
+
     const { buffer: photoBuffer, filename: photoFilename, mimeType: photoMimeType } = await compressImageIfNeeded(
-      Buffer.from(arrayBuffer),
+      workingBuffer,
       file.type
     );
-    const image = await editImage(prompt.trim(), photoBuffer, photoFilename, photoMimeType);
+
+    const finalPrompt = buildPhotoEditPrompt({
+      description: prompt.trim(),
+      style: typeof style === "string" ? style : undefined,
+      labelText: typeof labelText === "string" ? labelText : undefined,
+      textPlacement: textPlacement === "top" || textPlacement === "bottom" ? textPlacement : "middle",
+    });
+
+    const image = await editImage(finalPrompt, photoBuffer, photoFilename, photoMimeType);
 
     await logAiUsage({ userId, requestType: "label_photo_edit", tokensUsed: 0, charge });
 
     // Сохраняем в ту же таблицу, что и обычную генерацию — те же "последние 3"
     // видны в ЛК, независимо от того, каким способом этикетка была создана.
+    // Название в галерее — текст этикетки, если он был указан (понятнее для
+    // поиска глазами), иначе само описание.
     const db = getDb();
     const imageData = image.imageBase64 ?? image.imageUrl ?? "";
+    const labelTitle = typeof labelText === "string" && labelText.trim() ? labelText.trim() : prompt.trim();
     await db.insert(generatedLabels).values({
       userId,
-      title: prompt.trim().slice(0, 500),
+      title: labelTitle.slice(0, 500),
       imageBase64: imageData,
     });
     const existing = await db

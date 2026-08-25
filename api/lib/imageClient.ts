@@ -16,6 +16,40 @@
    AI_IMAGE_MODEL   — обязательна, точный slug модели из панели (например, Gemini image-preview)
 */
 
+/* Собирает финальный промпт для /images/edits из описания + стиля + текста
+   на этикетке с указанием, в какой части бутылки его разместить. В отличие
+   от buildLabelPrompt в labelGeneratorRouter.ts (генерация "с нуля", плоская
+   картинка этикетки) — здесь модель редактирует РЕАЛЬНОЕ фото, поэтому язык
+   промпта другой: "add a label to this bottle", а не "flat printable
+   artwork". */
+export function buildPhotoEditPrompt(input: {
+  description: string;
+  style?: string;
+  labelText?: string;
+  textPlacement?: "top" | "middle" | "bottom";
+}): string {
+  const parts: string[] = [input.description.trim()];
+
+  if (input.style?.trim()) {
+    parts.push(`Overall style: ${input.style.trim()}`);
+  }
+
+  if (input.labelText?.trim()) {
+    const placementPhrase =
+      input.textPlacement === "top"
+        ? "in the upper part of the label/bottle"
+        : input.textPlacement === "bottom"
+        ? "in the lower part of the label/bottle"
+        : "in the middle of the label/bottle";
+    parts.push(
+      `Add the exact text "${input.labelText.trim()}" positioned ${placementPhrase}, large and clearly legible, ` +
+        "in elegant lettering that matches the overall style, with enough contrast against the background so every letter is fully readable"
+    );
+  }
+
+  return parts.join(". ");
+}
+
 export type GeneratedImage = { imageBase64?: string; imageUrl?: string };
 
 export async function generateImage(prompt: string, size: "1024x1024" | "1024x1536" | "1536x1024"): Promise<GeneratedImage> {

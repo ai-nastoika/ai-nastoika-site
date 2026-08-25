@@ -65,6 +65,10 @@ export default function LabelGeneratorPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [photoDescription, setPhotoDescription] = useState("");
+  const [photoStyle, setPhotoStyle] = useState("");
+  const [photoOrientation, setPhotoOrientation] = useState<Orientation>("vertical");
+  const [photoLabelText, setPhotoLabelText] = useState("");
+  const [photoTextPlacement, setPhotoTextPlacement] = useState<"top" | "middle" | "bottom">("middle");
   const [photoResult, setPhotoResult] = useState<string>("");
   const [photoGenerating, setPhotoGenerating] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -107,6 +111,12 @@ export default function LabelGeneratorPage() {
       const formData = new FormData();
       formData.append("file", photoFile);
       formData.append("prompt", photoDescription.trim());
+      if (photoStyle.trim()) formData.append("style", photoStyle.trim());
+      formData.append("orientation", photoOrientation);
+      if (photoLabelText.trim()) {
+        formData.append("labelText", photoLabelText.trim());
+        formData.append("textPlacement", photoTextPlacement);
+      }
       const res = await fetch("/api/edit-label-photo", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -139,6 +149,10 @@ export default function LabelGeneratorPage() {
     setPhotoFile(null);
     setPhotoPreview("");
     setPhotoDescription("");
+    setPhotoStyle("");
+    setPhotoOrientation("vertical");
+    setPhotoLabelText("");
+    setPhotoTextPlacement("middle");
     setPhotoResult("");
     setPhotoError("");
     if (photoInputRef.current) photoInputRef.current.value = "";
@@ -155,7 +169,7 @@ export default function LabelGeneratorPage() {
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 10;
   const limitReached = limitInfo ? !limitInfo.allowed : false;
 
-  const activeOrientation = ORIENTATION_OPTIONS.find((o) => o.k === orientation)!;
+  const activeOrientation = ORIENTATION_OPTIONS.find((o) => o.k === (sourceMode === "photo" ? photoOrientation : orientation))!;
 
   /* Сколько копий реально помещается на A4 для текущей ориентации —
      считается от печатной области (лист минус поля), не жёстко зашито,
@@ -202,7 +216,7 @@ export default function LabelGeneratorPage() {
     if (!generatedImage) return;
     // В режиме "своё фото" ориентация неизвестна заранее (зависит от снимка) —
     // printLabelOnA4 сама определит её по факту пропорций картинки.
-    printLabelOnA4(generatedImage, sourceMode === "photo" ? undefined : orientation);
+    printLabelOnA4(generatedImage, sourceMode === "photo" ? photoOrientation : orientation);
   }
 
   return (
@@ -314,6 +328,73 @@ export default function LabelGeneratorPage() {
                 className="w-full rounded-lg px-4 py-3 text-base outline-none resize-none"
                 style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", minHeight: 100, fontFamily: "var(--font-body)" }}
               />
+
+              <label className="flex items-center gap-2 text-sm font-medium mb-2 mt-4" style={{ color: "var(--text-muted)" }}>
+                <Palette size={16} /> Стиль (необязательно)
+              </label>
+              <input
+                type="text"
+                value={photoStyle}
+                onChange={(e) => setPhotoStyle(e.target.value)}
+                placeholder="винтажный, минимализм, акварельный, ботанический..."
+                className="w-full rounded-lg px-3 py-2.5 text-base outline-none"
+                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+              />
+
+              <label className="text-sm font-medium mb-2 mt-4 block" style={{ color: "var(--text-muted)" }}>Ориентация результата</label>
+              <div className="flex flex-wrap gap-2 mb-1">
+                {ORIENTATION_OPTIONS.map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => setPhotoOrientation(o.k)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                    style={{
+                      background: photoOrientation === o.k ? "var(--accent)" : "var(--surface)",
+                      color: photoOrientation === o.k ? "#fff" : "var(--text-secondary)",
+                      fontFamily: "var(--font-body)",
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+                Фото аккуратно обрежется под эту пропорцию перед отправкой — самая «интересная» часть кадра (обычно сама бутылка) не пострадает.
+              </p>
+
+              <label className="flex items-center gap-2 text-sm font-medium mb-2" style={{ color: "var(--text-muted)" }}>
+                <Type size={16} /> Текст на этикетке (необязательно)
+              </label>
+              <input
+                type="text"
+                value={photoLabelText}
+                onChange={(e) => setPhotoLabelText(e.target.value)}
+                placeholder="Вишнёвая настойка"
+                className="w-full rounded-lg px-3 py-2.5 text-base outline-none mb-2"
+                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+              />
+              {photoLabelText.trim() && (
+                <div className="flex gap-2">
+                  {([
+                    { k: "top", label: "Сверху" },
+                    { k: "middle", label: "По центру" },
+                    { k: "bottom", label: "Снизу" },
+                  ] as const).map((p) => (
+                    <button
+                      key={p.k}
+                      onClick={() => setPhotoTextPlacement(p.k)}
+                      className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: photoTextPlacement === p.k ? "var(--accent)" : "var(--surface)",
+                        color: photoTextPlacement === p.k ? "#fff" : "var(--text-secondary)",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
           <>
@@ -569,7 +650,7 @@ export default function LabelGeneratorPage() {
               <button
                 onClick={() => setLightboxOpen(true)}
                 className="w-full rounded-lg overflow-hidden flex items-center justify-center transition-transform hover:scale-[1.02] cursor-zoom-in"
-                style={{ maxWidth: 420, aspectRatio: sourceMode === "photo" ? "auto" : activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
+                style={{ maxWidth: 420, aspectRatio: activeOrientation.cssRatio, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", background: "#fff" }}
                 title="Нажмите, чтобы увеличить"
               >
                 <img
@@ -592,9 +673,7 @@ export default function LabelGeneratorPage() {
 
             {generatedImage && (
               <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                {sourceMode === "photo"
-                  ? "Показано и печатается целиком, без обрезки — пропорция берётся из вашего фото автоматически."
-                  : `Показано и печатается целиком, без обрезки — пропорция «${activeOrientation.label.toLowerCase()}» задаётся напрямую в запросе к ИИ.`}
+                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задана заранее{sourceMode === "photo" ? " при подготовке фото" : " в запросе к ИИ"}.
               </p>
             )}
 
@@ -605,7 +684,7 @@ export default function LabelGeneratorPage() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:scale-105"
                   style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
                 >
-                  <Printer size={20} /> {sourceMode === "photo" ? "Печать на листе A4" : `Печать (${printGrid.count} шт. на листе A4)`}
+                  <Printer size={20} /> Печать ({printGrid.count} шт. на листе A4)
                 </button>
                 <button
                   onClick={() => setLightboxOpen(true)}

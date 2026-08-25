@@ -33,3 +33,29 @@ export async function compressImageIfNeeded(buffer: Buffer, originalMimeType: st
   // Сжатие всегда кодирует в JPEG (см. encode()), независимо от исходного формата.
   return { buffer: output, filename: "photo.jpg", mimeType: "image/jpeg" };
 }
+
+/* Обрезка фото под нужную ориентацию этикетки — тот же смысл, что ORIENTATIONS
+   в labelGeneratorRouter.ts для генерации "с нуля", но здесь размер выхода
+   /images/edits определяется по входному фото автоматически (см. imageClient.ts),
+   поэтому чтобы реально управлять пропорцией результата, обрезаем САМО фото
+   перед отправкой, а не просим модель через текст (текстовая просьба про
+   пропорцию не гарантирует реальный размер выходного файла). position:"attention" —
+   умная обрезка sharp, старается не срезать самую "интересную" часть кадра
+   (например саму бутылку), а не просто резать по центру. */
+const ORIENTATION_TARGETS: Record<"vertical" | "square" | "horizontal", { width: number; height: number }> = {
+  vertical: { width: 1000, height: 1500 },
+  square: { width: 1200, height: 1200 },
+  horizontal: { width: 1500, height: 1000 },
+};
+
+export async function cropToOrientation(
+  buffer: Buffer,
+  orientation: "vertical" | "square" | "horizontal"
+): Promise<Buffer> {
+  const target = ORIENTATION_TARGETS[orientation];
+  return sharp(buffer)
+    .rotate()
+    .resize(target.width, target.height, { fit: "cover", position: "attention" })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
