@@ -11,6 +11,10 @@ import { useEffect, useState } from 'react';
  *   {thanksVisible && (
  *     <DonationThanksAnimation onClose={() => setThanksVisible(false)} />
  *   )}
+ *
+ * ThanksContent экспортируется отдельно — без своего fixed-оверлея,
+ * чтобы её можно было вставить как один из "экранов" внутри уже открытого
+ * модального окна (см. DonateModal), не плодя вложенные overlay друг в друге.
  */
 
 interface DonationThanksAnimationProps {
@@ -18,34 +22,12 @@ interface DonationThanksAnimationProps {
 }
 
 export function DonationThanksAnimation({ onClose }: DonationThanksAnimationProps) {
-  const [textVisible, setTextVisible] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setTextVisible(true), 450);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <div className="donation-thanks-overlay" onClick={onClose}>
       <div className="donation-thanks-card" onClick={(e) => e.stopPropagation()}>
-        <div className="donation-thanks-bottles">
-          <Bottle delay={0} />
-          <Bottle delay={0.12} tall />
-          <Bottle delay={0.24} />
-        </div>
-
-        <p className={`donation-thanks-text ${textVisible ? 'is-visible' : ''}`}>
-          Спасибо!
-        </p>
-        <p className={`donation-thanks-subtext ${textVisible ? 'is-visible' : ''}`}>
-          Ваша поддержка помогает проекту жить и настаиваться дальше
-        </p>
-
-        <button className="donation-thanks-close" onClick={onClose}>
-          Закрыть
-        </button>
+        <ThanksContent onClose={onClose} />
       </div>
-
+      <ThanksStyles />
       <style>{`
         .donation-thanks-overlay {
           position: fixed;
@@ -69,73 +51,115 @@ export function DonationThanksAnimation({ onClose }: DonationThanksAnimationProp
           box-sizing: border-box;
         }
 
-        .donation-thanks-bottles {
-          display: flex;
-          align-items: flex-end;
-          justify-content: center;
-          gap: 18px;
-          height: 72px;
-          margin-bottom: 8px;
-        }
-
-        .donation-thanks-text {
-          font-size: 24px;
-          font-weight: 700;
-          margin: 12px 0 4px;
-          opacity: 0;
-          transform: translateY(6px);
-          transition: opacity 0.35s ease-out, transform 0.35s ease-out;
-        }
-
-        .donation-thanks-text.is-visible {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        .donation-thanks-subtext {
-          font-size: 14px;
-          color: var(--text-secondary, #737373);
-          margin: 0 0 24px;
-          opacity: 0;
-          transition: opacity 0.35s ease-out 0.1s;
-        }
-
-        .donation-thanks-subtext.is-visible {
-          opacity: 1;
-        }
-
-        .donation-thanks-close {
-          background: var(--accent, #2563eb);
-          color: #fff;
-          border: none;
-          border-radius: 10px;
-          padding: 10px 24px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .donation-thanks-close:hover {
-          opacity: 0.9;
-        }
-
         @keyframes donationFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .donation-thanks-overlay,
-          .donation-thanks-text,
-          .donation-thanks-subtext {
+          .donation-thanks-overlay {
             animation: none !important;
-            transition: none !important;
-            opacity: 1 !important;
-            transform: none !important;
           }
         }
       `}</style>
     </div>
+  );
+}
+
+/** Только содержимое (бутылочки + текст + кнопка) — без своего оверлея/карточки. */
+export function ThanksContent({ onClose }: { onClose: () => void }) {
+  const [textVisible, setTextVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTextVisible(true), 450);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <>
+      <div className="donation-thanks-bottles">
+        <Bottle delay={0} />
+        <Bottle delay={0.12} tall />
+        <Bottle delay={0.24} />
+      </div>
+
+      <p className={`donation-thanks-text ${textVisible ? 'is-visible' : ''}`}>
+        Спасибо!
+      </p>
+      <p className={`donation-thanks-subtext ${textVisible ? 'is-visible' : ''}`}>
+        Ваша поддержка помогает проекту жить и настаиваться дальше
+      </p>
+
+      <button className="donation-thanks-close" onClick={onClose}>
+        Закрыть
+      </button>
+      <ThanksStyles />
+    </>
+  );
+}
+
+function ThanksStyles() {
+  return (
+    <style>{`
+      .donation-thanks-bottles {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 18px;
+        height: 72px;
+        margin-bottom: 8px;
+      }
+
+      .donation-thanks-text {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 12px 0 4px;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+      }
+
+      .donation-thanks-text.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .donation-thanks-subtext {
+        font-size: 14px;
+        color: var(--text-secondary, #737373);
+        margin: 0 0 24px;
+        opacity: 0;
+        transition: opacity 0.35s ease-out 0.1s;
+      }
+
+      .donation-thanks-subtext.is-visible {
+        opacity: 1;
+      }
+
+      .donation-thanks-close {
+        background: var(--accent, #2563eb);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .donation-thanks-close:hover {
+        opacity: 0.9;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .donation-thanks-text,
+        .donation-thanks-subtext {
+          transition: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+        }
+      }
+    `}</style>
   );
 }
 

@@ -4,6 +4,7 @@ import { Menu, X, User, LogOut, Shield, Bot, MessageCircle } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
 import { trpc } from "@/providers/trpc";
+import { DonateModal } from "@/components/DonateModal";
 
 const navItems = [
   { label: "Рецепты", href: "/recipes" },
@@ -15,6 +16,7 @@ const navItems = [
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [donateOpen, setDonateOpen] = useState(false);
   const location = useLocation();
   const { user, isLoggedIn, isAdmin, isEditor, logout } = useAuth();
   const { data: pendingCount } = trpc.adminStats.pendingCount.useQuery(undefined, { enabled: isAdmin, refetchInterval: 60000 });
@@ -51,7 +53,7 @@ export default function Header() {
           {/* Donate + Feedback + Auth — компактный блок, видим всегда на десктопе */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
             <button
-              onClick={() => alert("Способ оплаты скоро появится — следите за обновлениями")}
+              onClick={() => setDonateOpen(true)}
               className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               title="Поддержать проект"
@@ -299,7 +301,7 @@ export default function Header() {
             Обратная связь
           </Link>
           <button
-            onClick={() => { setMobileOpen(false); alert("Способ оплаты скоро появится — следите за обновлениями"); }}
+            onClick={() => { setMobileOpen(false); setDonateOpen(true); }}
             className="flex items-center gap-2 py-2.5 text-base font-medium w-full text-left"
             style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
           >
@@ -319,6 +321,8 @@ export default function Header() {
         </div>
       )}
     </header>
+
+    {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
     </>
   );
 }
