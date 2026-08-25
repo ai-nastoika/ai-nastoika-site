@@ -5,16 +5,27 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { donations } from "@db/schema";
 import { createDonationPayment, isPaymentsConfigured } from "./lib/payments";
+import { env } from "./lib/env";
 
 /* Пресеты сумм для кнопок «Поддержать». Донат — не тарифная сущность,
    поэтому сумма может быть любой (валидируем только разумные границы). */
 const DONATION_PRESETS_RUB = [200, 500, 1000] as const;
 
 export const donationRouter = createRouter({
-  /* ── Доступность приёма донатов + пресеты сумм ── */
+  /* ── Доступность приёма донатов + пресеты сумм ──
+     directTransfer — реквизиты для перевода по СБП мимо ЮKassa (см. env.ts,
+     почему это не жёстко зашито в код). Сайт не узнаёт о таких переводах —
+     это просто отображение реквизитов, аналог "написать номер на бумажке". */
   info: publicQuery.query(() => ({
     paymentsConfigured: isPaymentsConfigured(),
     presetsRub: DONATION_PRESETS_RUB,
+    directTransfer: env.donationPhoneNumber
+      ? {
+          phoneNumber: env.donationPhoneNumber,
+          ownerName: env.donationPhoneOwner || undefined,
+          bank: env.donationPhoneBank || undefined,
+        }
+      : null,
   })),
 
   /* ── Публичный список последних донатов — для страницы благодарности ── */

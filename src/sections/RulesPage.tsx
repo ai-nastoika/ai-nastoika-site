@@ -10,10 +10,14 @@ import {
   Clock,
   ArrowLeft,
   Loader2,
+  Send,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
+import { DonationThanksAnimation } from "@/components/DonationThanksAnimation";
 
 const rules = [
   {
@@ -58,9 +62,17 @@ const rules = [
   },
 ];
 
-/* ── Донат через ЮKassa прямо на сайте, без ухода на Boosty и без обязательной авторизации ── */
-function DonateWidget() {
-  const { data: info } = trpc.donation.info.useQuery();
+/* Форма ответа donationRouter.info — держим явным типом здесь, а не выводим
+   его из ReturnType хука: при выведении через generics в этом проекте
+   встречается нестабильный вывод типов (см. известные особенности tsc). */
+type DonationInfo = {
+  paymentsConfigured: boolean;
+  presetsRub: readonly number[];
+  directTransfer: { phoneNumber: string; ownerName?: string; bank?: string } | null;
+};
+
+/* ── ЮKassa: сумма + имя → редирект на страницу оплаты ── */
+function YookassaTab({ info }: { info: DonationInfo }) {
   const [amount, setAmount] = useState<number | null>(null);
   const [name, setName] = useState("");
 
@@ -70,15 +82,18 @@ function DonateWidget() {
     },
   });
 
-  // Пока на сервере не настроены ключи ЮKassa — не показываем виджет, чтобы
-  // не путать людей нерабочей кнопкой. Boosty-ссылка рядом продолжает работать.
-  if (!info?.paymentsConfigured) return null;
+  // Пока на сервере не настроены ключи ЮKassa — честно объясняем, а не прячем
+  // весь виджет, чтобы человек понимал: способ появится, а не что он сломан.
+  if (!info.paymentsConfigured) {
+    return (
+      <p className="text-sm text-center py-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        Оплата через ЮKassa пока настраивается. Загляните чуть позже, либо воспользуйтесь переводом напрямую.
+      </p>
+    );
+  }
 
   return (
-    <div
-      className="mt-6 rounded-xl p-5 max-w-sm mx-auto text-left"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-    >
+    <div className="text-left">
       <div className="grid grid-cols-3 gap-2 mb-3">
         {info.presetsRub.map((v) => (
           <button
@@ -122,6 +137,122 @@ function DonateWidget() {
           {createDonation.error.message}
         </p>
       )}
+    </div>
+  );
+}
+
+/* ── Перевод напрямую по СБП, в обход ЮKassa ──
+   Это просто "вывеска с реквизитами": сайт не узнаёт о факте перевода,
+   ничего не зачисляет автоматически. Кнопка "Я перевёл(а)" — просто
+   вежливая благодарность, а не подтверждение платежа. */
+function DirectTransferTab({ info }: { info: DonationInfo }) {
+  const [copied, setCopied] = useState(false);
+  const [showThanks, setShowThanks] = useState(false);
+
+  if (!info.directTransfer) {
+    return (
+      <p className="text-sm text-center py-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        Реквизиты для прямого перевода пока не указаны.
+      </p>
+    );
+  }
+
+  const { phoneNumber, ownerName, bank } = info.directTransfer;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(phoneNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Буфер обмена недоступен (старый браузер/нет разрешения) — не страшно,
+      // номер и так виден текстом на экране.
+    }
+  };
+
+  return (
+    <div className="text-left">
+      <p className="text-sm mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+        Переведите любую сумму по СБП на номер телефона:
+      </p>
+      <div
+        className="flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 mb-3"
+        style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
+      >
+        <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+          {phoneNumber}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-sm shrink-0"
+          style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+        >
+          {copied ? <><Check size={14} /> Скопировано</> : <><Copy size={14} /> Скопировать</>}
+        </button>
+      </div>
+      {(ownerName || bank) && (
+        <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          {ownerName && <>Получатель: {ownerName}</>}
+          {ownerName && bank && " · "}
+          {bank && <>Банк: {bank}</>}
+        </p>
+      )}
+      <button
+        onClick={() => setShowThanks(true)}
+        className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-opacity"
+        style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+      >
+        <Send size={16} /> Я перевёл(а)
+      </button>
+      <p className="text-xs mt-2 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        Сайт не видит переводы напрямую — эта кнопка просто для нашей статистики и слов благодарности.
+      </p>
+
+      {showThanks && <DonationThanksAnimation onClose={() => setShowThanks(false)} />}
+    </div>
+  );
+}
+
+/* ── Донат: таб ЮKassa или таб прямого перевода по СБП ── */
+function DonateWidget() {
+  const { data: info } = trpc.donation.info.useQuery();
+  const [tab, setTab] = useState<"yookassa" | "direct">("yookassa");
+
+  if (!info) return null;
+
+  return (
+    <div
+      className="mt-6 rounded-xl p-5 max-w-sm mx-auto"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+    >
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <button
+          onClick={() => setTab("yookassa")}
+          className="rounded-lg py-2 text-sm font-medium transition-all"
+          style={{
+            background: tab === "yookassa" ? "var(--accent)" : "var(--bg-primary)",
+            color: tab === "yookassa" ? "#fff" : "var(--text-primary)",
+            border: "1px solid var(--border)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          Через ЮKassa
+        </button>
+        <button
+          onClick={() => setTab("direct")}
+          className="rounded-lg py-2 text-sm font-medium transition-all"
+          style={{
+            background: tab === "direct" ? "var(--accent)" : "var(--bg-primary)",
+            color: tab === "direct" ? "#fff" : "var(--text-primary)",
+            border: "1px solid var(--border)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          Перевести напрямую
+        </button>
+      </div>
+
+      {tab === "yookassa" ? <YookassaTab info={info} /> : <DirectTransferTab info={info} />}
     </div>
   );
 }
@@ -327,15 +458,6 @@ export default function RulesPage() {
             Ваш донат помогает оплачивать сервер, API нейросетей, разработку новых функций,
             а также идёт на вознаграждение администратора и команды за работу над проектом.
           </p>
-          <button
-            onClick={() => alert("Способ оплаты скоро появится — следите за обновлениями")}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-transform hover:scale-105"
-            style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-          >
-            <Heart size={20} />
-            Поддержать
-          </button>
-
           <DonateWidget />
 
           <p className="text-sm mt-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
