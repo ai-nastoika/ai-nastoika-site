@@ -45,9 +45,40 @@ function formatDate(d: string | Date) {
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
+function formatTime(d: string | Date) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Локальная (не UTC!) дата в формате для <input type="date"> — раньше здесь
+// был .toISOString().slice(0,10), который в восточных часовых поясах России
+// (Владивосток и т.п.) мог показать "вчера" для утренних событий: UTC-дата
+// уезжает на день назад относительно локальной. getFullYear/Month/Date всегда
+// берут локальные компоненты, поэтому корректны для любого часового пояса.
 function toInputDate(d: string | Date) {
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Локальное время в формате для <input type="time"> (HH:MM).
+function toInputTime(d: string | Date) {
+  const date = typeof d === "string" ? new Date(d) : d;
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${min}`;
+}
+
+// Собирает значения <input type="date"> + <input type="time"> в единый
+// момент времени (ISO-строку), корректно учитывая локальный часовой пояс
+// браузера — конструктор Date(y, m, d, h, min) трактует аргументы как
+// локальное время, а toISOString() уже сам переводит в UTC для сервера.
+function combineDateAndTime(dateStr: string, timeStr: string): string {
+  const [y, m, day] = dateStr.split("-").map(Number);
+  const [hh, mm] = (timeStr || "09:00").split(":").map(Number);
+  return new Date(y, (m || 1) - 1, day || 1, hh || 0, mm || 0, 0, 0).toISOString();
 }
 
 function StatCard({ icon: Icon, value, label }: { icon: any; value: string; label: string }) {
@@ -80,7 +111,7 @@ async function uploadTrackerImage(file: File): Promise<string | null> {
 
 /* ─────────────────────────── Форма создания новой настойки ─────────────────────────── */
 
-type DraftStage = { type: string; title: string; plannedDate: string; repeatIntervalDays?: number };
+type DraftStage = { type: string; title: string; plannedDate: string; plannedTime: string; repeatIntervalDays?: number; notifyEnabled: boolean };
 
 function CreateInfusionForm({ onDone }: { onDone: () => void }) {
   const utils = trpc.useUtils();
@@ -94,7 +125,7 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
   const [description, setDescription] = useState("");
   const [vessel, setVessel] = useState("");
   const [startDate, setStartDate] = useState(toInputDate(new Date()));
-  const [stages, setStages] = useState<DraftStage[]>([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()) }]);
+  const [stages, setStages] = useState<DraftStage[]>([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()), plannedTime: toInputTime(new Date()), notifyEnabled: true }]);
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [error, setError] = useState("");
@@ -132,11 +163,11 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
   function clearRecipe() {
     setRecipeId(null);
     setRecipeSearch("");
-    setStages([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()) }]);
+    setStages([{ type: "pour", title: "Поставить", plannedDate: toInputDate(new Date()), plannedTime: toInputTime(new Date()), notifyEnabled: true }]);
   }
 
   function addStageRow() {
-    setStages((s) => [...s, { type: "shake", title: "Взболтать", plannedDate: toInputDate(new Date()) }]);
+    setStages((s) => [...s, { type: "shake", title: "Взболтать", plannedDate: toInputDate(new Date()), plannedTime: toInputTime(new Date()), notifyEnabled: true }]);
   }
   function updateStage(i: number, patch: Partial<DraftStage>) {
     setStages((s) => s.map((st, idx) => (idx === i ? { ...st, ...patch } : st)));
@@ -170,8 +201,9 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
       stages: recipeId && stages.length === 0 ? undefined : stages.map((s) => ({
         type: s.type as any,
         title: s.title.trim() || STAGE_TYPES.find((t) => t.value === s.type)?.label || "Действие",
-        plannedDate: s.plannedDate,
+        plannedDate: combineDateAndTime(s.plannedDate, s.plannedTime),
         repeatIntervalDays: s.repeatIntervalDays,
+        notifyEnabled: s.notifyEnabled,
       })),
     });
   }
@@ -311,9 +343,15 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
                   style={{ ...inputStyle, background: "var(--bg-card)" }} />
                 <input type="date" value={s.plannedDate} onChange={(e) => updateStage(i, { plannedDate: e.target.value })}
                   className="rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
+                <input type="time" value={s.plannedTime} onChange={(e) => updateStage(i, { plannedTime: e.target.value })}
+                  className="rounded-md px-2 py-1.5 text-sm outline-none w-[90px]" style={{ ...inputStyle, background: "var(--bg-card)" }} />
                 <input type="number" min={1} max={90} placeholder="повтор, дн." value={s.repeatIntervalDays ?? ""}
                   onChange={(e) => updateStage(i, { repeatIntervalDays: e.target.value ? Number(e.target.value) : undefined })}
                   className="w-24 rounded-md px-2 py-1.5 text-sm outline-none" style={{ ...inputStyle, background: "var(--bg-card)" }} />
+                <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                  <input type="checkbox" checked={!s.notifyEnabled} onChange={(e) => updateStage(i, { notifyEnabled: !e.target.checked })} />
+                  не напоминать
+                </label>
                 <button onClick={() => removeStage(i)} className="p-1.5 rounded-md hover:opacity-60" style={{ color: "var(--text-muted)" }}>
                   <Trash2 size={16} />
                 </button>
@@ -507,12 +545,16 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
   const [completePhoto, setCompletePhoto] = useState<string | null>(null);
   const [editingStageId, setEditingStageId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
   const [editRepeat, setEditRepeat] = useState("");
+  const [editNotify, setEditNotify] = useState(true);
   const [addingStage, setAddingStage] = useState(false);
   const [newStageType, setNewStageType] = useState("custom");
   const [newStageTitle, setNewStageTitle] = useState("");
   const [newStageDate, setNewStageDate] = useState(toInputDate(new Date()));
+  const [newStageTime, setNewStageTime] = useState(toInputTime(new Date()));
   const [newStageRepeat, setNewStageRepeat] = useState("");
+  const [newStageNotify, setNewStageNotify] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   const { data: stats } = trpc.infusion.stats.useQuery(undefined, { enabled: isLoggedIn });
@@ -542,6 +584,8 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
       setAddingStage(false);
       setNewStageTitle("");
       setNewStageRepeat("");
+      setNewStageTime(toInputTime(new Date()));
+      setNewStageNotify(true);
     },
   });
   const deleteStage = trpc.infusion.deleteStage.useMutation({
@@ -630,7 +674,7 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
               <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-muted)" }}>
                 <span>{inf.recipeTag}</span>
                 <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
-                  {inf.nextStage ? `${formatDate(inf.nextStage.plannedDate)} — ${STAGE_TYPES.find(t => t.value === inf.nextStage!.type)?.label}` : "нет активных этапов"}
+                  {inf.nextStage ? `${formatDate(inf.nextStage.plannedDate)}, ${formatTime(inf.nextStage.plannedDate)} — ${STAGE_TYPES.find(t => t.value === inf.nextStage!.type)?.label}` : "нет активных этапов"}
                 </span>
               </div>
             </div>
@@ -701,7 +745,7 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
                           <div className="text-xs font-semibold uppercase" style={{ color: isCurrent ? "var(--accent)" : "var(--text-muted)" }}>
-                            {formatDate(s.plannedDate)}
+                            {formatDate(s.plannedDate)}, {formatTime(s.plannedDate)}
                           </div>
                           <div className="text-sm font-medium" style={{ color: isDone ? "var(--text-secondary)" : "var(--text-primary)" }}>
                             {s.title}
@@ -710,6 +754,11 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                           {s.repeatIntervalDays && (
                             <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
                               повторяется каждые {s.repeatIntervalDays} дн.
+                            </div>
+                          )}
+                          {!isDone && !s.notifyEnabled && (
+                            <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                              🔕 без напоминания
                             </div>
                           )}
                         </div>
@@ -724,7 +773,9 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                             <button onClick={() => {
                                 setEditingStageId(s.id);
                                 setEditDate(toInputDate(s.plannedDate));
+                                setEditTime(toInputTime(s.plannedDate));
                                 setEditRepeat(s.repeatIntervalDays ? String(s.repeatIntervalDays) : "");
+                                setEditNotify(!!s.notifyEnabled);
                               }}
                               className="text-xs px-3 py-1.5 rounded-full" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
                               Изменить
@@ -767,7 +818,7 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                         </div>
                       )}
 
-                      {/* инлайн-форма "Изменить" — дата и периодичность */}
+                      {/* инлайн-форма "Изменить" — дата, время, периодичность, напоминание */}
                       {editingStageId === s.id && (
                         <div className="mt-2 p-3 rounded-lg flex items-center gap-2 flex-wrap" style={{ background: "var(--surface)" }}>
                           <div>
@@ -777,20 +828,31 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                               style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                           </div>
                           <div>
+                            <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Время</label>
+                            <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)}
+                              className="w-[90px] rounded-md px-2 py-1.5 text-sm outline-none"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                          </div>
+                          <div>
                             <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Повтор, дн.</label>
                             <input type="number" min={1} max={90} value={editRepeat} placeholder="нет"
                               onChange={(e) => setEditRepeat(e.target.value)}
                               className="w-24 rounded-md px-2 py-1.5 text-sm outline-none"
                               style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                           </div>
+                          <label className="flex items-center gap-1.5 text-xs self-end mb-2 whitespace-nowrap cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={!editNotify} onChange={(e) => setEditNotify(!e.target.checked)} />
+                            не напоминать
+                          </label>
                           <button onClick={() => setEditingStageId(null)} className="text-xs px-3 py-1.5 self-end" style={{ color: "var(--text-muted)" }}>
                             Отмена
                           </button>
                           <button
                             onClick={() => updateStage.mutate({
                               stageId: s.id,
-                              plannedDate: editDate,
+                              plannedDate: combineDateAndTime(editDate, editTime),
                               repeatIntervalDays: editRepeat ? Number(editRepeat) : null,
+                              notifyEnabled: editNotify,
                             })}
                             disabled={updateStage.isPending}
                             className="text-xs px-3 py-1.5 rounded-full text-white font-medium self-end" style={{ background: "var(--accent)" }}>
@@ -832,12 +894,22 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                     style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
+                  <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Время</label>
+                  <input type="time" value={newStageTime} onChange={(e) => setNewStageTime(e.target.value)}
+                    className="w-[90px] rounded-md px-2 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
+                </div>
+                <div>
                   <label className="text-xs block mb-1" style={{ color: "var(--text-muted)" }}>Повтор, дн.</label>
                   <input type="number" min={1} max={90} value={newStageRepeat} placeholder="нет"
                     onChange={(e) => setNewStageRepeat(e.target.value)}
                     className="w-20 rounded-md px-2 py-1.5 text-sm outline-none"
                     style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }} />
                 </div>
+                <label className="flex items-center gap-1.5 text-xs mb-2 whitespace-nowrap cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                  <input type="checkbox" checked={!newStageNotify} onChange={(e) => setNewStageNotify(!e.target.checked)} />
+                  не напоминать
+                </label>
                 <button onClick={() => setAddingStage(false)} className="text-xs px-3 py-1.5" style={{ color: "var(--text-muted)" }}>
                   Отмена
                 </button>
@@ -846,8 +918,9 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
                     infusionId: detail.id,
                     type: newStageType as any,
                     title: newStageTitle.trim() || (STAGE_TYPES.find(t => t.value === newStageType)?.label ?? "Этап"),
-                    plannedDate: newStageDate,
+                    plannedDate: combineDateAndTime(newStageDate, newStageTime),
                     repeatIntervalDays: newStageRepeat ? Number(newStageRepeat) : undefined,
+                    notifyEnabled: newStageNotify,
                   })}
                   disabled={addStage.isPending}
                   className="text-xs px-3 py-1.5 rounded-full text-white font-medium" style={{ background: "var(--accent)" }}>

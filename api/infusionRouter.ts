@@ -7,6 +7,10 @@ import { TRPCError } from "@trpc/server";
 
 const stageTypeEnum = z.enum(["pour", "shake", "strain", "rest", "taste", "add_ingredient", "custom"]);
 
+// Колонка notify_enabled хранится как int (0/1) — как и другие "булевы" поля
+// в этой БД (см. users.isDonor) — а на границе API удобнее boolean. Конвертер.
+const boolToDb = (b: boolean) => (b ? 1 : 0);
+
 /* ── Генерация этапов трекера из отдельного плана рецепта (recipe_tracker_stages) ──
    Этот план не связан с текстом шагов рецепта — размечается отдельно
    (вручную в админке или через ИИ). dayOffset — день от даты старта настойки. */
@@ -27,7 +31,6 @@ function generateStagesFromTrackerPlan(
     };
   });
 }
-
 /* ── Запасной, обобщённый план — для рецептов, которые ещё не размечены ──
    Используется, только если у рецепта совсем нет recipe_tracker_stages. */
 function genericFallbackStages(startDate: Date) {
@@ -184,6 +187,7 @@ export const infusionRouter = createRouter({
               title: z.string().min(1).max(300),
               plannedDate: z.coerce.date(),
               repeatIntervalDays: z.number().min(1).max(90).optional(),
+              notifyEnabled: z.boolean().optional(),
             })
           )
           .optional(),
@@ -233,6 +237,9 @@ export const infusionRouter = createRouter({
           title: s.title,
           plannedDate: s.plannedDate,
           repeatIntervalDays: s.repeatIntervalDays,
+          // recipeId-стадии (generateStagesFromTrackerPlan/genericFallbackStages) не
+          // задают notifyEnabled — у них его просто нет в объекте, ?? true покрывает и это
+          notifyEnabled: boolToDb((s as { notifyEnabled?: boolean }).notifyEnabled ?? true),
           sortOrder: i,
         }))
       );
@@ -249,6 +256,7 @@ export const infusionRouter = createRouter({
         title: z.string().min(1).max(300),
         plannedDate: z.coerce.date(),
         repeatIntervalDays: z.number().min(1).max(90).optional(),
+        notifyEnabled: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -264,6 +272,7 @@ export const infusionRouter = createRouter({
         title: input.title,
         plannedDate: input.plannedDate,
         repeatIntervalDays: input.repeatIntervalDays,
+        notifyEnabled: boolToDb(input.notifyEnabled ?? true),
         sortOrder: Number(existing[0]?.value ?? 0),
       });
       return { success: true };
@@ -290,6 +299,7 @@ export const infusionRouter = createRouter({
           title: stage.title,
           plannedDate: nextDate,
           repeatIntervalDays: stage.repeatIntervalDays,
+          notifyEnabled: stage.notifyEnabled,
           sortOrder: stage.sortOrder,
         });
       }
@@ -297,25 +307,27 @@ export const infusionRouter = createRouter({
       return { success: true };
     }),
 
-  /* ── Перенести этап на другую дату ── */
+  /* ── Перенести этап на другую дату/время ── */
   postponeStage: authedQuery
     .input(z.object({ stageId: z.number(), newDate: z.coerce.date() }))
     .mutation(async ({ input, ctx }) => {
       await getOwnedStage(input.stageId, ctx.user.id);
       const db = getDb();
-      await db.update(infusionStages).set({ plannedDate: input.newDate }).where(eq(infusionStages.id, input.stageId));
+      // Сбрасываем reminderSentAt — для нового времени напоминание ещё не отправлялось.
+      await db.update(infusionStages).set({ plannedDate: input.newDate, reminderSentAt: null }).where(eq(infusionStages.id, input.stageId));
       return { success: true };
     }),
 
-  /* ── Изменить дату и/или периодичность ещё не выполненного этапа ──
-     Отдельно от postponeStage: здесь можно менять оба поля сразу,
-     в том числе включать/выключать повтор. ── */
+  /* ── Изменить дату/время, периодичность и/или напоминание ещё не выполненного этапа ──
+     Отдельно от postponeStage: здесь можно менять все поля сразу,
+     в том числе включать/выключать повтор и напоминание. ── */
   updateStage: authedQuery
     .input(
       z.object({
         stageId: z.number(),
         plannedDate: z.coerce.date().optional(),
         repeatIntervalDays: z.number().min(1).max(90).nullable().optional(),
+        notifyEnabled: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -327,6 +339,10 @@ export const infusionRouter = createRouter({
       const patch: Record<string, unknown> = {};
       if (input.plannedDate) patch.plannedDate = input.plannedDate;
       if (input.repeatIntervalDays !== undefined) patch.repeatIntervalDays = input.repeatIntervalDays;
+      if (input.notifyEnabled !== undefined) patch.notifyEnabled = boolToDb(input.notifyEnabled);
+      // Время/включение напоминания поменялось — сбрасываем отметку "уже отправлено",
+      // иначе trackerReminders.ts решит, что для нового времени напоминание уже было.
+      if (input.plannedDate || input.notifyEnabled === true) patch.reminderSentAt = null;
       await db.update(infusionStages).set(patch).where(eq(infusionStages.id, input.stageId));
       return { success: true };
     }),

@@ -482,9 +482,15 @@ export const infusionStages = mysqlTable("infusion_stages", {
   infusionId: bigint("infusion_id", { mode: "number", unsigned: true }).notNull(),
   type: varchar("type", { length: 20 }).notNull().default("custom"), // pour | shake | strain | rest | taste | custom
   title: varchar("title", { length: 300 }).notNull(),
-  plannedDate: timestamp("planned_date").notNull(),
+  plannedDate: timestamp("planned_date").notNull(), // хранит и дату, и время — <input type="time"> на фронте пишет в те же часы:минуты
   status: varchar("status", { length: 20 }).notNull().default("upcoming"), // upcoming | done | skipped
   repeatIntervalDays: int("repeat_interval_days"), // если задано — при выполнении создаётся следующий такой же этап
+  // 1 — напоминание (email/пуш) присылать; 0 — галочка "не напоминать" в форме этапа
+  notifyEnabled: int("notify_enabled").default(1).notNull(),
+  // Момент, когда напоминание реально отправлено — защита от повторной отправки
+  // при частом опросе в trackerReminders.ts. Сбрасывается в null при переносе
+  // plannedDate или включении notifyEnabled — см. infusionRouter.ts updateStage.
+  reminderSentAt: timestamp("reminder_sent_at"),
   completedAt: timestamp("completed_at"),
   note: text("note"),
   photoUrl: varchar("photo_url", { length: 255 }),
