@@ -1154,7 +1154,20 @@ function PlaceForm({
       </div>
       <div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Широта (lat)" value={f.lat} onChange={(v) => update({ lat: v })} placeholder="55.751244" />
+          <Field
+            label="Широта (lat)"
+            value={f.lat}
+            onChange={(v) => update({ lat: v })}
+            onPaste={(e) => {
+              const pasted = e.clipboardData.getData("text").trim();
+              const match = pasted.match(/^(-?\d+[.,]\d+)\s*[,;]\s*(-?\d+[.,]\d+)$/);
+              if (match) {
+                e.preventDefault();
+                update({ lat: match[1].replace(",", "."), lng: match[2].replace(",", ".") });
+              }
+            }}
+            placeholder="55.751244"
+          />
           <Field label="Долгота (lng)" value={f.lng} onChange={(v) => update({ lng: v })} placeholder="37.618423" />
         </div>
         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
@@ -2203,11 +2216,11 @@ function PlaceModerationTab() {
   );
 }
 
-function Field({ label, value, onChange, placeholder }: { label: string; value: string | number; onChange: (v: string) => void; placeholder?: string }) {
+function Field({ label, value, onChange, placeholder, onPaste }: { label: string; value: string | number; onChange: (v: string) => void; placeholder?: string; onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void }) {
   return (
     <div>
       <Label className="text-xs">{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-1" />
+      <Input value={value} onChange={(e) => onChange(e.target.value)} onPaste={onPaste} placeholder={placeholder} className="mt-1" />
     </div>
   );
 }

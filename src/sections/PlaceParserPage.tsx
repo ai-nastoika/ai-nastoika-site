@@ -56,6 +56,7 @@ export default function PlaceParserPage() {
   const [placeText, setPlaceText] = useState("");
   const [form, setForm] = useState<PlaceForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
+  const [aiModel, setAiModel] = useState<"deepseek" | "qwen" | "glm">("deepseek");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -110,7 +111,7 @@ export default function PlaceParserPage() {
   const handleGenerate = () => {
     if (!placeText.trim()) return;
     setGenerating(true);
-    generatePlace.mutate({ rawText: placeText });
+    generatePlace.mutate({ rawText: placeText, model: aiModel });
   };
 
   /* ── Upload image ── */
@@ -292,6 +293,48 @@ export default function PlaceParserPage() {
                   className="min-h-[250px]"
                 />
 
+                <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Модель</span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAiModel("deepseek")}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: aiModel === "deepseek" ? "var(--accent)" : "var(--bg-card)",
+                        color: aiModel === "deepseek" ? "#fff" : "var(--text-secondary)",
+                        border: aiModel === "deepseek" ? "none" : "1px solid var(--border)",
+                      }}
+                    >
+                      DeepSeek
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiModel("qwen")}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: aiModel === "qwen" ? "var(--accent)" : "var(--bg-card)",
+                        color: aiModel === "qwen" ? "#fff" : "var(--text-secondary)",
+                        border: aiModel === "qwen" ? "none" : "1px solid var(--border)",
+                      }}
+                    >
+                      Qwen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiModel("glm")}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                      style={{
+                        background: aiModel === "glm" ? "var(--accent)" : "var(--bg-card)",
+                        color: aiModel === "glm" ? "#fff" : "var(--text-secondary)",
+                        border: aiModel === "glm" ? "none" : "1px solid var(--border)",
+                      }}
+                    >
+                      GLM 4.7 FlashX
+                    </button>
+                  </div>
+                </div>
+
                 <Button onClick={handleGenerate} disabled={!placeText.trim() || generating} size="lg" className="w-full">
                   {generating ? (
                     <><Loader2 size={18} className="mr-2 animate-spin" /> ИИ собирает карточку заведения...</>
@@ -353,7 +396,22 @@ export default function PlaceParserPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                    <div><Label>Широта (lat)</Label><Input value={form.lat} onChange={(e) => patch({ lat: e.target.value })} placeholder="55.751244" /></div>
+                    <div>
+                      <Label>Широта (lat)</Label>
+                      <Input
+                        value={form.lat}
+                        onChange={(e) => patch({ lat: e.target.value })}
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData("text").trim();
+                          const match = pasted.match(/^(-?\d+[.,]\d+)\s*[,;]\s*(-?\d+[.,]\d+)$/);
+                          if (match) {
+                            e.preventDefault();
+                            patch({ lat: match[1].replace(",", "."), lng: match[2].replace(",", ".") });
+                          }
+                        }}
+                        placeholder="55.751244"
+                      />
+                    </div>
                     <div><Label>Долгота (lng)</Label><Input value={form.lng} onChange={(e) => patch({ lng: e.target.value })} placeholder="37.618423" /></div>
                     <div><Label>Ценовая категория</Label><Input value={form.price} onChange={(e) => patch({ price: e.target.value })} placeholder="₽₽" /></div>
                   </div>
