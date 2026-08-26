@@ -53,6 +53,12 @@ if (!fs.existsSync(menusDir)) {
   fs.mkdirSync(menusDir, { recursive: true });
 }
 
+// Папка для примеров сгенерированных этикеток (витрина на странице генератора)
+const labelExamplesDir = path.resolve(__dirname, "..", "uploads", "label-examples");
+if (!fs.existsSync(labelExamplesDir)) {
+  fs.mkdirSync(labelExamplesDir, { recursive: true });
+}
+
 // Папка для фото трекера созревания (обложки настоек + фото по этапам)
 const trackerDir = path.resolve(__dirname, "..", "uploads", "trackers");
 if (!fs.existsSync(trackerDir)) {
@@ -192,6 +198,46 @@ app.post("/api/upload-place-menu", async (c) => {
     return c.json({ success: true, path: publicPath, originalName: file.name });
   } catch (err) {
     console.error("Menu upload error:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── Label example image upload endpoint (для витрины на странице генератора) ───
+// Защищено проверкой админа — те же причины и тот же паттерн, что у upload-place-menu.
+app.post("/api/upload-label-example", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "Разрешены только jpg, png, webp" }, 400);
+    }
+
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return c.json({ error: "Файл слишком большой (макс. 10MB)" }, 400);
+    }
+
+    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+    const hash = crypto.randomBytes(8).toString("hex");
+    const fileName = `example-${hash}${ext}`;
+    const filePath = path.join(labelExamplesDir, fileName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    const publicPath = `/uploads/label-examples/${fileName}`;
+    return c.json({ success: true, path: publicPath });
+  } catch (err) {
+    console.error("Label example upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
   }
 });
