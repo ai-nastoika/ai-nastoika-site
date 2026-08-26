@@ -3,6 +3,7 @@ import { createRouter, authedQuery } from "./middleware";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
+import { findSimilarRecipesByText, formatRecipesForPrompt } from "./lib/recipeRetrieval";
 
 /* Тарификация общая с recipeConsult/infusionConsult (см. api/lib/aiAccess.ts):
    5 бесплатных запросов на аккаунт (разово, при регистрации), дальше — 2 ₽ за
@@ -28,6 +29,18 @@ const SYSTEM_PROMPT = `Ты — опытный и дружелюбный бар�
 - Поддерживай диалог: если пользователь уточняет или продолжает предыдущий вопрос — учитывай контекст переписки
   и не повторяй то, что уже сказал раньше.
 - Если сообщение не про еду/напитки/ингредиенты — мягко верни разговор к теме настоек.`;
+
+function buildSystemPrompt(similarRecipesBlock: string): string {
+  if (!similarRecipesBlock) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}
+- Ниже приведены реальные рецепты САЙТА, которые похожи на то, что описывает пользователь (по ингредиентам
+  или вкусу). Если это уместно — опирайся на них как на конкретные примеры ("на сайте есть рецепт «Х»,
+  в нём для похожего вкуса..."), это полезнее, чем абстрактная теория. Не притягивай их за уши и не пересказывай
+  рецепт целиком, если не спросили — упомяни коротко, к месту.
+
+ПОХОЖИЕ РЕЦЕПТЫ САЙТА:
+${similarRecipesBlock}`;
+}
 
 export const tasteCalculatorRouter = createRouter({
   /* ── Текущий доступ: сколько бесплатных осталось и хватает ли баланса ── */
@@ -57,8 +70,19 @@ export const tasteCalculatorRouter = createRouter({
       // Бросает TRPCError('FORBIDDEN'), если ни бесплатных, ни денег не осталось.
       const charge = await chargeAiRequest(ctx.user.id);
 
+      // Ищем похожие рецепты САЙТА по тексту сообщения — чтобы прогноз вкуса
+      // опирался на реальные примеры, а не был абстрактной догадкой "в вакууме".
+      // Не блокируем ответ, если поиск почему-то упал — просто отвечаем без него.
+      let similarRecipesBlock = "";
+      try {
+        const similar = await findSimilarRecipesByText(input.message);
+        similarRecipesBlock = formatRecipesForPrompt(similar);
+      } catch (err) {
+        console.error("[tasteCalculator] similar recipes lookup failed:", err);
+      }
+
       const messages: ChatMessage[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(similarRecipesBlock) },
         ...(input.history ?? []),
         { role: "user", content: input.message },
       ];
