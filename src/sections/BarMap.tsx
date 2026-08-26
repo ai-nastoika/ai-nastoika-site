@@ -552,47 +552,49 @@ export default function BarMap() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {filteredVenues.slice(0, gridLimit).map((venue) => (
               <Link to={`/place/${venue.slug}`} key={venue.id} className="group rounded-2xl overflow-hidden transition-all hover:shadow-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="relative overflow-hidden">
-                  <img src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
-                  <div className="absolute top-3 right-3 rounded-full px-3 py-1 text-base font-medium" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: "var(--font-body)" }}>{venue.price}</div>
+                  <img src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-40 sm:h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 rounded-full px-2.5 py-1 text-xs sm:text-sm font-medium" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: "var(--font-body)" }}>{venue.price}</div>
                 </div>
 
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{venue.name}</h3>
-                      <div className="flex items-center gap-1 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        <MapPin size={28} />{venue.city}, {venue.address}
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2.5 sm:mb-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base sm:text-lg font-bold mb-1 truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{venue.name}</h3>
+                      <div className="flex items-start gap-1 text-xs sm:text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        <MapPin size={14} className="shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{venue.city}, {venue.address}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="shrink-0">
                       <PlaceRatingBadge placeId={venue.id} />
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                     {(venue.tags ? (venue.tags as string[]) : []).map((tag: string) => (
-                      <span key={tag} className="rounded-full px-3 py-1 text-base" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>{tag}</span>
+                      <span key={tag} className="rounded-full px-2.5 py-1 text-xs sm:text-sm" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>{tag}</span>
                     ))}
                     {venue.menuFiles && venue.menuFiles.length > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-base" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                        <FileText size={16} /> Меню
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs sm:text-sm" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                        <FileText size={13} /> Меню
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        <Clock size={28} />{venue.hours}
-                      </div>
-                      <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{venue.reviews} отзывов</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-1 text-xs sm:text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                      <Clock size={14} className="shrink-0" />
+                      <span className="truncate">{venue.hours} · {venue.reviews} отзывов</span>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-base font-medium transition-all group-hover:gap-2" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                      Подробнее<ChevronRight size={22} />
+                    <span
+                      className="inline-flex items-center gap-1 shrink-0 rounded-full px-3 py-1.5 text-xs sm:text-sm font-semibold text-white transition-all group-hover:gap-1.5"
+                      style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                    >
+                      Подробнее<ChevronRight size={14} />
                     </span>
                   </div>
                 </div>
