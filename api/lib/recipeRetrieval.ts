@@ -27,6 +27,7 @@ const TASTE_DIMENSIONS: (keyof RecipeTasteProfile)[] = ["sweet", "sour", "bitter
 
 export type RetrievedRecipe = {
   id: number;
+  slug: string;
   title: string;
   category: string;
   categoryLabel: string | null;
@@ -59,6 +60,7 @@ async function loadAllRecipesWithIngredients(excludeId?: number) {
 function toRetrieved(r: (typeof recipes.$inferSelect) & { ingredientNames: string[] }, score: number): RetrievedRecipe {
   return {
     id: r.id,
+    slug: r.slug,
     title: r.title,
     category: r.category,
     categoryLabel: r.categoryLabel,

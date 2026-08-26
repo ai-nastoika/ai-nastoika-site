@@ -26,7 +26,7 @@ import {
    (5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса). См. api/tasteCalculatorRouter.ts.
    Разговорный чат с историей — так же, как RecipeAiConsult.tsx.
    ============================================================ */
-type TasteChatMessage = { role: "user" | "assistant"; content: string };
+type TasteChatMessage = { role: "user" | "assistant"; content: string; similarRecipes?: { id: number; slug: string; title: string }[] };
 
 const TASTE_SUGGESTIONS = [
   "Есть вишня и мёд, что посоветуете?",
@@ -64,7 +64,7 @@ function TasteCalculator() {
 
   const generate = trpc.tasteCalculator.generate.useMutation({
     onSuccess: (data) => {
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer, similarRecipes: data.similarRecipes }]);
       setConversationId(data.conversationId);
       setError("");
       refetchLimit();
@@ -215,6 +215,23 @@ function TasteCalculator() {
                 </div>
               )}
               {m.content}
+              {m.role === "assistant" && m.similarRecipes && m.similarRecipes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+                  <span className="text-xs w-full mb-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Похожие рецепты на сайте:
+                  </span>
+                  {m.similarRecipes.map((r) => (
+                    <Link
+                      key={r.id}
+                      to={`/recipe/${r.slug}`}
+                      className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+                      style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                    >
+                      {r.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {generate.isPending && <BottleThinkingIndicator />}

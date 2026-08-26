@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sparkles, Send, MessageCircleQuestion, LogIn, Wallet } from "lucide-react";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatMessage = { role: "user" | "assistant"; content: string; similarRecipes?: { id: number; slug: string; title: string }[] };
 
 const SUGGESTIONS = [
   "Можно заменить водку на самогон?",
@@ -43,7 +43,9 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
 
   const ask = trpc.recipeConsult.ask.useMutation({
     onSuccess: (data) => {
-      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+      // similarRecipes прикрепляем только к свежему ответу — это данные текущего
+      // запроса, а не часть сохранённой истории диалога (там их нет при восстановлении).
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer, similarRecipes: data.similarRecipes }]);
       setConversationId(data.conversationId);
       refetchLimit();
     },
@@ -186,6 +188,23 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
                 </div>
               )}
               {m.content}
+              {m.role === "assistant" && m.similarRecipes && m.similarRecipes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+                  <span className="text-xs w-full mb-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Похожие рецепты на сайте:
+                  </span>
+                  {m.similarRecipes.map((r) => (
+                    <Link
+                      key={r.id}
+                      to={`/recipe/${r.slug}`}
+                      className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+                      style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                    >
+                      {r.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {ask.isPending && <BottleThinkingIndicator />}

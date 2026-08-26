@@ -31,12 +31,17 @@ const SYSTEM_PROMPT = `Ты — опытный и дружелюбный бар�
 - Если сообщение не про еду/напитки/ингредиенты — мягко верни разговор к теме настоек.`;
 
 function buildSystemPrompt(similarRecipesBlock: string): string {
-  if (!similarRecipesBlock) return SYSTEM_PROMPT;
-  return `${SYSTEM_PROMPT}
-- Ниже приведены реальные рецепты САЙТА, которые похожи на то, что описывает пользователь (по ингредиентам
-  или вкусу). Если это уместно — опирайся на них как на конкретные примеры ("на сайте есть рецепт «Х»,
-  в нём для похожего вкуса..."), это полезнее, чем абстрактная теория. Не притягивай их за уши и не пересказывай
-  рецепт целиком, если не спросили — упомяни коротко, к месту.
+  const base = `${SYSTEM_PROMPT}
+- ГЛАВНОЕ: отвечай ВСЕГДА, используя свои общие знания бармена-настойщика. Рецепты сайта ниже (если есть) —
+  это дополнение, а не единственный источник. Если среди них нет ничего подходящего — это нормально, просто
+  дай полноценный совет по своим знаниям. Никогда не отказывайся отвечать и не пиши, что "нечем заменить" или
+  "в базе нет похожего", только потому что не нашлось точного совпадения среди рецептов сайта.`;
+  if (!similarRecipesBlock) return base;
+  return `${base}
+- Ниже есть реальные рецепты САЙТА, похожие на то, что описывает пользователь. Если они реально в тему — упомяни
+  коротко В НАЧАЛЕ ответа (1-2 предложения: "на сайте есть рецепт «Х», в нём для похожего вкуса..."), а СРАЗУ
+  ПОСЛЕ дай свой полноценный совет по общим знаниям, не ограничиваясь только этими примерами. Если ни один
+  реально не подходит — не упоминай их вообще.
 
 ПОХОЖИЕ РЕЦЕПТЫ САЙТА:
 ${similarRecipesBlock}`;
@@ -74,9 +79,11 @@ export const tasteCalculatorRouter = createRouter({
       // опирался на реальные примеры, а не был абстрактной догадкой "в вакууме".
       // Не блокируем ответ, если поиск почему-то упал — просто отвечаем без него.
       let similarRecipesBlock = "";
+      let similarForLinks: { id: number; slug: string; title: string }[] = [];
       try {
         const similar = await findSimilarRecipesByText(input.message);
         similarRecipesBlock = formatRecipesForPrompt(similar);
+        similarForLinks = similar.map((r) => ({ id: r.id, slug: r.slug, title: r.title }));
       } catch (err) {
         console.error("[tasteCalculator] similar recipes lookup failed:", err);
       }
@@ -114,6 +121,6 @@ export const tasteCalculatorRouter = createRouter({
       });
 
       const access = await getAiAccessState(ctx.user.id);
-      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access, conversationId };
+      return { answer, wasFree: charge.wasFree, costKopecks: charge.costKopecks, access, conversationId, similarRecipes: similarForLinks };
     }),
 });
