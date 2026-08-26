@@ -101,6 +101,38 @@ export function ShotGlassCompact({ summary }: { summary: RatingSummary }) {
   );
 }
 
+/* ── Компактная сводка для карточек списков — рюмка каждого присутствующего
+   цвета со своим числом (зелёная 3, красная 1), без подписей. Информативнее,
+   чем один доминирующий цвет + общий счётчик (ShotGlassCompact выше). ── */
+export function ShotGlassCardSummary({ summary }: { summary: RatingSummary }) {
+  const total = summary.green + summary.yellow + summary.red;
+  const tiers: RatingTier[] = ["green", "yellow", "red"];
+
+  if (total === 0) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        <ShotGlassIcon tier="green" size={18} muted />
+        Нет отзывов
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      {tiers
+        .filter((tier) => summary[tier] > 0)
+        .map((tier) => (
+          <span key={tier} className="flex items-center gap-1">
+            <ShotGlassIcon tier={tier} size={20} />
+            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+              {summary[tier]}
+            </span>
+          </span>
+        ))}
+    </span>
+  );
+}
+
 /* ── Развёрнутый вид для детальной страницы — три рюмки с числами под каждой ── */
 export function ShotGlassDetailed({ summary }: { summary: RatingSummary }) {
   const total = summary.green + summary.yellow + summary.red;
