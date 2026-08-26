@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { places, placeInfusions } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { places, placeInfusions, comments } from "@db/schema";
+import { eq, isNotNull, count } from "drizzle-orm";
 import { normalizeText, diceCoefficient, haversineMeters } from "./lib/similarity";
 import { normalizeWebsite } from "./lib/normalize";
 import { resolveYandexMapsCoords, YandexLinkError } from "./lib/yandexMapsLink";
@@ -28,6 +28,30 @@ export const placeRouter = createRouter({
       });
       return place ?? null;
     }),
+
+  /* ── Сколько зелёных/жёлтых/красных отзывов у КАЖДОГО заведения сразу —
+     для сортировки "Лучшие рядом" на барной карте без N отдельных запросов
+     на каждое заведение (см. comment.ratingSummary в router.ts — тот же
+     принцип, но для одного места). ── */
+  ratingSummaries: publicQuery.query(async () => {
+    const db = getDb();
+    const rows = await db
+      .select({ placeId: comments.placeId, rating: comments.rating, n: count() })
+      .from(comments)
+      .where(isNotNull(comments.placeId))
+      .groupBy(comments.placeId, comments.rating);
+
+    const summaries: Record<number, { green: number; yellow: number; red: number }> = {};
+    for (const row of rows) {
+      if (row.placeId == null) continue;
+      const entry = summaries[row.placeId] ?? { green: 0, yellow: 0, red: 0 };
+      if (row.rating === "green" || row.rating === "yellow" || row.rating === "red") {
+        entry[row.rating] = Number(row.n);
+      }
+      summaries[row.placeId] = entry;
+    }
+    return summaries;
+  }),
 
   /* ── Только админ ── */
   /* ── Проверка на дубликаты перед сохранением: похожие по названию + близкие по координатам ── */

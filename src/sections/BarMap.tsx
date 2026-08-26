@@ -25,6 +25,20 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   "Нижний Новгород": [56.2965, 43.9361],
 };
 
+/* Ближайший из известных городов сайта к произвольным координатам —
+   используется и для автовыбора города на входе, и для того, чтобы
+   "Лучшие рядом"/"Новое место" были ограничены городом пользователя,
+   а не показывали случайные заведения из другого города. */
+function nearestCityForCoords(lat: number, lng: number): string | null {
+  let nearestCity: string | null = null;
+  let nearestDist = Infinity;
+  for (const [city, [cityLat, cityLng]] of Object.entries(CITY_CENTERS)) {
+    const d = haversineKm(lat, lng, cityLat, cityLng);
+    if (d < nearestDist) { nearestDist = d; nearestCity = city; }
+  }
+  return nearestCity;
+}
+
 const YANDEX_MAPS_API_KEY = import.meta.env.VITE_YANDEX_MAPS_API_KEY as string | undefined;
 
 // Дефолтный центр — Москва (используется, пока не знаем координаты заведений)
@@ -100,6 +114,7 @@ function estimateTravel(km: number): { label: string; mode: string } {
 export default function BarMap() {
   const navigate = useNavigate();
   const { data: apiPlaces, isLoading } = trpc.place.list.useQuery();
+  const { data: ratingSummaries } = trpc.place.ratingSummaries.useQuery();
   const places = (apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces) as Venue[];
   const [activeCity, setActiveCity] = useState("Все города");
   const [searchQuery, setSearchQuery] = useState("");
@@ -141,12 +156,7 @@ export default function BarMap() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (cityManuallyChosenRef.current) return; // пользователь уже сам выбрал город — не перебиваем
-        let nearestCity: string | null = null;
-        let nearestDist = Infinity;
-        for (const [city, [lat, lng]] of Object.entries(CITY_CENTERS)) {
-          const d = haversineKm(pos.coords.latitude, pos.coords.longitude, lat, lng);
-          if (d < nearestDist) { nearestDist = d; nearestCity = city; }
-        }
+        const nearestCity = nearestCityForCoords(pos.coords.latitude, pos.coords.longitude);
         if (nearestCity) setActiveCity(nearestCity);
       },
       () => { /* тихо игнорируем — остаёмся на "Все города" */ },
@@ -180,26 +190,42 @@ export default function BarMap() {
   const recommendations = useMemo(() => {
     if (!userCoords) return null;
 
-    const withDistance = allVenuesWithCoords.map((v) => ({
-      ...v,
-      distanceKm: haversineKm(userCoords.lat, userCoords.lng, Number(v.lat), Number(v.lng)),
-    }));
+    // Все заведения с координатами, отсортированные по расстоянию — эта
+    // сортировка используется и как есть (для "Ближе всего к вам"), и как
+    // база для остальных групп: JS Array.sort стабилен, поэтому при равных
+    // "очках" (см. ниже) порядок по расстоянию сохраняется — то есть пока
+    // на сайте нет отзывов, "Лучшие рядом" естественно превращается в
+    // "следующие по расстоянию", без отдельной ветки кода под этот случай.
+    const withDistance = allVenuesWithCoords
+      .map((v) => ({ ...v, distanceKm: haversineKm(userCoords.lat, userCoords.lng, Number(v.lat), Number(v.lng)) }))
+      .sort((a, b) => a.distanceKm - b.distanceKm);
 
-    const nearest = [...withDistance].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 3);
+    const nearest = withDistance.slice(0, 3);
     const nearestIds = new Set(nearest.map((v) => v.id));
 
-    const bestRated = [...withDistance]
-      .filter((v) => !nearestIds.has(v.id))
-      .sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0))
+    // "Лучшие рядом" и "Новое место" — только в пределах города пользователя
+    // (ближайшего из городов сайта к его координатам), а не по всей базе:
+    // иначе при малом числе заведений в базе туда попадали случайные места
+    // из других городов просто как "последние загруженные".
+    const userCity = nearestCityForCoords(userCoords.lat, userCoords.lng);
+    const cityCandidates = withDistance.filter((v) => v.city === userCity && !nearestIds.has(v.id));
+
+    const ratingScore = (placeId: number) => {
+      const s = ratingSummaries?.[placeId];
+      if (!s) return 0;
+      return s.green - s.red; // зелёные считаем, красные вычитаем; жёлтые нейтральны
+    };
+    const bestRated = [...cityCandidates]
+      .sort((a, b) => ratingScore(b.id) - ratingScore(a.id)) // стабильно: при 0-0 порядок по расстоянию не теряется
       .slice(0, 3);
     const bestIds = new Set(bestRated.map((v) => v.id));
 
-    const fresh = [...withDistance]
-      .filter((v) => !nearestIds.has(v.id) && !bestIds.has(v.id))
+    const fresh = cityCandidates
+      .filter((v) => !bestIds.has(v.id))
       .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())[0];
 
     return { nearest, bestRated, fresh };
-  }, [userCoords, allVenuesWithCoords]);
+  }, [userCoords, allVenuesWithCoords, ratingSummaries]);
 
   /* ── Инициализация и обновление карты. Зависит от isLoading: пока данные грузятся,
      компонент рендерит только спиннер, и <div ref={mapContainerRef}> ещё не существует
