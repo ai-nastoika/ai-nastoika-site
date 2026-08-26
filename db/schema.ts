@@ -116,6 +116,9 @@ export const places = mysqlTable("places", {
   price: varchar("price", { length: 20 }),
   hours: varchar("hours", { length: 100 }),
   image: varchar("image", { length: 255 }),
+  // Файлы меню (PDF и/или фото страниц) — можно прикрепить несколько.
+  // Хранится как массив {url, name}, url — путь вида /uploads/menus/....
+  menuFiles: json("menu_files").$type<{ url: string; name: string }[]>(),
   tags: json("tags").$type<string[]>(),
   description: text("description"),
   infusionsHighlight: varchar("infusions_highlight", { length: 300 }),

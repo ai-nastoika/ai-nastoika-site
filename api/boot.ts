@@ -47,6 +47,12 @@ if (!fs.existsSync(placesDir)) {
   fs.mkdirSync(placesDir, { recursive: true });
 }
 
+// Папка для файлов меню заведений (PDF и/или фото страниц)
+const menusDir = path.resolve(__dirname, "..", "uploads", "menus");
+if (!fs.existsSync(menusDir)) {
+  fs.mkdirSync(menusDir, { recursive: true });
+}
+
 // Папка для фото трекера созревания (обложки настоек + фото по этапам)
 const trackerDir = path.resolve(__dirname, "..", "uploads", "trackers");
 if (!fs.existsSync(trackerDir)) {
@@ -142,6 +148,50 @@ app.post("/api/upload-image", async (c) => {
     return c.json({ success: true, path: publicPath });
   } catch (err) {
     console.error("Upload error:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ─── Place menu file upload endpoint (PDF или фото страниц меню) ───
+// Защищено проверкой админа (см. requireAdmin выше) — в отличие от соседних
+// /api/upload-place-image и т.п., у которых такой проверки исторически нет.
+app.post("/api/upload-place-menu", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "Разрешены только PDF, jpg, png, webp" }, 400);
+    }
+
+    const maxSize = 15 * 1024 * 1024; // 15MB — сканы меню PDF бывают крупнее обычных фото
+    if (file.size > maxSize) {
+      return c.json({ error: "Файл слишком большой (макс. 15MB)" }, 400);
+    }
+
+    const ext = file.type === "application/pdf" ? ".pdf"
+      : file.type === "image/png" ? ".png"
+      : file.type === "image/webp" ? ".webp"
+      : ".jpg";
+    const hash = crypto.randomBytes(8).toString("hex");
+    const fileName = `menu-${hash}${ext}`;
+    const filePath = path.join(menusDir, fileName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    const publicPath = `/uploads/menus/${fileName}`;
+    return c.json({ success: true, path: publicPath, originalName: file.name });
+  } catch (err) {
+    console.error("Menu upload error:", err);
     return c.json({ error: "Upload failed" }, 500);
   }
 });

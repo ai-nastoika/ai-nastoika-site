@@ -129,6 +129,7 @@ export const placeRouter = createRouter({
         price: z.string().optional(),
         hours: z.string().optional(),
         image: z.string().optional(),
+        menuFiles: z.array(z.object({ url: z.string(), name: z.string() })).optional(),
         tags: z.array(z.string()).optional(),
         description: z.string().optional(),
         infusionsHighlight: z.string().optional(),

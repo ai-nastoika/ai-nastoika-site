@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
-import { MapPin, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles } from "lucide-react";
+import { MapPin, Clock, Wine, ChevronRight, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles, FileText } from "lucide-react";
 import SuggestPlaceForm from "./SuggestPlaceForm";
 import { ShotGlassCompact } from "@/components/ShotGlassRating";
 
@@ -73,6 +73,7 @@ type Venue = {
   price?: string | null;
   hours?: string | null;
   tags?: string[] | null;
+  menuFiles?: { url: string; name: string }[] | null;
   createdAt?: string | Date | null;
 };
 
@@ -576,6 +577,11 @@ export default function BarMap() {
                     {(venue.tags ? (venue.tags as string[]) : []).map((tag: string) => (
                       <span key={tag} className="rounded-full px-3 py-1 text-base" style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>{tag}</span>
                     ))}
+                    {venue.menuFiles && venue.menuFiles.length > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-base" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                        <FileText size={16} /> Меню
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">

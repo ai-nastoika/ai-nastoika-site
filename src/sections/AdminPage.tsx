@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink, FileText } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -44,6 +44,7 @@ const EMPTY_RECIPE = {
 const EMPTY_PLACE = {
   slug: "", name: "", city: "", address: "", metro: "", phone: "",
   website: "", yandexUrl: "", lat: "", lng: "", rating: "", reviews: 0, price: "", hours: "", image: "",
+  menuFiles: [] as { url: string; name: string }[],
   tags: [] as string[], description: "", infusionsHighlight: "", infusionsSignature: "",
   externalSource: "", externalSummary: "", externalPros: [] as string[], externalCons: [] as string[],
 };
@@ -379,6 +380,7 @@ function AdminPanel() {
       lng: p.lng !== null && p.lng !== undefined ? String(p.lng) : "",
       rating: String(p.rating ?? ""), reviews: p.reviews ?? 0,
       price: p.price ?? "", hours: p.hours ?? "", image: p.image ?? "",
+      menuFiles: p.menuFiles ?? [],
       tags: p.tags ?? [], description: p.description ?? "",
       infusionsHighlight: p.infusionsHighlight ?? "", infusionsSignature: p.infusionsSignature ?? "",
       externalSource: p.externalSource ?? "", externalSummary: p.externalSummary ?? "",
@@ -1180,6 +1182,7 @@ function PlaceForm({
         <Field label="Ценовая категория" value={f.price} onChange={(v) => update({ price: v })} />
       </div>
       <Field label="Изображение" value={f.image} onChange={(v) => update({ image: v })} placeholder="place-name.jpg" />
+      <PlaceMenuFilesField menuFiles={f.menuFiles} onChange={(menuFiles) => update({ menuFiles })} />
       <Area label="Теги (по строкам)" value={tagsStr} onChange={setTagsStr} placeholder="настойки\nавторские коктейли" />
       <Area label="Описание" value={f.description} onChange={(v) => update({ description: v })} />
       <Field label="Изюминка настоек" value={f.infusionsHighlight} onChange={(v) => update({ infusionsHighlight: v })} />
@@ -1188,6 +1191,80 @@ function PlaceForm({
       <Area label="Резюме из внешнего источника" value={f.externalSummary} onChange={(v) => update({ externalSummary: v })} />
       <Area label="Плюсы (по строкам)" value={prosStr} onChange={setProsStr} />
       <Area label="Минусы (по строкам)" value={consStr} onChange={setConsStr} />
+    </div>
+  );
+}
+
+/* ── Файлы меню заведения (PDF или фото страниц) — можно прикрепить несколько ── */
+function PlaceMenuFilesField({
+  menuFiles,
+  onChange,
+}: {
+  menuFiles: { url: string; name: string }[];
+  onChange: (files: { url: string; name: string }[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setUploading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("auth-token") || "";
+      const uploaded: { url: string; name: string }[] = [];
+      // Грузим по одному — так проще показать понятную ошибку, если
+      // конкретный файл не подошёл по типу/размеру, не теряя остальные.
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload-place-menu", {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.path) {
+          throw new Error(data.error || `Не удалось загрузить «${file.name}»`);
+        }
+        uploaded.push({ url: data.path, name: data.originalName || file.name });
+      }
+      onChange([...menuFiles, ...uploaded]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки файла");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removeFile(idx: number) {
+    onChange(menuFiles.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div>
+      <label className="text-sm font-medium mb-1 block">Файлы меню (PDF или фото страниц)</label>
+      <div className="space-y-2 mb-2">
+        {menuFiles.map((f, i) => (
+          <div key={i} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <FileText size={16} style={{ color: "var(--accent)" }} className="shrink-0" />
+            <a href={f.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline" style={{ color: "var(--text-primary)" }}>
+              {f.name}
+            </a>
+            <button type="button" onClick={() => removeFile(i)} className="p-1 rounded hover:opacity-60 shrink-0" style={{ color: "var(--text-muted)" }} title="Удалить">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <input ref={fileInputRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={handleFilesSelected} className="hidden" id="place-menu-upload" />
+      <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+        {uploading ? "Загрузка..." : <><Upload size={14} className="mr-1.5" /> Добавить файл(ы) меню</>}
+      </Button>
+      {error && <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }

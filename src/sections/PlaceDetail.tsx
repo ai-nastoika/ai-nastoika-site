@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
 import {
   ArrowLeft, Star, MapPin, Clock, Phone, Globe, Train,
-  Heart, Share2, Printer, Check, X, Wine, Navigation,
+  Heart, Share2, Printer, Check, X, Wine, Navigation, FileText, Download,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -103,6 +103,8 @@ export default function PlaceDetail() {
   const tags: string[] = place.tags ? (place.tags as string[]) : [];
   const pros: string[] = place.externalPros ? (place.externalPros as string[]) : [];
   const cons: string[] = place.externalCons ? (place.externalCons as string[]) : [];
+  const menuFilesRaw = (place as Record<string, unknown>).menuFiles as { url: string; name: string }[] | null | undefined;
+  const menuFiles: { url: string; name: string }[] = menuFilesRaw ?? [];
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -230,6 +232,34 @@ export default function PlaceDetail() {
             )}
           </div>
         </section>
+
+        {/* --- Меню --- */}
+        {menuFiles.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              <FileText size={20} style={{ color: "var(--accent)" }} /> Меню
+            </h2>
+            <div className="rounded-2xl p-5 sm:p-6 grid sm:grid-cols-2 gap-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              {menuFiles.map((f, i) => (
+                <a
+                  key={i}
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={f.name}
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:scale-[1.02]"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                >
+                  <FileText size={20} style={{ color: "var(--accent)" }} className="shrink-0" />
+                  <span className="flex-1 text-sm font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                    {f.name}
+                  </span>
+                  <Download size={16} style={{ color: "var(--text-muted)" }} className="shrink-0" />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* --- Infusions Focus --- */}
         <section className="mb-12">
