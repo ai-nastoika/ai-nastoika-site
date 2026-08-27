@@ -24,6 +24,8 @@ const PlaceDetail = lazy(() => import("./sections/PlaceDetail"));
 const ProfilePage = lazy(() => import("./sections/ProfilePage"));
 const BarMap = lazy(() => import("./sections/BarMap"));
 const RulesPage = lazy(() => import("./sections/RulesPage"));
+const PrivacyPolicyPage = lazy(() => import("./sections/PrivacyPolicyPage"));
+const OfferPage = lazy(() => import("./sections/OfferPage"));
 const FeedbackPage = lazy(() => import("./sections/FeedbackPage"));
 const AdminPage = lazy(() => import("./sections/AdminPage"));
 const RecipeParserPage = lazy(() => import("./sections/RecipeParserPage"));
@@ -120,6 +122,8 @@ const router = createHashRouter([
       { path: "/vinokur", element: <Suspense fallback={<PageLoader />}><VinokurPage /></Suspense> },
       { path: "/place/:slug", element: <Suspense fallback={<PageLoader />}><PlaceDetail /></Suspense> },
       { path: "/rules", element: <Suspense fallback={<PageLoader />}><RulesPage /></Suspense> },
+      { path: "/privacy", element: <Suspense fallback={<PageLoader />}><PrivacyPolicyPage /></Suspense> },
+      { path: "/offer", element: <Suspense fallback={<PageLoader />}><OfferPage /></Suspense> },
       { path: "/about", element: <Suspense fallback={<PageLoader />}><AboutPage /></Suspense> },
       { path: "/profile", element: <Suspense fallback={<PageLoader />}><ProfilePage /></Suspense> },
       { path: "/recipe/:slug", element: <Suspense fallback={<PageLoader />}><RecipeDetail /></Suspense> },

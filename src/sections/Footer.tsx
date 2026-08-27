@@ -20,6 +20,8 @@ export default function Footer() {
 
           <div className="flex items-center gap-6 text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
             <Link to="/rules" className="transition-opacity hover:opacity-70">Правила</Link>
+            <Link to="/privacy" className="transition-opacity hover:opacity-70">Конфиденциальность</Link>
+            <Link to="/offer" className="transition-opacity hover:opacity-70">Оферта</Link>
             <Link to="/feedback" className="transition-opacity hover:opacity-70">Обратная связь</Link>
             <Link to="/barmap" className="transition-opacity hover:opacity-70">Барная карта</Link>
           </div>

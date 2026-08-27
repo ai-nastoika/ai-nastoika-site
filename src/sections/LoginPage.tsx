@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [resetRequestSent, setResetRequestSent] = useState(false);
   const [resetDone, setResetDone] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   function translateError(msg: string): string {
     const map: Record<string, string> = {
@@ -128,6 +129,10 @@ export default function LoginPage() {
     if (mode === "login") {
       loginMutation.mutate({ email, password });
     } else {
+      if (!agreedToTerms) {
+        setError("Нужно согласиться с политикой конфиденциальности и офертой");
+        return;
+      }
       registerMutation.mutate({ email, password, name });
     }
   }
@@ -472,6 +477,24 @@ export default function LoginPage() {
                     {resendMutation.isPending ? "Отправляем..." : "Отправить письмо повторно"}
                   </Button>
                 </div>
+              )}
+
+              {mode === "register" && (
+                <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    required
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Я согласен с{" "}
+                    <Link to="/privacy" target="_blank" className="underline" style={{ color: "var(--accent)" }}>политикой конфиденциальности</Link>
+                    {" "}и{" "}
+                    <Link to="/offer" target="_blank" className="underline" style={{ color: "var(--accent)" }}>публичной офертой</Link>
+                  </span>
+                </label>
               )}
 
               <Button type="submit" className="w-full" disabled={isPending}>
