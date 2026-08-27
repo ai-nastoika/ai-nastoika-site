@@ -290,6 +290,23 @@ export const labelTemplates = mysqlTable("label_templates", {
 export type LabelTemplate = typeof labelTemplates.$inferSelect;
 export type InsertLabelTemplate = typeof labelTemplates.$inferInsert;
 
+// ─── Примеры сгенерированных этикеток — витрина на странице генератора,
+// пополняется вручную администраторами (не автосохранение всех генераций
+// пользователей — только отобранные удачные примеры). ───
+export const labelExamples = mysqlTable("label_examples", {
+  id: serial("id").primaryKey(),
+  imageUrl: varchar("image_url", { length: 255 }).notNull(),
+  // Промпт/описание, которым была получена этикетка — показываем как есть,
+  // чтобы вдохновить пользователя и подсказать, как формулировать запрос.
+  prompt: text("prompt").notNull(),
+  title: varchar("title", { length: 150 }), // короткая подпись под примером, необязательно
+  sortOrder: int("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type LabelExample = typeof labelExamples.$inferSelect;
+export type InsertLabelExample = typeof labelExamples.$inferInsert;
+
 // ─── User Recipe Submissions ───────────────────────────────
 export const userRecipeSubmissions = mysqlTable("user_recipe_submissions", {
   id: serial("id").primaryKey(),

@@ -196,6 +196,7 @@ function AdminPanel() {
   const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery();
   const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
   const { data: labelTemplatesCount } = trpc.labelTemplate.list.useQuery();
+  const { data: labelExamplesCount } = trpc.labelExample.list.useQuery();
   const { data: submissionsCount } = trpc.submission.listAll.useQuery();
   const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery();
   const { data: usersCount } = trpc.user.list.useQuery();
@@ -506,6 +507,7 @@ function AdminPanel() {
             <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="labelExamples">Примеры этикеток ({labelExamplesCount?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
             <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
@@ -669,6 +671,11 @@ function AdminPanel() {
           {/* ─── Шаблоны этикеток ─── */}
           <TabsContent value="labelTemplates">
             <LabelTemplatesAdmin />
+          </TabsContent>
+
+          {/* ─── Примеры этикеток (витрина на странице генератора) ─── */}
+          <TabsContent value="labelExamples">
+            <LabelExamplesAdmin />
           </TabsContent>
 
           {/* ─── Места ─── */}
@@ -837,7 +844,8 @@ function RecipeForm({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const token = localStorage.getItem("auth-token") || "";
+      const res = await fetch("/api/upload-image", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
       const data = await res.json();
       if (data.success && data.path) {
         update({ heroImage: data.path });
@@ -1745,7 +1753,8 @@ function LabelTemplatesAdmin() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-label", { method: "POST", body: fd });
+      const token = localStorage.getItem("auth-token") || "";
+      const res = await fetch("/api/upload-label", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
       const data = await res.json();
       if (data.path) setImage(data.path);
     } catch {
@@ -2039,6 +2048,148 @@ function LabelTemplatesAdmin() {
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+/* ═══════════════════════════════════════
+   LabelExamplesAdmin — витрина примеров сгенерированных этикеток
+   на странице /labels (генератор). Простой список: картинка + промпт +
+   удалить, плюс форма добавления. Без редактирования — удалить/добавить
+   заново для правки, этого достаточно для того, чем это будет использоваться.
+   ═══════════════════════════════════════ */
+function LabelExamplesAdmin() {
+  const utils = trpc.useUtils();
+  const { data: examples, isLoading } = trpc.labelExample.list.useQuery();
+
+  const create = trpc.labelExample.create.useMutation({
+    onSuccess: () => {
+      utils.labelExample.list.invalidate();
+      setImage("");
+      setPrompt("");
+      setTitle("");
+    },
+  });
+  const del = trpc.labelExample.delete.useMutation({
+    onSuccess: () => utils.labelExample.list.invalidate(),
+  });
+
+  const [image, setImage] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("auth-token") || "";
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-label-example", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.path) throw new Error(data.error || "Не удалось загрузить файл");
+      setImage(data.path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки файла");
+    } finally {
+      setImageUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Добавить пример</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">Картинка этикетки</label>
+            {image ? (
+              <div className="flex items-start gap-3 mb-2">
+                <img src={image} alt="Превью" className="w-32 rounded-lg border" style={{ borderColor: "var(--border)" }} />
+                <Button type="button" variant="outline" size="sm" onClick={() => setImage("")}>
+                  <Trash2 size={14} className="mr-1.5" /> Убрать
+                </Button>
+              </div>
+            ) : (
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleUpload} className="hidden" id="label-example-upload" />
+            )}
+            {!image && (
+              <Button type="button" variant="outline" size="sm" disabled={imageUploading} onClick={() => fileRef.current?.click()}>
+                {imageUploading ? "Загрузка..." : <><Upload size={14} className="mr-1.5" /> Загрузить картинку</>}
+              </Button>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Промпт / описание</label>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Например: вишнёвая настойка, минималистичный стиль, тёмно-красные и золотые тона, веточка вишни на этикетке"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Короткая подпись (необязательно)</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: «Вишнёвая классика»" maxLength={150} />
+          </div>
+
+          {error && <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>}
+
+          <Button
+            onClick={() => create.mutate({ imageUrl: image, prompt: prompt.trim(), title: title.trim() || undefined })}
+            disabled={!image || !prompt.trim() || create.isPending}
+          >
+            {create.isPending ? "Сохранение..." : "Добавить пример"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Текущие примеры ({examples?.length ?? 0})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузка...</p>
+          ) : !examples || examples.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Пока нет ни одного примера.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {examples.map((ex) => (
+                <div key={ex.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                  <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full aspect-square object-cover" />
+                  <div className="p-3">
+                    {ex.title && <p className="text-sm font-medium mb-1">{ex.title}</p>}
+                    <p className="text-xs line-clamp-3" style={{ color: "var(--text-muted)" }}>{ex.prompt}</p>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="mt-2"
+                      onClick={() => { if (confirm("Удалить этот пример?")) del.mutate({ id: ex.id }); }}
+                    >
+                      Удалить
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

@@ -110,7 +110,8 @@ export default function ProfilePage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-avatar", { method: "POST", body: fd });
+      const token = localStorage.getItem("auth-token") || "";
+      const res = await fetch("/api/upload-avatar", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
       const data = await res.json();
       if (data.success && data.path) {
         updateAvatarMutation.mutate({ avatar: data.path });
