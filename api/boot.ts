@@ -18,13 +18,14 @@ import { promisify } from "util";
 import { jwtVerify } from "jose";
 import { getDb } from "./queries/connection";
 import { users, generatedLabels } from "@db/schema";
+import { env } from "./lib/env";
+import { JWT_SECRET } from "./lib/jwtSecret";
 import { eq, desc } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 
 const execFileAsync = promisify(execFile);
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "ai-nastoika-secret-key-2026");
 
 const __dirname = import.meta.dirname;
 const distPath = path.resolve(__dirname, "..", "dist");
@@ -51,6 +52,12 @@ if (!fs.existsSync(placesDir)) {
 const menusDir = path.resolve(__dirname, "..", "uploads", "menus");
 if (!fs.existsSync(menusDir)) {
   fs.mkdirSync(menusDir, { recursive: true });
+}
+
+// Папка для примеров сгенерированных этикеток (витрина на странице генератора)
+const labelExamplesDir = path.resolve(__dirname, "..", "uploads", "label-examples");
+if (!fs.existsSync(labelExamplesDir)) {
+  fs.mkdirSync(labelExamplesDir, { recursive: true });
 }
 
 // Папка для фото трекера созревания (обложки настоек + фото по этапам)
@@ -107,13 +114,23 @@ async function getAuthedUserId(authHeader: string | undefined): Promise<number |
 const app = new Hono();
 
 app.use(cors({
-  origin: "*",
+  // Раньше было "*" — любой сайт в интернете мог делать запросы к API от лица
+  // залогиненного пользователя и читать ответ. Список разрешённых доменов —
+  // см. env.ts (ALLOWED_ORIGINS). В dev-режиме браузер вообще не видит эти
+  // запросы как межсайтовые — Vite сам проксирует /api на бэкенд (см.
+  // vite.config.ts), так что localhost сюда специально не добавляем.
+  origin: env.allowedOrigins,
   allowHeaders: ["Content-Type", "Authorization"],
   allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
 }));
 
 // ─── Image upload endpoint ───
+// Используется только в админке (изображения рецептов) — требует прав админа.
 app.post("/api/upload-image", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -196,8 +213,53 @@ app.post("/api/upload-place-menu", async (c) => {
   }
 });
 
+// ─── Label example image upload endpoint (для витрины на странице генератора) ───
+// Защищено проверкой админа — те же причины и тот же паттерн, что у upload-place-menu.
+app.post("/api/upload-label-example", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
+  try {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+    if (!file || typeof file === "string") {
+      return c.json({ error: "No file uploaded" }, 400);
+    }
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "Разрешены только jpg, png, webp" }, 400);
+    }
+
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return c.json({ error: "Файл слишком большой (макс. 10MB)" }, 400);
+    }
+
+    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+    const hash = crypto.randomBytes(8).toString("hex");
+    const fileName = `example-${hash}${ext}`;
+    const filePath = path.join(labelExamplesDir, fileName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    const publicPath = `/uploads/label-examples/${fileName}`;
+    return c.json({ success: true, path: publicPath });
+  } catch (err) {
+    console.error("Label example upload error:", err);
+    return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
 // ─── Place image upload endpoint ───
+// Используется только в парсере заведений в админке — требует прав админа.
 app.post("/api/upload-place-image", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -241,7 +303,12 @@ app.post("/api/upload-place-image", async (c) => {
 // уже должны быть частью самого шаблона (нарисованы в оригинале), а фото
 // пользователя накладывается динамически при рендере через
 // labelTemplateRouter.render (api/lib/labelEngine.ts), не портя исходник.
+// Используется только в админке (шаблоны этикеток) — требует прав админа.
 app.post("/api/upload-label", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -272,7 +339,14 @@ app.post("/api/upload-label", async (c) => {
 });
 
 // ─── Tracker (infusion) image upload endpoint ───
+// Используется в трекере созревания обычными пользователями — требует
+// авторизации (любой залогиненный), но не прав админа: это фото своей же
+// настойки, а не публикация в общей базе рецептов/заведений.
 app.post("/api/upload-tracker-image", async (c) => {
+  const userId = await getAuthedUserId(c.req.header("Authorization"));
+  if (!userId) {
+    return c.json({ error: "Требуется авторизация" }, 401);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -307,7 +381,12 @@ app.post("/api/upload-tracker-image", async (c) => {
 });
 
 // ─── Avatar upload endpoint ───
+// Свой аватар может загрузить только сам залогиненный пользователь.
 app.post("/api/upload-avatar", async (c) => {
+  const userId = await getAuthedUserId(c.req.header("Authorization"));
+  if (!userId) {
+    return c.json({ error: "Требуется авторизация" }, 401);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];

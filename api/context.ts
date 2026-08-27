@@ -3,10 +3,7 @@ import { jwtVerify } from "jose";
 import { getDb } from "./queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ai-nastoika-secret-key-2026"
-);
+import { JWT_SECRET } from "./lib/jwtSecret";
 
 export type UserContext = {
   id: number;

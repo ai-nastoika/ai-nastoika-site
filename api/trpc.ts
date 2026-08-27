@@ -7,12 +7,16 @@ import { eq } from "drizzle-orm";
 import { mysqlTable, serial, varchar, text, timestamp, int, decimal, bigint, json } from "drizzle-orm/mysql-core";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ainastoika-secret-key-2025"
-);
+import { JWT_SECRET } from "./lib/jwtSecret";
+import { env } from "./lib/env";
 
 const pool = createPool({
-  uri: process.env.DATABASE_URL || "mysql://root@localhost:3306/nastoika",
+  // Раньше был fallback "mysql://root@localhost:3306/nastoika" (root, БЕЗ
+  // пароля) — та же проблема, что и с JWT_SECRET: если DATABASE_URL вдруг
+  // не подхватится, сервер тихо подключался бы локально под root вместо
+  // явного падения. env.databaseUrl использует required() — без реальной
+  // строки подключения сервер просто не запустится.
+  uri: env.databaseUrl,
   connectionLimit: 10,
 });
 const db = drizzle(pool);

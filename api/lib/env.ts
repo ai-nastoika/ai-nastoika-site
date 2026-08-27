@@ -13,6 +13,13 @@ export const env = {
   appSecret: required("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
+  // Секрет для подписи/проверки JWT-токенов входа. Раньше три разных файла
+  // независимо читали process.env.JWT_SECRET с разными захардкоженными
+  // запасными значениями "на случай, если не задано" — эти значения лежали
+  // открытым текстом в публичном репозитории. required() убирает тихий
+  // fallback: без реального секрета сервер просто не запустится, вместо
+  // того чтобы незаметно подписывать токены общедоступной строкой.
+  jwtSecret: required("JWT_SECRET"),
   moonshotApiKey: process.env.MOONSHOT_API_KEY ?? "",
   // ЮKassa (пополнение баланса личного кабинета) — не required(), т.к. без них
   // сайт должен продолжать работать, просто пополнение будет недоступно.
@@ -24,4 +31,12 @@ export const env = {
   donationPhoneNumber: process.env.DONATION_PHONE_NUMBER ?? "",
   donationPhoneOwner: process.env.DONATION_PHONE_OWNER ?? "",
   donationPhoneBank: process.env.DONATION_PHONE_BANK ?? "",
+  // Домены, с которых разрешены запросы к API (CORS). Через запятую, без слэша
+  // на конце: "https://ai-nastoika.ru,https://dev.ai-nastoika.ru". Если не
+  // задано — используются оба известных домена проекта по умолчанию, чтобы
+  // не сломать текущий деплой на dev-поддомене, если .env ещё не обновили.
+  allowedOrigins: (process.env.ALLOWED_ORIGINS ?? "https://ai-nastoika.ru,https://dev.ai-nastoika.ru")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 };

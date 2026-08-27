@@ -6,10 +6,7 @@ import { createRouter, publicQuery, authedQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users, aiUsage } from "@db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ai-nastoika-secret-key-2026"
-);
+import { JWT_SECRET } from "./lib/jwtSecret";
 
 async function createToken(userId: number): Promise<string> {
   return new SignJWT({})
