@@ -138,8 +138,10 @@ export default function PlaceParserPage() {
       const formData = new FormData();
       formData.append("file", file);
 
+      const token = localStorage.getItem("auth-token") || "";
       const res = await fetch("/api/upload-place-image", {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
       const data = await res.json();

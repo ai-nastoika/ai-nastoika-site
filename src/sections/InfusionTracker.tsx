@@ -102,7 +102,8 @@ async function uploadTrackerImage(file: File): Promise<string | null> {
   if (file.size > 5 * 1024 * 1024) { alert("Максимальный размер — 5 МБ"); return null; }
   const fd = new FormData();
   fd.append("file", file);
-  const res = await fetch("/api/upload-tracker-image", { method: "POST", body: fd });
+  const token = localStorage.getItem("auth-token") || "";
+  const res = await fetch("/api/upload-tracker-image", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
   const data = await res.json();
   if (data.success && data.path) return data.path as string;
   alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));

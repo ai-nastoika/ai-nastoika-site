@@ -844,7 +844,8 @@ function RecipeForm({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-image", { method: "POST", body: fd });
+      const token = localStorage.getItem("auth-token") || "";
+      const res = await fetch("/api/upload-image", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
       const data = await res.json();
       if (data.success && data.path) {
         update({ heroImage: data.path });
@@ -1752,7 +1753,8 @@ function LabelTemplatesAdmin() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload-label", { method: "POST", body: fd });
+      const token = localStorage.getItem("auth-token") || "";
+      const res = await fetch("/api/upload-label", { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : undefined, body: fd });
       const data = await res.json();
       if (data.path) setImage(data.path);
     } catch {

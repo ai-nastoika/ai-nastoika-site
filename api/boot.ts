@@ -119,7 +119,12 @@ app.use(cors({
 }));
 
 // ─── Image upload endpoint ───
+// Используется только в админке (изображения рецептов) — требует прав админа.
 app.post("/api/upload-image", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -243,7 +248,12 @@ app.post("/api/upload-label-example", async (c) => {
 });
 
 // ─── Place image upload endpoint ───
+// Используется только в парсере заведений в админке — требует прав админа.
 app.post("/api/upload-place-image", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -287,7 +297,12 @@ app.post("/api/upload-place-image", async (c) => {
 // уже должны быть частью самого шаблона (нарисованы в оригинале), а фото
 // пользователя накладывается динамически при рендере через
 // labelTemplateRouter.render (api/lib/labelEngine.ts), не портя исходник.
+// Используется только в админке (шаблоны этикеток) — требует прав админа.
 app.post("/api/upload-label", async (c) => {
+  const isAdmin = await requireAdmin(c.req.header("Authorization"));
+  if (!isAdmin) {
+    return c.json({ error: "Требуются права администратора" }, 403);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -318,7 +333,14 @@ app.post("/api/upload-label", async (c) => {
 });
 
 // ─── Tracker (infusion) image upload endpoint ───
+// Используется в трекере созревания обычными пользователями — требует
+// авторизации (любой залогиненный), но не прав админа: это фото своей же
+// настойки, а не публикация в общей базе рецептов/заведений.
 app.post("/api/upload-tracker-image", async (c) => {
+  const userId = await getAuthedUserId(c.req.header("Authorization"));
+  if (!userId) {
+    return c.json({ error: "Требуется авторизация" }, 401);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
@@ -353,7 +375,12 @@ app.post("/api/upload-tracker-image", async (c) => {
 });
 
 // ─── Avatar upload endpoint ───
+// Свой аватар может загрузить только сам залогиненный пользователь.
 app.post("/api/upload-avatar", async (c) => {
+  const userId = await getAuthedUserId(c.req.header("Authorization"));
+  if (!userId) {
+    return c.json({ error: "Требуется авторизация" }, 401);
+  }
   try {
     const body = await c.req.parseBody();
     const file = body["file"];
