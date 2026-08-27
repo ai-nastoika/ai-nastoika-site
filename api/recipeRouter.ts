@@ -44,6 +44,10 @@ const TRACKER_STAGES_PROMPT = `Ты — эксперт по домашним н�
 - Не выдумывай сроки, которых нет в тексте и которые нельзя разумно вывести из контекста рецепта.
 - Обычно 4-7 этапов достаточно.`;
 
+// Колонка featured хранится как int (0/1) — как и другие "булевы" поля в этой
+// БД (см. users.isDonor, infusionStages.notifyEnabled) — на границе API удобнее boolean.
+const boolToDb = (b: boolean) => (b ? 1 : 0);
+
 export const recipeRouter = createRouter({
   list: publicQuery.query(async () => {
     const db = getDb();
@@ -133,7 +137,9 @@ export const recipeRouter = createRouter({
       }));
     }),
 
-  delete: publicQuery
+  // Тот же изъян, что у upsert выше — удалить любой рецепт мог кто угодно
+  // без авторизации. Используется только из админки.
+  delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -143,7 +149,12 @@ export const recipeRouter = createRouter({
       return { success: true };
     }),
 
-  upsert: publicQuery
+  // Раньше был publicQuery — любой человек в интернете без входа в аккаунт мог
+  // создать или отредактировать (по id) ЛЮБОЙ рецепт на сайте. Обычные
+  // пользователи предлагают рецепты через отдельный промодерированный поток
+  // (submission.create/submit, см. AddRecipeForm.tsx) — этот эндпоинт вызывается
+  // только из админки (AdminPage.tsx), так что adminQuery ничего не ломает.
+  upsert: adminQuery
     .input(
       z.object({
         id: z.number().optional(),
@@ -176,6 +187,7 @@ export const recipeRouter = createRouter({
         tips: z.array(z.string()).optional(),
         authorName: z.string().optional(),
         authorDate: z.string().optional(),
+        featured: z.boolean().optional(),
         ingredients: z.array(
           z.object({
             name: z.string().min(1),
@@ -202,7 +214,10 @@ export const recipeRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
-      const { id, ingredients, steps, trackerStages, ...data } = input;
+      const { id, ingredients, steps, trackerStages, featured, ...rest } = input;
+      // featured — boolean на границе API, number (0/1) в колонке БД.
+      // Если не передан явно (частичное редактирование) — не трогаем поле.
+      const data = featured !== undefined ? { ...rest, featured: boolToDb(featured) } : rest;
 
       let recipeId: number;
 

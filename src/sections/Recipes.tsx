@@ -1,7 +1,16 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { ShotGlassCardSummary } from "@/components/ShotGlassRating";
 
-import { Clock, Star, ArrowRight } from "lucide-react";
+import { Clock, ArrowRight, Gauge } from "lucide-react";
+
+/* ── Рюмки-рейтинг для карточки рецепта — тот же приём, что и на барной карте:
+   один сетевой запрос на карточку, их всего 3 в этой секции. ── */
+function RecipeRatingBadge({ recipeId }: { recipeId: number }) {
+  const { data: summary } = trpc.comment.ratingSummary.useQuery({ recipeId });
+  if (!summary) return null;
+  return <ShotGlassCardSummary summary={summary} />;
+}
 
 export default function Recipes() {
   const { data: apiRecipes, isLoading } = trpc.recipe.list.useQuery();
@@ -17,12 +26,19 @@ export default function Recipes() {
     );
   }
 
-  const displayRecipes = (recipes ?? []).slice(0, 3);
+  // Сначала рецепты, вручную отмеченные админом флагом "featured" — этот
+  // раздел главной страницы теперь управляется вручную, а не просто
+  // показывает первые попавшиеся 3 рецепта. Если админ ещё ничего не отметил
+  // (featured пусто) — не оставляем секцию пустой, дополняем последними
+  // добавленными рецептами, чтобы страница не выглядела сломанной.
+  const featured = recipes.filter((r) => !!(r as { featured?: number }).featured);
+  const rest = recipes.filter((r) => !(r as { featured?: number }).featured);
+  const displayRecipes = [...featured, ...rest].slice(0, 3);
 
   return (
     <section id="recipes" className="py-20" style={{ background: "var(--bg-primary)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-10">
+        <div className="flex items-end justify-between mb-10 flex-wrap gap-3">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
               Популярные рецепты
@@ -31,7 +47,10 @@ export default function Recipes() {
               Проверенные классические и смелые эксперименты от сообщества
             </p>
           </div>
-          <Link to="/recipes" className="hidden sm:inline-flex items-center gap-1 text-base font-medium transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+          {/* Раньше было "hidden sm:inline-flex" — ссылка была буквально скрыта
+              на любом экране уже с 640px, то есть на телефоне в портретной
+              ориентации не показывалась никогда. Теперь видна всегда. */}
+          <Link to="/recipes" className="inline-flex items-center gap-1 text-base font-medium transition-opacity hover:opacity-70" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
             Все рецепты <ArrowRight size={18} />
           </Link>
         </div>
@@ -46,16 +65,18 @@ export default function Recipes() {
             >
               <div className="relative overflow-hidden">
                 <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform group-hover:scale-105" />
-                {recipe.rating && parseFloat(recipe.rating as unknown as string) >= 4.8 && (
-                  <div className="absolute top-3 left-3 rounded-full px-3 py-1 text-base font-medium" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}>
-                    Топ рецепт
-                  </div>
-                )}
               </div>
 
               <div className="p-5">
-                <div className="text-base font-medium mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                  {recipe.categoryLabel ?? recipe.category}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-base font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                    {recipe.categoryLabel ?? recipe.category}
+                  </div>
+                  {recipe.difficulty && (
+                    <div className="flex items-center gap-1 rounded-full px-2.5 py-1 text-sm" style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
+                      <Gauge size={14} /> {recipe.difficulty}
+                    </div>
+                  )}
                 </div>
                 <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                   {recipe.title}
@@ -63,18 +84,13 @@ export default function Recipes() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1" style={{ color: "var(--accent-light)" }}>
-                      <Star size={22} fill="currentColor" />
-                      <span className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-                        {recipe.rating}
-                      </span>
-                    </div>
+                    <RecipeRatingBadge recipeId={recipe.id} />
                     <div className="flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
-                      <Clock size={22} />
-                      <span className="text-base" style={{ fontFamily: "var(--font-body)" }}>{recipe.time}</span>
+                      <Clock size={18} />
+                      <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>{recipe.time}</span>
                     </div>
                   </div>
-                  <ArrowRight size={22} className="transition-transform group-hover:translate-x-1" style={{ color: "var(--accent)" }} />
+                  <ArrowRight size={22} className="transition-transform group-hover:translate-x-1 shrink-0" style={{ color: "var(--accent)" }} />
                 </div>
               </div>
             </Link>

@@ -12,7 +12,11 @@ export const labelTemplateRouter = createRouter({
     });
   }),
 
-  upsertType: publicQuery
+  // Все 5 мутаций ниже (upsertType/deleteType/upsert/delete/toggleActive) — раньше
+  // publicQuery, доступны без авторизации. Используются только в админке
+  // (LabelTemplatesAdmin в AdminPage.tsx), upsertType/deleteType вообще не
+  // вызываются с фронта — тем более нет причины держать их открытыми.
+  upsertType: adminQuery
     .input(z.object({
       id: z.number().optional(),
       name: z.string().min(1),
@@ -35,7 +39,7 @@ export const labelTemplateRouter = createRouter({
       }
     }),
 
-  deleteType: publicQuery
+  deleteType: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await getDb().delete(labelTemplateTypes).where(eq(labelTemplateTypes.id, input.id));
@@ -66,7 +70,7 @@ export const labelTemplateRouter = createRouter({
       });
     }),
 
-  upsert: publicQuery
+  upsert: adminQuery
     .input(z.object({
       id: z.number().optional(),
       typeId: z.number().nullable().optional(),
@@ -105,14 +109,14 @@ export const labelTemplateRouter = createRouter({
       }
     }),
 
-  delete: publicQuery
+  delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await getDb().delete(labelTemplates).where(eq(labelTemplates.id, input.id));
       return { success: true };
     }),
 
-  toggleActive: publicQuery
+  toggleActive: adminQuery
     .input(z.object({ id: z.number(), isActive: z.number() }))
     .mutation(async ({ input }) => {
       await getDb().update(labelTemplates)

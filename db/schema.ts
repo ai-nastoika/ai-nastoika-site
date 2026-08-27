@@ -44,6 +44,9 @@ export const recipes = mysqlTable("recipes", {
   tips: json("tips").$type<string[]>(),
   authorName: varchar("author_name", { length: 100 }),
   authorDate: varchar("author_date", { length: 50 }),
+  // Ручной флаг администратора — показывать ли рецепт в "Популярные рецепты"
+  // на главной странице. 1/0, как и другие такие флаги в этой схеме (см. isDonor).
+  featured: int("featured").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

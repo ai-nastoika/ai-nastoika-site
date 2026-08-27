@@ -67,6 +67,7 @@ export default function RecipesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategory = searchParams.get("cat") || "all";
   const searchQuery = searchParams.get("q") || "";
+  const authorFilter = searchParams.get("author") || "";
 
   function setActiveCategory(cat: string) {
     setSearchParams((prev) => {
@@ -121,6 +122,7 @@ export default function RecipesPage() {
 
   let filtered = allRecipes.filter((r) => {
     const catMatch = activeCategory === "all" || r.category === activeCategory;
+    const authorMatch = !authorFilter || r.authorName === authorFilter;
     const q = searchQuery.toLowerCase();
     const searchMatch =
       !searchQuery ||
@@ -129,7 +131,7 @@ export default function RecipesPage() {
       (Array.isArray((r as any).ingredients)
         ? (r as any).ingredients.some((ing: { name: string }) => ing.name.toLowerCase().includes(q))
         : false);
-    return catMatch && searchMatch;
+    return catMatch && authorMatch && searchMatch;
   });
 
   filtered = [...filtered].sort((a, b) => {
@@ -206,6 +208,22 @@ export default function RecipesPage() {
       {/* Filters + Grid (hidden when form is open) */}
       {!showAddForm && (
       <>
+      {authorFilter && (
+        <section className="py-3" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3">
+            <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+              Рецепты автора: <b>{authorFilter}</b>
+            </p>
+            <button
+              onClick={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("author"); return next; })}
+              className="text-sm underline shrink-0"
+              style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+            >
+              Показать все рецепты
+            </button>
+          </div>
+        </section>
+      )}
       <section className="py-6" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 flex-wrap">

@@ -109,7 +109,9 @@ export const placeSubmissionRouter = createRouter({
     }),
 
   /* ── Получить по id ── */
-  byId: publicQuery
+  // Не используется на фронте, но раньше был publicQuery — показывает заявку
+  // на модерацию (включая заметки администратора) кому угодно по id.
+  byId: adminQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return getDb().query.placeSubmissions.findFirst({

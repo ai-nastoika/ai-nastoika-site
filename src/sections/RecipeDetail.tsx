@@ -8,7 +8,7 @@ import { ShotGlassCompact } from "../components/ShotGlassRating";
 import RecipeAiConsult from "./RecipeAiConsult";
 import {
   ArrowLeft, Clock, Star, Wine, ChefHat, BookOpen, Lightbulb,
-  FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check, Timer,
+  FlaskConical, Heart, Share2, Printer, Thermometer, GlassWater, Check, Timer, UserCircle2,
 } from "lucide-react";
 
 /* Компактный индикатор рюмками в шапке рецепта — тянет агрегат из отзывов */
@@ -387,6 +387,25 @@ export default function RecipeDetail() {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* --- Предложено пользователем — если у рецепта указан автор --- */}
+        {recipe.authorName && (
+          <section className="mb-8 print:hidden">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                <UserCircle2 size={20} style={{ color: "var(--accent)" }} />
+                Предложено пользователем <b style={{ color: "var(--text-primary)" }}>{recipe.authorName}</b>
+              </div>
+              <Link
+                to={`/recipes?author=${encodeURIComponent(recipe.authorName)}`}
+                className="text-sm underline shrink-0"
+                style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+              >
+                Смотреть все рецепты пользователя
+              </Link>
             </div>
           </section>
         )}

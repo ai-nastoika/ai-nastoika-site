@@ -37,7 +37,7 @@ const EMPTY_RECIPE = {
   reviews: 0, year: "", origin: "", historyTitle: "", historyText: "",
   tastingColor: "", tastingDescription: "", tastingTemp: "", tastingGlass: "",
   tastingPairing: [] as string[], sweet: 0, sour: 0, bitter: 0, spicy: 0, fruity: 0, herbal: 0,
-  tips: [] as string[], authorName: "", authorDate: "",
+  tips: [] as string[], authorName: "", authorDate: "", featured: false,
   ingredients: [] as IngredientInput[], steps: [] as StepInput[], trackerStages: [] as TrackerStageInput[],
 };
 
@@ -112,6 +112,7 @@ type LocalRecipe = {
   tips: string[] | null;
   authorName: string | null;
   authorDate: string | null;
+  featured: number | null;
 };
 
 function getLocalRecipes(): LocalRecipe[] {
@@ -264,6 +265,7 @@ function AdminPanel() {
         tips: Array.isArray(data.tips) ? data.tips : null,
         authorName: String(data.authorName ?? "") || null,
         authorDate: String(data.authorDate ?? "") || null,
+        featured: data.featured ? 1 : 0,
       });
       setLocalRecipes(getLocalRecipes());
       setRecipeOpen(false);
@@ -338,7 +340,7 @@ function AdminPanel() {
       sweet: r.sweet ?? 0, sour: r.sour ?? 0, bitter: r.bitter ?? 0,
       spicy: r.spicy ?? 0, fruity: r.fruity ?? 0, herbal: r.herbal ?? 0,
       tips: r.tips ?? [],
-      authorName: r.authorName ?? "", authorDate: r.authorDate ?? "",
+      authorName: r.authorName ?? "", authorDate: r.authorDate ?? "", featured: !!r.featured,
       ingredients: ings, steps: stps, trackerStages: trackerStgs,
     });
     setPairingStr(arrStr(r.tastingPairing));
@@ -946,6 +948,11 @@ function RecipeForm({
         <Field label="Имя автора" value={f.authorName} onChange={(v) => update({ authorName: v })} />
         <Field label="Дата" value={f.authorDate} onChange={(v) => update({ authorDate: v })} />
       </div>
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer mt-2" style={{ color: "var(--text-secondary)" }}>
+        <input type="checkbox" checked={f.featured} onChange={(e) => update({ featured: e.target.checked })} />
+        Показывать в «Популярные рецепты» на главной странице
+      </label>
 
       {/* Ингредиенты */}
       <div className="flex items-center justify-between mt-4">

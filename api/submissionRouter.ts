@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
+import { createRouter, publicQuery, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { userRecipeSubmissions } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -86,7 +86,10 @@ export const submissionRouter = createRouter({
     }),
 
   /* ── Get by id ── */
-  byId: publicQuery
+  // Ниже 5 процедур — раньше publicQuery. Показывают внутреннюю очередь
+  // модерации (включая заметки администратора) и позволяют одобрять/отклонять
+  // чужие заявки без авторизации. Используются только в админке.
+  byId: adminQuery
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return getDb().query.userRecipeSubmissions.findFirst({
@@ -95,7 +98,7 @@ export const submissionRouter = createRouter({
     }),
 
   /* ── List pending (admin) ── */
-  listPending: publicQuery.query(async () => {
+  listPending: adminQuery.query(async () => {
     return getDb().query.userRecipeSubmissions.findMany({
       where: eq(userRecipeSubmissions.status, "pending"),
       orderBy: [desc(userRecipeSubmissions.createdAt)],
@@ -103,14 +106,14 @@ export const submissionRouter = createRouter({
   }),
 
   /* ── List all for moderation (admin) ── */
-  listAll: publicQuery.query(async () => {
+  listAll: adminQuery.query(async () => {
     return getDb().query.userRecipeSubmissions.findMany({
       orderBy: [desc(userRecipeSubmissions.createdAt)],
     });
   }),
 
   /* ── Approve ── */
-  approve: publicQuery
+  approve: adminQuery
     .input(z.object({ id: z.number(), adminNotes: z.string().optional() }))
     .mutation(async ({ input }) => {
       await getDb()
@@ -121,7 +124,7 @@ export const submissionRouter = createRouter({
     }),
 
   /* ── Reject ── */
-  reject: publicQuery
+  reject: adminQuery
     .input(z.object({ id: z.number(), adminNotes: z.string().min(1) }))
     .mutation(async ({ input }) => {
       await getDb()
