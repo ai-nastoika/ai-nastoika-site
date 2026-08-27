@@ -10,6 +10,7 @@ import { sendEmail } from "./lib/email";
 import crypto from "crypto";
 import { checkRateLimit, getClientIp } from "./lib/rateLimit";
 import { TRPCError } from "@trpc/server";
+import { getDb } from "./queries/connection";
 import { labelTemplateRouter } from "./labelTemplateRouter";
 import { recipeRouter } from "./recipeRouter";
 import { savedLabelsRouter } from "./savedLabelsRouter";
@@ -155,6 +156,82 @@ export const appRouter = router({
         return { success: true, message: "Письмо отправлено повторно" };
       }),
 
+    /* ── Восстановление пароля, шаг 1: запрос ссылки на email ──
+       Намеренно ВСЕГДА возвращает один и тот же успешный ответ, независимо
+       от того, существует ли такой email в базе — иначе форма превращается
+       в способ проверить, зарегистрирован ли конкретный человек на сайте
+       (email enumeration). Письмо реально уходит только если email найден. */
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input, ctx }) => {
+        const ip = getClientIp((ctx as { req: Request }).req);
+        const rl = checkRateLimit(`password-reset-request:${ip}`, 5, 60 * 60 * 1000);
+        if (!rl.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` });
+        }
+
+        const rows = await getDb().select().from(usersFull).where(eq(usersFull.email, input.email));
+        if (rows.length > 0) {
+          const user = rows[0];
+          const resetToken = crypto.randomBytes(32).toString("hex");
+          const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
+          await getDb().update(usersFull).set({ passwordResetToken: resetToken, passwordResetExpires: resetExpires }).where(eq(usersFull.id, user.id));
+
+          const siteUrl = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
+          await sendEmail({
+            to: input.email,
+            subject: "Восстановление пароля — Ай, настойка!",
+            html: `
+              <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+                <h1 style="font-size: 24px; color: #1a1a1a;">🍹 Ай, настойка!</h1>
+                <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                  Кто-то (надеемся, что вы) запросил восстановление пароля для этого аккаунта.
+                </p>
+                <a href="${siteUrl}/#/reset-password?token=${resetToken}"
+                  style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                  Придумать новый пароль
+                </a>
+                <p style="font-size: 13px; color: #aaa; margin-top: 32px;">
+                  Ссылка действительна 1 час. Если это были не вы — просто проигнорируйте это письмо, пароль останется прежним.
+                </p>
+              </div>
+            `,
+          });
+        }
+
+        return { success: true, message: "Если такой email зарегистрирован, на него отправлена ссылка для восстановления пароля" };
+      }),
+
+    /* ── Восстановление пароля, шаг 2: собственно смена пароля по токену из письма ── */
+    resetPassword: publicProcedure
+      .input(z.object({ token: z.string().min(1), newPassword: z.string().min(8, "Пароль должен быть не короче 8 символов") }))
+      .mutation(async ({ input, ctx }) => {
+        // Токен — 32 случайных байта (64 hex-символа), перебором не угадать
+        // за разумное время, но лимит всё равно ставим — просто чтобы никто
+        // не долбил эндпоинт скриптом без всякой цели.
+        const ip = getClientIp((ctx as { req: Request }).req);
+        const rl = checkRateLimit(`password-reset-confirm:${ip}`, 20, 60 * 60 * 1000);
+        if (!rl.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Слишком много попыток. Попробуйте позже" });
+        }
+
+        const rows = await getDb().select().from(usersFull).where(eq(usersFull.passwordResetToken, input.token));
+        if (rows.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Ссылка недействительна или уже использована" });
+        }
+        const user = rows[0];
+        if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Срок действия ссылки истёк, запросите новую" });
+        }
+
+        const passwordHash = bcrypt.hashSync(input.newPassword, 10);
+        // Токен одноразовый — сразу гасим после использования, чтобы им
+        // нельзя было воспользоваться повторно, даже если письмо перехватят.
+        await getDb().update(usersFull).set({ passwordHash, passwordResetToken: null, passwordResetExpires: null }).where(eq(usersFull.id, user.id));
+
+        return { success: true };
+      }),
+
     login: publicProcedure
       .input(z.object({ email: z.string(), password: z.string() }))
       .mutation(async ({ input, ctx }) => {
@@ -185,7 +262,6 @@ export const appRouter = router({
       // Support both old (token string) and new (user object) context
       if ((ctx as any).user) {
         const user = (ctx as any).user;
-        const { getDb } = await import("./queries/connection");
         const { users: usersTable } = await import("@db/schema");
         const { eq } = await import("drizzle-orm");
         const dbUser = await getDb().query.users.findFirst({ where: eq(usersTable.id, user.id) });

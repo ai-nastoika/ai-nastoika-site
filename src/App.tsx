@@ -129,6 +129,7 @@ const router = createHashRouter([
       { path: "/tools/parse-place", element: <Suspense fallback={<PageLoader />}><PlaceParserPage /></Suspense> },
       { path: "/tools/generate-label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
       { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
+      { path: "/reset-password", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
     ],
   },
 ]);

@@ -362,6 +362,10 @@ export const users = mysqlTable("users", {
   emailVerified: int("email_verified").default(0).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
   emailVerifyExpires: timestamp("email_verify_expires"),
+  // Восстановление забытого пароля — та же схема, что и подтверждение email:
+  // случайный токен + срок действия, обнуляются после использования.
+  passwordResetToken: varchar("password_reset_token", { length: 255 }),
+  passwordResetExpires: timestamp("password_reset_expires"),
   phone: varchar("phone", { length: 20 }),
   phoneVerified: int("phone_verified").default(0).notNull(),
   twoFactorEnabled: int("two_factor_enabled").default(0).notNull(),
