@@ -20,6 +20,7 @@ import { getDb } from "./queries/connection";
 import { users, generatedLabels } from "@db/schema";
 import { env } from "./lib/env";
 import { JWT_SECRET } from "./lib/jwtSecret";
+import { checkRateLimit, getClientIp } from "./lib/rateLimit";
 import { eq, desc } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
@@ -123,6 +124,23 @@ app.use(cors({
   allowHeaders: ["Content-Type", "Authorization"],
   allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
 }));
+
+// ─── Общий защитный лимит на весь /api/* ──
+// Точечные лимиты на логин/регистрацию/комментарии (см. api/router.ts,
+// api/commentRouter.ts) считают отдельно и по более узким правилам — это
+// именно общая страховка от банального скриптового флуда запросов, которую
+// точечные лимиты не покрывают (например, массовый перебор GET-запросов
+// к чтению данных). 300 запросов в минуту с одного IP — сайт активно ходит
+// в API при обычной навигации (десятки запросов на страницу), поэтому лимит
+// щедрый, чтобы не задеть живых людей за одним NAT/офисным IP.
+app.use("/api/*", async (c, next) => {
+  const ip = getClientIp(c.req.raw);
+  const rl = checkRateLimit(`global:${ip}`, 300, 60 * 1000);
+  if (!rl.allowed) {
+    return c.json({ error: "Слишком много запросов, попробуйте чуть позже" }, 429);
+  }
+  await next();
+});
 
 // ─── Image upload endpoint ───
 // Используется только в админке (изображения рецептов) — требует прав админа.

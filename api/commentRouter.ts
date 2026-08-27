@@ -3,6 +3,8 @@ import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { comments } from "@db/schema";
 import { eq, desc } from "drizzle-orm";
+import { checkRateLimit, getClientIp } from "./lib/rateLimit";
+import { TRPCError } from "@trpc/server";
 
 export const commentRouter = createRouter({
   byRecipe: publicQuery
@@ -35,7 +37,15 @@ export const commentRouter = createRouter({
         text: z.string().min(1).max(2000),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // Без авторизации оставляют комментарии/отзывы — единственная защита от
+      // спам-бота здесь. 5 сообщений за 5 минут с одного IP — с запасом для
+      // живого человека, но не даёт залить базу тысячами записей за минуту.
+      const ip = getClientIp(ctx.req);
+      const rl = checkRateLimit(`comment:${ip}`, 5, 5 * 60 * 1000);
+      if (!rl.allowed) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Слишком много сообщений подряд. Попробуйте через ${rl.retryAfterSec} сек.` });
+      }
       const db = getDb();
       const [{ id }] = await db
         .insert(comments)

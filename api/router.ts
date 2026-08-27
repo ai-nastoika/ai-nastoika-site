@@ -8,6 +8,8 @@ import { comments, feedback, transactions, users as usersFull, places } from "..
 //   Используется ниже только там, где эти поля реально нужны (list/grant*).
 import { sendEmail } from "./lib/email";
 import crypto from "crypto";
+import { checkRateLimit, getClientIp } from "./lib/rateLimit";
+import { TRPCError } from "@trpc/server";
 import { labelTemplateRouter } from "./labelTemplateRouter";
 import { recipeRouter } from "./recipeRouter";
 import { savedLabelsRouter } from "./savedLabelsRouter";
@@ -46,7 +48,16 @@ export const appRouter = router({
   auth: router({
     register: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().optional() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Защита от массовой регистрации ботом — не больше 5 регистраций
+        // с одного IP за час. Реальным людям этого достаточно с большим
+        // запасом (никто не регистрирует 6 аккаунтов за час вручную).
+        const ip = getClientIp((ctx as { req: Request }).req);
+        const rl = checkRateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+        if (!rl.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Слишком много регистраций подряд. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` });
+        }
+
         const existing = await db.select().from(users).where(eq(users.email, input.email));
         if (existing.length > 0) throw new Error("Email already registered");
         const passwordHash = bcrypt.hashSync(input.password, 10);
@@ -146,7 +157,19 @@ export const appRouter = router({
 
     login: publicProcedure
       .input(z.object({ email: z.string(), password: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Защита от перебора пароля: лимит и по IP (не долбить много разных
+        // аккаунтов с одного адреса), и отдельно по email (не перебирать
+        // конкретный аккаунт через много IP/прокси). 10 попыток за 15 минут —
+        // с запасом для человека, который просто забыл, какой у него пароль.
+        const ip = getClientIp((ctx as { req: Request }).req);
+        const rlIp = checkRateLimit(`login-ip:${ip}`, 20, 15 * 60 * 1000);
+        const rlEmail = checkRateLimit(`login-email:${input.email.toLowerCase()}`, 10, 15 * 60 * 1000);
+        if (!rlIp.allowed || !rlEmail.allowed) {
+          const retryAfterSec = Math.max(rlIp.allowed ? 0 : rlIp.retryAfterSec, rlEmail.allowed ? 0 : rlEmail.retryAfterSec);
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Слишком много попыток входа. Попробуйте через ${Math.ceil(retryAfterSec / 60)} мин.` });
+        }
+
         const rows = await db.select().from(users).where(eq(users.email, input.email));
         if (rows.length === 0) throw new Error("Invalid credentials");
         const user = rows[0];
@@ -186,6 +209,12 @@ export const appRouter = router({
     changePassword: authedProcedure
       .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
       .mutation(async ({ input, ctx }) => {
+        // На случай кражи токена без знания пароля — не даём перебирать
+        // currentPassword бесконечно даже авторизованным запросом.
+        const rl = checkRateLimit(`change-password:${ctx.userId}`, 10, 15 * 60 * 1000);
+        if (!rl.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Слишком много попыток. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` });
+        }
         const rows = await db.select().from(users).where(eq(users.id, ctx.userId));
         if (rows.length === 0) throw new Error("User not found");
         const user = rows[0];
