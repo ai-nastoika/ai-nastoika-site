@@ -47,7 +47,7 @@ export const appRouter = router({
 
   auth: router({
     register: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().optional() }))
+      .input(z.object({ email: z.string().email(), password: z.string().min(8, "Пароль должен быть не короче 8 символов"), name: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         // Защита от массовой регистрации ботом — не больше 5 регистраций
         // с одного IP за час. Реальным людям этого достаточно с большим
@@ -207,7 +207,7 @@ export const appRouter = router({
     logout: publicProcedure.mutation(() => ({ success: true })),
 
     changePassword: authedProcedure
-      .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+      .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(8, "Пароль должен быть не короче 8 символов") }))
       .mutation(async ({ input, ctx }) => {
         // На случай кражи токена без знания пароля — не даём перебирать
         // currentPassword бесконечно даже авторизованным запросом.

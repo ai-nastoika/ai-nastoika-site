@@ -23,7 +23,7 @@ export default function LoginPage() {
       "Invalid OTP": "Неверный код подтверждения",
       "OTP expired": "Код подтверждения истёк. Запросите новый",
       "Too many requests": "Слишком много попыток. Подождите немного",
-      "Password too short": "Пароль слишком короткий (минимум 6 символов)",
+      "Password too short": "Пароль слишком короткий (минимум 8 символов)",
       "Invalid email": "Неверный формат email",
       "Network error": "Ошибка сети. Проверьте подключение",
     };
@@ -234,9 +234,9 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Минимум 6 символов"
+                    placeholder="Минимум 8 символов"
                     required
-                    minLength={mode === "register" ? 6 : undefined}
+                    minLength={mode === "register" ? 8 : undefined}
                     className="pr-10"
                   />
                   <button

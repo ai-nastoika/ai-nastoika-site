@@ -114,6 +114,48 @@ async function getAuthedUserId(authHeader: string | undefined): Promise<number |
 
 const app = new Hono();
 
+// ─── Security headers ──
+// CSP настроен под РЕАЛЬНО используемые внешние ресурсы (Яндекс.Карты,
+// Google Fonts) — ничего лишнего не разрешено. Это единственный из этих
+// заголовков, который теоретически может что-то сломать (если у Яндекс.Карт
+// есть под-ресурсы с доменов, которых я не учёл, не имея возможности
+// проверить визуально) — ПЕРВОЕ, что нужно проверить после деплоя: страница
+// /barmap, карта должна нормально показываться и грузить точки заведений.
+// Если что-то не так — открыть консоль браузера (F12), там будет понятная
+// ошибка вида "Refused to load ... violates Content Security Policy
+// directive", и в ней будет видно, какой домен не хватает в списке ниже.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://api-maps.yandex.ru https://yastatic.net",
+  // 'unsafe-inline' в style-src нужен обязательно — вся вёрстка сайта построена
+  // на inline style={{...}} в React, без этого директива сломает всё оформление.
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https://*.maps.yandex.net https://api-maps.yandex.ru https://yastatic.net",
+  "connect-src 'self' https://api-maps.yandex.ru https://*.maps.yandex.net https://yastatic.net",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join("; ");
+
+app.use("*", async (c, next) => {
+  c.header("X-Content-Type-Options", "nosniff"); // браузер не должен угадывать тип файла — против атак через подмену расширения
+  c.header("X-Frame-Options", "SAMEORIGIN"); // защита от кликджекинга — сайт нельзя встроить в чужой <iframe>
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  // geolocation НЕ блокируем — используется в "заведения рядом со мной" на барной карте
+  c.header("Permissions-Policy", "camera=(), microphone=(), payment=()");
+  c.header("Content-Security-Policy", CSP);
+  if (env.isProduction) {
+    // Требует HTTPS на сайте — если сертификата ещё нет, этот заголовок
+    // безвреден (браузер его просто игнорирует по HTTP), но принудительно
+    // включать редирект на HTTPS раньше, чем сертификат настроен, не стоит.
+    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  await next();
+});
+
 app.use(cors({
   // Раньше было "*" — любой сайт в интернете мог делать запросы к API от лица
   // залогиненного пользователя и читать ответ. Список разрешённых доменов —

@@ -22,7 +22,7 @@ export const authRouter = createRouter({
     .input(
       z.object({
         email: z.string().email("Некорректный email"),
-        password: z.string().min(6, "Минимум 6 символов"),
+        password: z.string().min(8, "Минимум 8 символов"),
         name: z.string().min(1, "Введите имя"),
       })
     )
