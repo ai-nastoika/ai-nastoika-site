@@ -208,6 +208,8 @@ export default function ProfilePage() {
   const { data: recipesData } = trpc.recipe.list.useQuery();
   const { data: placesData } = trpc.place.list.useQuery();
   const { data: trackerStats } = trpc.infusion.stats.useQuery(undefined, { enabled: !!user });
+  const { data: activeInfusionsData } = trpc.infusion.list.useQuery({ status: "active" }, { enabled: !!user });
+  const activeInfusions = activeInfusionsData || [];
   const { data: myFeedbackData } = trpc.feedback.myFeedback.useQuery(undefined, { enabled: !!user });
   const myFeedback = myFeedbackData || [];
 
@@ -411,6 +413,131 @@ export default function ProfilePage() {
         {/* OVERVIEW */}
         {tab === "overview" && (
           <div className="space-y-10">
+
+            {/* Активные трекеры созревания */}
+            <div>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <Timer size={22} style={{ color: "var(--accent)" }} /> Активные трекеры созревания
+              </h2>
+              {activeInfusions.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <Timer size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Активных трекеров нет</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {activeInfusions.slice(0, 3).map((inf) => (
+                    <button
+                      key={inf.id}
+                      onClick={() => setTab("tracker")}
+                      className="w-full flex items-center gap-4 rounded-xl p-4 text-left"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                    >
+                      <div
+                        className="w-16 h-16 rounded-lg shrink-0"
+                        style={{ background: inf.coverImage ? `url(${inf.coverImage}) center/cover` : "var(--surface)", border: "1px solid var(--border)" }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{inf.name}</div>
+                        <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                          День {inf.dayNow} из {inf.dayTotal} · {inf.recipeTag}
+                        </div>
+                      </div>
+                      <ChevronRight size={20} style={{ color: "var(--accent)" }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {activeInfusions.length > 3 && (
+                <button
+                  onClick={() => setTab("tracker")}
+                  className="mt-3 text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  Показать все ({activeInfusions.length}) в разделе «Трекер созревания» →
+                </button>
+              )}
+            </div>
+
+            {/* Сохранённые рецепты */}
+            <div>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <BookOpen size={22} style={{ color: "var(--accent)" }} /> Сохранённые рецепты
+              </h2>
+              {savedRecipes.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <Heart size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых рецептов нет</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedRecipes.slice(0, 3).map((r) => (
+                    <Link
+                      key={r.id}
+                      to={`/recipe/${r.slug}`}
+                      className="flex items-center gap-4 rounded-xl p-4"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                    >
+                      <img src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{r.title}</div>
+                        <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{r.categoryLabel}</div>
+                      </div>
+                      <ChevronRight size={20} style={{ color: "var(--accent)" }} />
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {savedRecipes.length > 3 && (
+                <button
+                  onClick={() => setTab("recipes")}
+                  className="mt-3 text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  Показать все ({savedRecipes.length}) в разделе «Рецепты» →
+                </button>
+              )}
+            </div>
+
+            {/* Сохранённые места */}
+            <div>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                <MapPin size={22} style={{ color: "var(--accent)" }} /> Сохранённые места
+              </h2>
+              {savedPlaces.length === 0 ? (
+                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedPlaces.slice(0, 3).map((p) => (
+                    <Link
+                      key={p.id}
+                      to={`/place/${p.slug}`}
+                      className="flex items-center gap-4 rounded-xl p-4"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                    >
+                      <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{p.name}</div>
+                        <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{p.city || "—"}</div>
+                      </div>
+                      <ChevronRight size={20} style={{ color: "var(--accent)" }} />
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {savedPlaces.length > 3 && (
+                <button
+                  onClick={() => setTab("places")}
+                  className="mt-3 text-sm font-medium transition-opacity hover:opacity-70"
+                  style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
+                >
+                  Показать все ({savedPlaces.length}) в разделе «Места» →
+                </button>
+              )}
+            </div>
 
             {/* Мои отзывы и комментарии */}
             <div>
