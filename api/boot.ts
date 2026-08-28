@@ -753,7 +753,12 @@ app.get("/assets/*", async (c) => {
 app.get("*", async (c) => {
   const ext = path.extname(c.req.path);
   const imageExts = [".jpg", ".jpeg", ".png", ".svg", ".ico", ".webp", ".gif", ".woff2", ".woff", ".ttf"];
-  if (imageExts.includes(ext)) {
+  // manifest.json и sw.js раньше сюда не попадали и падали в SPA-заглушку ниже —
+  // браузер получал HTML вместо JSON/JS. sw.js особенно важен: без него Chrome
+  // на Android не предлагает "Установить как приложение" (см. комментарий в
+  // самом public/sw.js) — ломалось молча, без явной ошибки в консоли.
+  const staticExts: Record<string, string> = { ".json": "application/json", ".js": "application/javascript", ".txt": "text/plain" };
+  if (imageExts.includes(ext) || ext in staticExts) {
     const filePath = path.join(distPath, c.req.path);
     try {
       const content = fs.readFileSync(filePath);
@@ -768,6 +773,7 @@ app.get("*", async (c) => {
         ".woff2": "font/woff2",
         ".woff": "font/woff",
         ".ttf": "font/ttf",
+        ...staticExts,
       };
       return new Response(content, { headers: { "Content-Type": ct[ext] || "application/octet-stream" } });
     } catch {
