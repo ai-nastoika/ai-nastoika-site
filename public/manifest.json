@@ -1,6 +1,6 @@
 {
-  "name": "AI Настойка",
-  "short_name": "Настойка",
+  "name": "Ай, настойка!",
+  "short_name": "Ай, настойка!",
   "description": "Рецепты домашних настоек",
   "start_url": "/",
   "display": "standalone",
