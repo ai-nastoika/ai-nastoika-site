@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, Loader2, Copy, Check, X, CreditCard, Smartphone, ArrowLeft } from "lucide-react";
+import { Heart, Loader2, Copy, Check, X, CreditCard, ArrowLeft } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { ThanksContent } from "./DonationThanksAnimation";
 
@@ -310,7 +310,10 @@ export function DonateModal({ onClose }: DonateModalProps) {
   );
 }
 
-/* ── Экран выбора способа ── */
+/* ── Экран выбора способа ──
+   Донат по номеру телефона временно скрыт по просьбе (не удалён —
+   PhoneView и бэкенд-реквизиты в donationRouter.ts оставлены как есть,
+   чтобы вернуть кнопку было просто). */
 function ChoiceView({ info, onSelect }: { info: DonationInfo; onSelect: (v: View) => void }) {
   return (
     <div className="donate-modal-choice">
@@ -322,15 +325,7 @@ function ChoiceView({ info, onSelect }: { info: DonationInfo; onSelect: (v: View
         <CreditCard size={18} />
         <span>Через ЮKassa</span>
       </button>
-      <button
-        className="donate-modal-option"
-        onClick={() => onSelect("phone")}
-        disabled={!info.directTransfer}
-      >
-        <Smartphone size={18} />
-        <span>По номеру телефона</span>
-      </button>
-      {!info.paymentsConfigured && !info.directTransfer && (
+      {!info.paymentsConfigured && (
         <p className="donate-modal-hint">Способы оплаты пока настраиваются, загляните позже.</p>
       )}
     </div>

@@ -44,8 +44,8 @@ export default function OfferPage() {
               налоговый режим «Налог на профессиональный доход» (самозанятый):
             </p>
             <p className="mt-2">
-              <b>Горшенин Владимир Викторович</b><br />
-              ИНН: 890509304258<br />
+              <b>Чулкова Алевтина Николаевна</b><br />
+              ИНН: 890503820009<br />
               Email для обращений: <a href="mailto:info@ai-nastoika.ru" style={{ color: "var(--accent)" }}>info@ai-nastoika.ru</a>
             </p>
             <p className="mt-2">
