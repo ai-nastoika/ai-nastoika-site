@@ -169,6 +169,13 @@
       "when": 1787903762275,
       "tag": "0023_comment_likes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1787911052248,
+      "tag": "0024_label_description",
+      "breakpoints": true
     }
   ]
 }

@@ -608,13 +608,17 @@ app.post("/api/edit-label-photo", async (c) => {
     // Сохраняем в ту же таблицу, что и обычную генерацию — те же "последние 3"
     // видны в ЛК, независимо от того, каким способом этикетка была создана.
     // Название в галерее — текст этикетки, если он был указан (понятнее для
-    // поиска глазами), иначе само описание.
+    // поиска глазами), иначе само описание. Описание при этом всегда
+    // сохраняем отдельно и полностью — раньше при отсутствии labelText
+    // оно частично дублировало title (тоже обрезаясь до 500 символов),
+    // а при наличии labelText вообще нигде не было видно в ЛК.
     const db = getDb();
     const imageData = image.imageBase64 ?? image.imageUrl ?? "";
     const labelTitle = typeof labelText === "string" && labelText.trim() ? labelText.trim() : prompt.trim();
     await db.insert(generatedLabels).values({
       userId,
       title: labelTitle.slice(0, 500),
+      description: prompt.trim(),
       imageBase64: imageData,
     });
     const existing = await db

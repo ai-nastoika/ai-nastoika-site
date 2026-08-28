@@ -566,6 +566,11 @@ export const generatedLabels = mysqlTable("generated_labels", {
   id: serial("id").primaryKey(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
   title: varchar("title", { length: 500 }).notNull(),
+  // Полное текстовое описание запроса (что попросили нарисовать) — раньше
+  // нигде не хранилось при генерации "с нуля" (только в ai_conversations,
+  // отдельно от самой этикетки), из-за чего в ЛК рядом с картинкой не было
+  // видно, что именно просили. Text — без ограничения длины, не обрезаем.
+  description: text("description"),
   imageBase64: mediumtext("image_base64").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

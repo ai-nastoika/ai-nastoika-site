@@ -568,6 +568,11 @@ export default function ProfilePage() {
                           <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                             {genLabel.title}
                           </div>
+                          {genLabel.description && (
+                            <p className="text-xs mb-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                              {genLabel.description}
+                            </p>
+                          )}
                           <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                             {new Date(genLabel.createdAt).toLocaleDateString("ru-RU")}
                           </div>

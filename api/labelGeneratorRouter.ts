@@ -107,11 +107,13 @@ export const labelGeneratorRouter = createRouter({
 
       // Храним саму картинку — не только текстовое резюме — чтобы в личном
       // кабинете можно было пересмотреть/перепечатать последние этикетки.
+      // Описание сохраняем полностью, без обрезки (text, не varchar).
       const db = getDb();
       const imageData = image.imageBase64 ?? image.imageUrl ?? "";
       await db.insert(generatedLabels).values({
         userId: ctx.user.id,
         title: input.title,
+        description: input.description,
         imageBase64: imageData,
       });
 
