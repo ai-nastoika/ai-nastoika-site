@@ -325,7 +325,7 @@ export default function PlaceDetail() {
                 </h4>
                 <ul className="space-y-2.5">
                   {pros.map((p) => (
-                    <li key={p} className="text-[15px] flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                    <li key={p} className="text-base flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
                       <Check size={16} className="shrink-0 mt-0.5" style={{ color: "var(--success)" }} /> {p}
                     </li>
                   ))}
@@ -340,7 +340,7 @@ export default function PlaceDetail() {
                 </h4>
                 <ul className="space-y-2.5">
                   {cons.map((c) => (
-                    <li key={c} className="text-[15px] flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                    <li key={c} className="text-base flex items-start gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
                       <X size={16} className="shrink-0 mt-0.5" style={{ color: "var(--danger)" }} /> {c}
                     </li>
                   ))}

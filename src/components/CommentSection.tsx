@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageCircle, Send, AlertTriangle, Pencil, Trash2, Check, X } from "lucide-react";
+import { MessageCircle, Send, AlertTriangle, Pencil, Trash2, Check, X, ThumbsUp } from "lucide-react";
 import { ShotGlassPicker, ShotGlassIcon, ShotGlassDetailed, type RatingTier } from "./ShotGlassRating";
 
 type CommentSectionProps =
@@ -18,11 +18,19 @@ export default function CommentSection(props: CommentSectionProps) {
 
   const { data: commentsData } = trpc.comment.list.useQuery(queryInput, { enabled: isValid });
   const { data: ratingSummary } = trpc.comment.ratingSummary.useQuery(queryInput, { enabled: isValid });
+  const { data: myLikedIds } = trpc.comment.myLikedIds.useQuery(undefined, { enabled: isLoggedIn });
 
   function invalidateAll() {
     utils.comment.list.invalidate(queryInput);
     utils.comment.ratingSummary.invalidate(queryInput);
   }
+
+  const toggleLike = trpc.comment.toggleLike.useMutation({
+    onSuccess: () => {
+      utils.comment.list.invalidate(queryInput);
+      utils.comment.myLikedIds.invalidate();
+    },
+  });
 
   const createComment = trpc.comment.create.useMutation({
     onSuccess: () => {
@@ -242,9 +250,24 @@ export default function CommentSection(props: CommentSectionProps) {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
-                      {comment.text}
-                    </p>
+                    <>
+                      <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+                        {comment.text}
+                      </p>
+                      <button
+                        onClick={() => isLoggedIn && !isOwn && toggleLike.mutate({ id: comment.id })}
+                        disabled={!isLoggedIn || isOwn || toggleLike.isPending}
+                        title={isOwn ? "Нельзя лайкнуть свой отзыв" : !isLoggedIn ? "Войдите, чтобы поставить лайк" : undefined}
+                        className="flex items-center gap-1.5 mt-2 text-sm transition-opacity hover:opacity-70 disabled:hover:opacity-100 disabled:cursor-default"
+                        style={{
+                          color: myLikedIds?.includes(comment.id) ? "var(--accent)" : "var(--text-muted)",
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        <ThumbsUp size={15} fill={myLikedIds?.includes(comment.id) ? "var(--accent)" : "none"} />
+                        {comment.likes ?? 0}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

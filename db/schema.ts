@@ -232,6 +232,19 @@ export const comments = mysqlTable("comments", {
 export type Comment = typeof comments.$inferSelect;
 export type InsertComment = typeof comments.$inferInsert;
 
+// ─── Comment Likes (кто что лайкнул — чтобы не давать лайкать дважды) ──
+export const commentLikes = mysqlTable("comment_likes", {
+  id: serial("id").primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  commentId: bigint("comment_id", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueCommentLike: uniqueIndex("unique_comment_like").on(table.userId, table.commentId),
+}));
+
+export type CommentLike = typeof commentLikes.$inferSelect;
+export type InsertCommentLike = typeof commentLikes.$inferInsert;
+
 // ─── Recipe Ratings ────────────────────────────────────────
 export const recipeRatings = mysqlTable("recipe_ratings", {
   id: serial("id").primaryKey(),

@@ -211,17 +211,18 @@ export default function ProfilePage() {
   const { data: myFeedbackData } = trpc.feedback.myFeedback.useQuery(undefined, { enabled: !!user });
   const myFeedback = myFeedbackData || [];
 
-  // Отзывы с оценкой (рюмкой) — заменяет старую 5-звёздочную систему
-  const myRatedComments = (myCommentsData || [])
-    .filter((c) => c.rating)
+  // Единый список: отзыв с оценкой (рюмкой) и обычный комментарий без оценки —
+  // это одна и та же сущность в базе, оценку нельзя оставить без текста,
+  // поэтому раньше "Мои отзывы" и "Мои комментарии" почти всегда дублировали
+  // друг друга. Показываем одним списком, оценка — если она есть.
+  const myActivity = (myCommentsData || [])
     .map((c) => ({
       comment: c,
       recipe: c.recipeId ? (recipesData || []).find((rec) => rec.id === c.recipeId) : undefined,
       place: c.placeId ? (placesData || []).find((p) => p.id === c.placeId) : undefined,
-    }));
-
-  const myComments = myCommentsData || [];
-  const allRecipes = recipesData || [];
+    }))
+    .filter((item) => item.recipe || item.place)
+    .sort((a, b) => new Date(b.comment.createdAt).getTime() - new Date(a.comment.createdAt).getTime());
 
   const userData = {
     name: user?.name ?? "Пользователь",
@@ -411,68 +412,43 @@ export default function ProfilePage() {
         {tab === "overview" && (
           <div className="space-y-10">
 
-            {/* Мои отзывы */}
+            {/* Мои отзывы и комментарии */}
             <div>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                <Star size={22} style={{ color: "var(--accent)" }} /> Мои отзывы
+                <MessageCircle size={22} style={{ color: "var(--accent)" }} /> Мои отзывы и комментарии
               </h2>
-              {myRatedComments.length === 0 ? (
+              {myActivity.length === 0 ? (
                 <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <Star size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не оставляли отзывов с оценкой</div>
+                  <MessageCircle size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Вы ещё не оставляли отзывов и комментариев</div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {myRatedComments.map(({ comment, recipe, place }) => {
-                    if (!recipe && !place) return null;
+                  {myActivity.map(({ comment, recipe, place }) => {
                     const displayTitle = recipe ? recipe.title : place!.name;
                     const displayImage = recipe ? recipe.heroImage : (place as { heroImage?: string } | undefined)?.heroImage;
                     const href = recipe ? `/recipe/${recipe.slug}` : `/place/${place!.slug}`;
-                    const rating = comment.rating as "green" | "yellow" | "red";
+                    const rating = comment.rating === "green" || comment.rating === "yellow" || comment.rating === "red" ? comment.rating : null;
                     return (
                       <div key={comment.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                         <img src={displayImage ?? "/recipe-cherry.jpg"} alt={displayTitle} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{displayTitle}</div>
                           <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{comment.text}</div>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                              {new Date(comment.createdAt).toLocaleDateString("ru-RU")}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                              <ThumbsUp size={12} /> {comment.likes ?? 0}
+                            </span>
+                          </div>
                         </div>
-                        <ShotGlassIcon tier={rating} size={22} />
+                        {rating && <ShotGlassIcon tier={rating} size={22} />}
                         <Link to={href} style={{ color: "var(--accent)" }}><ChevronRight size={20} /></Link>
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
-
-            {/* Мои комментарии */}
-            <div>
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                <MessageCircle size={22} style={{ color: "var(--accent)" }} /> Мои комментарии
-              </h2>
-              {myComments.length === 0 ? (
-                <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                  <MessageCircle size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Комментариев пока нет</div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {myComments.map((c) => (
-                    <div key={c.id} className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-medium" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-                          {allRecipes.find((r) => r.id === c.recipeId)?.title ?? "Рецепт"}
-                        </span>
-                        <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                          {new Date(c.createdAt).toLocaleDateString("ru-RU")}
-                        </span>
-                      </div>
-                      <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>{c.text}</p>
-                      <div className="flex items-center gap-1 mt-2 text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        <ThumbsUp size={14} /> {c.likes ?? 0} лайков
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

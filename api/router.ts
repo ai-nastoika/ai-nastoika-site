@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { listRecentConversations, finishConversation, resumeConversation } from "./lib/aiConversations";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq, count, desc, sql } from "drizzle-orm";
-import { comments, feedback, transactions, users as usersFull, places } from "../db/schema";
+import { eq, and, count, desc, sql } from "drizzle-orm";
+import { comments, commentLikes, feedback, transactions, users as usersFull, places } from "../db/schema";
 // ^ users из "./trpc" — устаревшая копия схемы без free_requests_left/balance_kopecks
 //   (см. api/trpc.ts). usersFull — актуальная таблица из db/schema.ts, с этими полями.
 //   Используется ниже только там, где эти поля реально нужны (list/grant*).
@@ -487,6 +487,37 @@ export const appRouter = router({
     myComments: authedProcedure.query(async ({ ctx }) => {
       return db.select().from(comments).where(eq(comments.userId, ctx.userId));
     }),
+
+    /* ── ID комментариев, которые лайкнул текущий пользователь — чтобы
+       подсветить кнопку лайка на карточке комментария ── */
+    myLikedIds: authedProcedure.query(async ({ ctx }) => {
+      const rows = await db
+        .select({ commentId: commentLikes.commentId })
+        .from(commentLikes)
+        .where(eq(commentLikes.userId, ctx.userId));
+      return rows.map((r) => r.commentId);
+    }),
+
+    /* ── Лайк/анлайк (переключатель) — нельзя лайкнуть дважды благодаря
+       уникальному индексу (userId, commentId) в comment_likes ── */
+    toggleLike: authedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const [existing] = await db
+          .select()
+          .from(commentLikes)
+          .where(and(eq(commentLikes.userId, ctx.userId), eq(commentLikes.commentId, input.id)));
+
+        if (existing) {
+          await db.delete(commentLikes).where(eq(commentLikes.id, existing.id));
+          await db.update(comments).set({ likes: sql`greatest(${comments.likes} - 1, 0)` }).where(eq(comments.id, input.id));
+          return { liked: false };
+        }
+
+        await db.insert(commentLikes).values({ userId: ctx.userId, commentId: input.id });
+        await db.update(comments).set({ likes: sql`${comments.likes} + 1` }).where(eq(comments.id, input.id));
+        return { liked: true };
+      }),
 
     /* Оценку можно приложить только вместе с отзывом — отдельного эндпоинта "поставить рюмку без текста" нет */
     create: authedProcedure
