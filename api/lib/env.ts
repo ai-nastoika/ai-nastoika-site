@@ -1,4 +1,13 @@
-import "dotenv/config";
+// dotenv по умолчанию НЕ перезаписывает переменные, которые уже присутствуют
+// в process.env на момент запуска процесса (например, "застрявшие" в
+// сохранённом снимке PM2 (~/.pm2/dump.pm2) или экспортированные когда-то
+// вручную в shell/systemd). Из-за этого правки .env на диске могут тихо
+// игнорироваться даже после `pm2 restart --update-env` — процесс продолжает
+// работать со старым секретом, и это невозможно понять, не сравнивая
+// вручную файл с `pm2 env`. .env — единственный источник истины для этого
+// проекта, поэтому override: true обязателен.
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 
 function required(name: string): string {
   const value = process.env[name];
