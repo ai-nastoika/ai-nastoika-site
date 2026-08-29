@@ -17,7 +17,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { jwtVerify } from "jose";
 import { getDb } from "./queries/connection";
-import { users, generatedLabels } from "@db/schema";
+import { users, generatedLabels, recipes, recipeIngredients, recipeSteps, places } from "@db/schema";
 import { env } from "./lib/env";
 import { JWT_SECRET } from "./lib/jwtSecret";
 import { checkRateLimit, getClientIp } from "./lib/rateLimit";
@@ -30,6 +30,34 @@ const execFileAsync = promisify(execFile);
 
 const __dirname = import.meta.dirname;
 const distPath = path.resolve(__dirname, "..", "dist");
+
+// Подменяет статичные title/description/OG-теги в собранном index.html на
+// реальные данные конкретной страницы (рецепт, заведение) — до того, как
+// до дела дойдёт JS. Полагается на то, что теги в index.html имеют именно
+// такой вид (см. сам файл) — если вёрстка head поменяется, регулярки нужно
+// поправить вместе с ней.
+function injectMeta(
+  html: string,
+  meta: { title: string; description: string; url: string; image: string },
+  jsonLd?: unknown
+): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let out = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${esc(meta.title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${esc(meta.description)}" />`)
+    .replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${esc(meta.url)}" />`)
+    .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${esc(meta.title)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${esc(meta.description)}" />`)
+    .replace(/<meta property="og:image" content="[^"]*" \/>/, `<meta property="og:image" content="${esc(meta.image)}" />`)
+    .replace(/<meta property="og:url" content="[^"]*" \/>/, `<meta property="og:url" content="${esc(meta.url)}" />`)
+    .replace(/<meta name="twitter:title" content="[^"]*" \/>/, `<meta name="twitter:title" content="${esc(meta.title)}" />`)
+    .replace(/<meta name="twitter:description" content="[^"]*" \/>/, `<meta name="twitter:description" content="${esc(meta.description)}" />`)
+    .replace(/<meta name="twitter:image" content="[^"]*" \/>/, `<meta name="twitter:image" content="${esc(meta.image)}" />`);
+  if (jsonLd) {
+    out = out.replace("</head>", `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script></head>`);
+  }
+  return out;
+}
 
 // Папка для загруженных картинок рецептов (вне dist — не удаляется при деплое)
 const uploadsDir = path.resolve(__dirname, "..", "uploads", "recipes");
@@ -699,6 +727,58 @@ app.post("/api/webhooks/yookassa", async (c) => {
   }
 });
 
+// ─── robots.txt и sitemap.xml — для индексации поисковиками ───
+app.get("/robots.txt", (c) => {
+  return c.text(
+    ["User-agent: *", "Allow: /", "", "Sitemap: https://ai-nastoika.ru/sitemap.xml"].join("\n"),
+    200,
+    { "Content-Type": "text/plain; charset=utf-8" }
+  );
+});
+
+app.get("/sitemap.xml", async (c) => {
+  let allRecipes: { slug: string; createdAt: Date }[] = [];
+  let allPlaces: { slug: string; createdAt: Date }[] = [];
+  try {
+    const db = getDb();
+    allRecipes = await db.select({ slug: recipes.slug, createdAt: recipes.createdAt }).from(recipes);
+    // На барной карте показываем только одобренные места — та же логика в sitemap,
+    // иначе поисковик будет заходить на страницы заведений, которых ещё нет на сайте.
+    allPlaces = await db
+      .select({ slug: places.slug, createdAt: places.createdAt })
+      .from(places)
+      .where(eq(places.status, "approved"));
+  } catch (err) {
+    // БД на секунду недоступна — лучше отдать sitemap хотя бы со статичными
+    // страницами, чем упасть 500-й на весь sitemap.xml.
+    console.error("[sitemap] не удалось получить рецепты/места из БД:", err);
+  }
+
+  const staticUrls = [
+    { loc: "https://ai-nastoika.ru/", priority: "1.0" },
+    { loc: "https://ai-nastoika.ru/recipes", priority: "0.9" },
+    { loc: "https://ai-nastoika.ru/barmap", priority: "0.9" },
+    { loc: "https://ai-nastoika.ru/tools", priority: "0.7" },
+    { loc: "https://ai-nastoika.ru/labels", priority: "0.6" },
+    { loc: "https://ai-nastoika.ru/rules", priority: "0.3" },
+  ];
+
+  const urls = [
+    ...staticUrls.map((u) => `  <url><loc>${u.loc}</loc><priority>${u.priority}</priority></url>`),
+    ...allRecipes.map(
+      (r) =>
+        `  <url><loc>https://ai-nastoika.ru/recipe/${r.slug}</loc><lastmod>${new Date(r.createdAt).toISOString().split("T")[0]}</lastmod><priority>0.8</priority></url>`
+    ),
+    ...allPlaces.map(
+      (p) =>
+        `  <url><loc>https://ai-nastoika.ru/place/${p.slug}</loc><lastmod>${new Date(p.createdAt).toISOString().split("T")[0]}</lastmod><priority>0.6</priority></url>`
+    ),
+  ].join("\n");
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
+  return c.text(xml, 200, { "Content-Type": "application/xml; charset=utf-8" });
+});
+
 // ─── Serve uploaded files ───
 app.get("/uploads/*", async (c) => {
   const relativePath = c.req.path.replace("/uploads/", "");
@@ -784,13 +864,80 @@ app.get("*", async (c) => {
       return c.notFound();
     }
   }
-  // SPA fallback
+  // SPA fallback — по умолчанию отдаём общий index.html как есть, но для
+  // known-страниц (рецепт, заведение) подставляем реальные title/description/og
+  // прямо в HTML на сервере. Иначе поисковик (особенно Яндекс, который заметно
+  // хуже Google выполняет JS при обходе) видит одинаковый заголовок и описание
+  // на всех страницах сайта — это плохо и для позиций, и для вида в выдаче.
+  let file: string;
   try {
-    const file = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
-    return c.html(file);
+    file = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
   } catch {
     return c.text("index.html not found", 500);
   }
+
+  // Обогащение мета-тегов — необязательное: если БД на секунду недоступна или
+  // рецепт/место не найдены, всё равно отдаём страницу как есть (React сам
+  // разберётся на клиенте), а не 500-ю ошибку. Раньше здесь был один общий
+  // try/catch на весь блок, и сбой похода в БД полностью ронял страницу —
+  // нашли на смоук-тесте перед деплоем.
+  try {
+    const recipeMatch = c.req.path.match(/^\/recipe\/([^/]+)\/?$/);
+    const placeMatch = c.req.path.match(/^\/place\/([^/]+)\/?$/);
+
+    if (recipeMatch) {
+      const db = getDb();
+      const [recipe] = await db.select().from(recipes).where(eq(recipes.slug, recipeMatch[1]));
+      if (recipe) {
+        const title = `${recipe.title} — рецепт домашней настойки | Ай, настойка!`;
+        const description = (recipe.subtitle || `Рецепт настойки «${recipe.title}» с пошаговой инструкцией и советами.`).slice(0, 300);
+        const url = `https://ai-nastoika.ru/recipe/${recipe.slug}`;
+        const image = recipe.heroImage || "https://ai-nastoika.ru/og-image.jpg";
+
+        const ingredients = await db
+          .select({ name: recipeIngredients.name, amount: recipeIngredients.amount })
+          .from(recipeIngredients)
+          .where(eq(recipeIngredients.recipeId, recipe.id));
+        const steps = await db
+          .select({ text: recipeSteps.text })
+          .from(recipeSteps)
+          .where(eq(recipeSteps.recipeId, recipe.id))
+          .orderBy(recipeSteps.stepNum);
+
+        const jsonLd = {
+          "@context": "https://schema.org",
+          "@type": "Recipe",
+          name: recipe.title,
+          description,
+          image: image.startsWith("http") ? image : `https://ai-nastoika.ru${image}`,
+          recipeCategory: recipe.categoryLabel || recipe.category,
+          recipeIngredient: ingredients.map((i) => `${i.name}${i.amount ? ` — ${i.amount}` : ""}`),
+          recipeInstructions: steps.map((s) => ({ "@type": "HowToStep", text: s.text })),
+          ...(recipe.rating && Number(recipe.rating) > 0
+            ? { aggregateRating: { "@type": "AggregateRating", ratingValue: recipe.rating, reviewCount: recipe.reviews || 1 } }
+            : {}),
+        };
+
+        return c.html(injectMeta(file, { title, description, url, image }, jsonLd));
+      }
+    }
+
+    if (placeMatch) {
+      const db = getDb();
+      const [place] = await db.select().from(places).where(eq(places.slug, placeMatch[1]));
+      if (place) {
+        const title = `${place.name} — бар с настойками${place.city ? `, ${place.city}` : ""} | Ай, настойка!`;
+        const description = (place.description || `${place.name} — заведение с настойками и наливками в барной карте «Ай, настойка!».`).slice(0, 300);
+        const url = `https://ai-nastoika.ru/place/${place.slug}`;
+        const image = place.image || "https://ai-nastoika.ru/og-image.jpg";
+        return c.html(injectMeta(file, { title, description, url, image }));
+      }
+    }
+  } catch (err) {
+    console.error("[meta-injection] не удалось обогатить мета-теги, отдаю страницу как есть:", err);
+  }
+
+  return c.html(file);
 });
 
 const port = Number(process.env.PORT || 3000);
