@@ -766,7 +766,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => {
                             sessionStorage.setItem("edit-label", JSON.stringify(label));
-                            window.location.hash = "/tools";
+                            navigate("/tools");
                           }}
                           className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
                           style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}

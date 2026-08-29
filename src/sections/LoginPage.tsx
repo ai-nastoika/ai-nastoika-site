@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,15 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, UserPlus, ArrowLeft, CheckCircle2, Mail, RefreshCw, Eye, EyeOff, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
-  const location = useLocation();
-  // Токены из URL нужно знать уже при первом рендере (для reset-password —
-  // чтобы сразу открыть нужный экран, без setState внутри useEffect,
-  // которое вызывает лишний повторный рендер — см. ESLint react-hooks/set-state-in-effect).
-  const hash = location.hash || window.location.hash;
-  const fullPath = hash.replace("#", "");
-  const queryString = fullPath.split("?")[1] || "";
-  const verifyToken = new URLSearchParams(queryString).get("verify");
-  const resetToken = new URLSearchParams(queryString).get("token");
+  const [searchParams] = useSearchParams();
+  const verifyToken = searchParams.get("verify");
+  const resetToken = searchParams.get("token");
 
   const [mode, setMode] = useState<"login" | "register" | "verify-email" | "forgot-password" | "reset-password">(
     () => (resetToken ? "reset-password" : "login")

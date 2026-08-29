@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { createHashRouter, RouterProvider, Outlet } from "react-router";
+import { createBrowserRouter, RouterProvider, Outlet } from "react-router";
 import AgeGate from "./sections/AgeGate";
 import Header from "./sections/Header";
 import Hero from "./sections/Hero";
@@ -110,7 +110,7 @@ function Layout() {
   );
 }
 
-const router = createHashRouter([
+const router = createBrowserRouter([
   {
     path: "/",
     element: <Layout />,

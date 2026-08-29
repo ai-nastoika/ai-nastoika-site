@@ -85,7 +85,7 @@ export const appRouter = router({
                 Здравствуйте, ${input.name || input.email.split("@")[0]}!<br/>
                 Подтвердите вашу электронную почту чтобы начать пользоваться сайтом.
               </p>
-              <a href="${siteUrl}/#/login?verify=${verifyToken}"
+              <a href="${siteUrl}/login?verify=${verifyToken}"
                 style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
                 Подтвердить email
               </a>
@@ -143,7 +143,7 @@ export const appRouter = router({
               <p style="font-size: 16px; color: #333; line-height: 1.6;">
                 Подтвердите вашу электронную почту:
               </p>
-              <a href="${siteUrl}/#/login?verify=${verifyToken}"
+              <a href="${siteUrl}/login?verify=${verifyToken}"
                 style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
                 Подтвердить email
               </a>
@@ -187,7 +187,7 @@ export const appRouter = router({
                 <p style="font-size: 16px; color: #333; line-height: 1.6;">
                   Кто-то (надеемся, что вы) запросил восстановление пароля для этого аккаунта.
                 </p>
-                <a href="${siteUrl}/#/reset-password?token=${resetToken}"
+                <a href="${siteUrl}/reset-password?token=${resetToken}"
                   style="display: inline-block; margin: 24px 0; padding: 14px 32px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
                   Придумать новый пароль
                 </a>

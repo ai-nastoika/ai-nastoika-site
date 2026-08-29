@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { MessageCircle, Send, AlertTriangle, Pencil, Trash2, Check, X, ThumbsUp } from "lucide-react";
@@ -163,7 +164,7 @@ export default function CommentSection(props: CommentSectionProps) {
       ) : (
         <div className="rounded-xl p-5 mb-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
           <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            <a href="#/login" className="underline font-medium" style={{ color: "var(--accent)" }}>Войдите</a>, чтобы оставить отзыв
+            <Link to="/login" className="underline font-medium" style={{ color: "var(--accent)" }}>Войдите</Link>, чтобы оставить отзыв
           </p>
         </div>
       )}

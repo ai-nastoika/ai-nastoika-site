@@ -77,7 +77,7 @@ export async function sendDueTrackerReminders(): Promise<{ usersNotified: number
           <h1 style="font-size: 22px; color: #1a1a1a; margin-bottom: 16px;">🍹 Трекер созревания</h1>
           <p style="font-size: 15px; color: #333; line-height: 1.6;">Пора:</p>
           <ul style="font-size: 15px; color: #333; padding-left: 20px;">${listHtml}</ul>
-          <a href="${SITE_URL}/#/profile" style="display: inline-block; margin: 20px 0; padding: 12px 28px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
+          <a href="${SITE_URL}/profile" style="display: inline-block; margin: 20px 0; padding: 12px 28px; background: #8B4513; color: #fff; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">
             Открыть трекер
           </a>
         </div>

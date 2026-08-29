@@ -1901,7 +1901,6 @@ export default function ToolsPage() {
 
   /* Auto-select label tab when coming from recipe page or profile */
   useEffect(() => {
-    const hash = window.location.hash;
     const savedEdit = sessionStorage.getItem("edit-label");
     if (savedEdit) {
       sessionStorage.removeItem("edit-label");
@@ -1910,9 +1909,6 @@ export default function ToolsPage() {
         setEditLabelData(data);
         setActiveTool("label");
       } catch {}
-    } else if (hash.includes("?label") || hash.includes("label")) {
-      setActiveTool("label");
-      if (hash !== "#/tools") window.location.hash = "#/tools";
     }
   }, []);
 
