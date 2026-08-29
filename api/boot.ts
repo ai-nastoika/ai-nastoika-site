@@ -841,7 +841,10 @@ app.get("*", async (c) => {
   // браузер получал HTML вместо JSON/JS. sw.js особенно важен: без него Chrome
   // на Android не предлагает "Установить как приложение" (см. комментарий в
   // самом public/sw.js) — ломалось молча, без явной ошибки в консоли.
-  const staticExts: Record<string, string> = { ".json": "application/json", ".js": "application/javascript", ".txt": "text/plain" };
+  // .html — для файлов подтверждения владения сайтом (Яндекс.Вебмастер,
+  // Google Search Console дают файл вида yandex_XXXX.html, который должен
+  // отдаваться как есть по прямому адресу, а не попадать в SPA-заглушку).
+  const staticExts: Record<string, string> = { ".json": "application/json", ".js": "application/javascript", ".txt": "text/plain", ".html": "text/html" };
   if (imageExts.includes(ext) || ext in staticExts) {
     const filePath = path.join(distPath, c.req.path);
     try {
