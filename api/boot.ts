@@ -126,13 +126,13 @@ const app = new Hono();
 // directive", и в ней будет видно, какой домен не хватает в списке ниже.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://api-maps.yandex.ru https://yastatic.net",
+  "script-src 'self' https://api-maps.yandex.ru https://yastatic.net https://mc.yandex.ru",
   // 'unsafe-inline' в style-src нужен обязательно — вся вёрстка сайта построена
   // на inline style={{...}} в React, без этого директива сломает всё оформление.
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob: https://*.maps.yandex.net https://api-maps.yandex.ru https://yastatic.net https://avatars.mds.yandex.net",
-  "connect-src 'self' https://api-maps.yandex.ru https://*.maps.yandex.net https://yastatic.net",
+  "img-src 'self' data: blob: https://*.maps.yandex.net https://api-maps.yandex.ru https://yastatic.net https://avatars.mds.yandex.net https://mc.yandex.ru",
+  "connect-src 'self' https://api-maps.yandex.ru https://*.maps.yandex.net https://yastatic.net https://mc.yandex.ru",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
