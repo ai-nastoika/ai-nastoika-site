@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Wand2, Calculator, Tag, ArrowRight, Sparkles } from "lucide-react";
+import { Wand2, Calculator, ArrowRight, Sparkles } from "lucide-react";
 
 const tools = [
   {
@@ -17,14 +17,6 @@ const tools = [
     desc: "Точный расчёт крепости напитка с учётом всех параметров, которые обычно игнорирует ареометр.",
     badge: null,
     link: "/tools?tool=abv",
-  },
-  {
-    num: "03",
-    icon: Tag,
-    title: "Этикетки с ИИ",
-    desc: "Опишите стиль и впишите текст — ИИ сгенерирует готовую этикетку с вашими надписями, останется распечатать.",
-    badge: null,
-    link: "/tools/generate-label",
   },
 ];
 

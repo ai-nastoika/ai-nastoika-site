@@ -10,6 +10,7 @@ import Recipes from "./sections/Recipes";
 import Footer from "./sections/Footer";
 import BarMapPreview from "./sections/BarMapPreview";
 import VinokurPreview from "./sections/VinokurPreview";
+import LabelPreview from "./sections/LabelPreview";
 import StyleSwitcher from "./components/StyleSwitcher";
 import SwipeIndicator from "./components/SwipeIndicator";
 import ScrollToTop from "./components/ScrollToTop";
@@ -62,6 +63,7 @@ function HomePage() {
       <Tools />
       <BarMapPreview />
       <VinokurPreview />
+      <LabelPreview />
       <Recipes />
     </main>
   );
@@ -131,7 +133,7 @@ const router = createBrowserRouter([
       { path: "/admin", element: <Suspense fallback={<PageLoader />}><AdminPage /></Suspense> },
       { path: "/tools/parse-recipe", element: <Suspense fallback={<PageLoader />}><RecipeParserPage /></Suspense> },
       { path: "/tools/parse-place", element: <Suspense fallback={<PageLoader />}><PlaceParserPage /></Suspense> },
-      { path: "/tools/generate-label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
+      { path: "/label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
       { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
       { path: "/reset-password", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
     ],

@@ -54,7 +54,7 @@ export default function LoginPage() {
       if (data.token) {
         localStorage.setItem("auth-token", data.token);
         utils.auth.me.invalidate().then(() => {
-          window.location.href = "/#/";
+          window.location.href = "/";
         });
       } else {
         setMode("verify-email");
@@ -95,7 +95,7 @@ export default function LoginPage() {
   const onAuthSuccess = (data: { token: string }) => {
     localStorage.setItem("auth-token", data.token);
     utils.auth.me.invalidate().then(() => {
-      window.location.href = "/#/";
+      window.location.href = "/";
     });
   };
 
@@ -309,7 +309,7 @@ export default function LoginPage() {
                 <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
                   Теперь можно войти с новым паролем.
                 </p>
-                <Button className="w-full" onClick={() => { window.location.href = "/#/login"; }}>
+                <Button className="w-full" onClick={() => { window.location.href = "/login"; }}>
                   Войти
                 </Button>
               </CardContent>

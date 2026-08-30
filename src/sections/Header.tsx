@@ -9,6 +9,7 @@ import { DonateModal } from "@/components/DonateModal";
 const navItems = [
   { label: "Рецепты", href: "/recipes" },
   { label: "Инструменты", href: "/tools" },
+  { label: "Этикетка", href: "/label" },
   { label: "Барная карта", href: "/barmap" },
   { label: "Винокур", href: "/vinokur" },
   { label: "Правила", href: "/rules" },

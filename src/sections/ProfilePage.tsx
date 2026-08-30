@@ -240,8 +240,9 @@ export default function ProfilePage() {
     labelsCreated: 0,
   };
 
-  const { data: savedLabels, refetch: refetchLabels } = trpc.savedLabels.list.useQuery();
-  const deleteSavedLabel = trpc.savedLabels.delete.useMutation({ onSuccess: () => refetchLabels() });
+  // (Раздел "Собранные вручную" / savedLabels удалён вместе с фичей "Моя
+  // этикетка" — оставляем сами tRPC-процедуры и таблицу нетронутыми на
+  // сервере, чтобы не потерять то, что пользователи уже успели сохранить.)
 
   const TX_LABELS: Record<string, { label: string; color: string }> = {
     topup: { label: "Пополнение баланса", color: "#16a34a" },
@@ -376,7 +377,7 @@ export default function ProfilePage() {
               { id: "overview", label: "Обзор", icon: User, value: null },
               { id: "tracker", label: "Трекер созревания", icon: Timer, value: trackerStats?.active ?? 0 },
               { id: "recipes", label: "Рецепты", icon: BookOpen, value: savedRecipes.length },
-              { id: "labels", label: "Этикетки", icon: Tag, value: (savedLabels?.length ?? 0) + (myLabels?.length ?? 0) },
+              { id: "labels", label: "Этикетки", icon: Tag, value: myLabels?.length ?? 0 },
               { id: "places", label: "Места", icon: MapPin, value: savedPlaces.length },
               { id: "history", label: "ИИ", icon: FlaskConical, value: userData.usedQueries },
             ] as const).map((t) => {
@@ -672,7 +673,7 @@ export default function ProfilePage() {
         {/* LABELS — сохранённые этикетки */}
         {tab === "labels" && (
           <div className="space-y-8">
-            {myLabels && myLabels.length > 0 && (
+            {myLabels && myLabels.length > 0 ? (
               <div>
                 <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                   Сгенерированные ИИ ({myLabels.length}/3)
@@ -728,58 +729,13 @@ export default function ProfilePage() {
                   Хранятся только 3 последние — новая генерация вытесняет самую старую.
                 </p>
               </div>
-            )}
-
-            {myLabels && myLabels.length > 0 && savedLabels && savedLabels.length > 0 && (
-              <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                Собранные вручную
-              </h3>
-            )}
-
-            {!savedLabels?.length ? (
+            ) : (
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых этикеток нет</div>
-                <a href="/#/tools/generate-label" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                <div className="text-base mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сгенерированных этикеток пока нет</div>
+                <Link to="/label" className="inline-block px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
                   Создать этикетку
-                </a>
-              </div>
-            ) : (
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-                {savedLabels.map(label => (
-                  <div key={label.id} className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    <div className="p-4">
-                      <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                        {label.labelText || "Без названия"}
-                      </div>
-                      <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        {[label.labelDate, label.labelStrength && label.labelStrength + "%"].filter(Boolean).join(" · ") || "Поля не заполнены"}
-                      </div>
-                      <div className="text-xs mb-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                        {new Date(label.updatedAt).toLocaleDateString("ru-RU")}
-                      </div>
-                      {/* Preview */}
-                      {label.previewUrl && (
-                        <img src={label.previewUrl} alt="" className="w-full rounded-lg mb-3" style={{ aspectRatio: "3/4", objectFit: "cover" }} />
-                      )}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            sessionStorage.setItem("edit-label", JSON.stringify(label));
-                            navigate("/tools");
-                          }}
-                          className="flex-1 text-center py-1.5 rounded-lg text-xs font-medium text-white"
-                          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-                        >
-                          Редактировать
-                        </button>
-                        <button onClick={() => deleteSavedLabel.mutate({ id: label.id })} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                </Link>
               </div>
             )}
           </div>
@@ -791,9 +747,9 @@ export default function ProfilePage() {
             <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <MapPin size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
               <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сохранённых мест нет</div>
-              <a href="/#/barmap" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+              <Link to="/barmap" className="inline-block mt-4 px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
                 Открыть барную карту
-              </a>
+              </Link>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1297,7 +1253,7 @@ export default function ProfilePage() {
 
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => { localStorage.removeItem("auth-token"); window.location.href = "/#/"; }}
+                onClick={() => { localStorage.removeItem("auth-token"); window.location.href = "/"; }}
                 className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-base font-medium transition-all hover:scale-105"
                 style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               >
