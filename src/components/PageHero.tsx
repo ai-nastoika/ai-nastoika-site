@@ -42,21 +42,26 @@ export default function PageHero({
         >
           <ArrowLeft size={18} /> {backLabel}
         </button>
-        <div
-          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
-          style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-        >
-          <Icon size={22} />
-          {badgeText}
+        {/* Блочная обёртка обязательна: без неё "inline-flex" кнопки и бейджа
+            может попытаться уместиться в одну строку на широких экранах,
+            и они наложатся друг на друга — на этом и споткнулись. */}
+        <div>
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
+            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+          >
+            <Icon size={22} />
+            {badgeText}
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="text-lg max-w-xl" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+              {subtitle}
+            </p>
+          )}
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-lg max-w-xl" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-            {subtitle}
-          </p>
-        )}
       </div>
     </section>
   );

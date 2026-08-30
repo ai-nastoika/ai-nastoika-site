@@ -388,7 +388,7 @@ export default function VinokurPage() {
       <PageHero
         icon={Flame}
         badgeText="База знаний"
-        title="Винокур"
+        title={<>Домашняя <span style={{ color: "var(--accent)" }}>перегонка</span></>}
         subtitle="Домашняя перегонка — от истории и закона до физики процесса и практики на каждом этапе: брага, первый перегон, второй перегон."
       />
       {/* История + правовое положение */}
