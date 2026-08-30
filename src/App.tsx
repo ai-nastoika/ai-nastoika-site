@@ -32,6 +32,7 @@ const AdminPage = lazy(() => import("./sections/AdminPage"));
 const RecipeParserPage = lazy(() => import("./sections/RecipeParserPage"));
 const PlaceParserPage = lazy(() => import("./sections/PlaceParserPage"));
 const LoginPage = lazy(() => import("./sections/LoginPage"));
+const LabelIntroPage = lazy(() => import("./sections/LabelIntroPage"));
 const LabelGeneratorPage = lazy(() => import("./sections/LabelGeneratorPage"));
 const AboutPage = lazy(() => import("./sections/AboutPage"));
 const VinokurPage = lazy(() => import("./sections/VinokurPage"));
@@ -133,7 +134,8 @@ const router = createBrowserRouter([
       { path: "/admin", element: <Suspense fallback={<PageLoader />}><AdminPage /></Suspense> },
       { path: "/tools/parse-recipe", element: <Suspense fallback={<PageLoader />}><RecipeParserPage /></Suspense> },
       { path: "/tools/parse-place", element: <Suspense fallback={<PageLoader />}><PlaceParserPage /></Suspense> },
-      { path: "/label", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
+      { path: "/label", element: <Suspense fallback={<PageLoader />}><LabelIntroPage /></Suspense> },
+      { path: "/label/generate", element: <Suspense fallback={<PageLoader />}><LabelGeneratorPage /></Suspense> },
       { path: "/login", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
       { path: "/reset-password", element: <Suspense fallback={<PageLoader />}><LoginPage /></Suspense> },
     ],

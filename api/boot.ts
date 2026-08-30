@@ -780,6 +780,7 @@ app.get("/sitemap.xml", async (c) => {
     { loc: "https://ai-nastoika.ru/barmap", priority: "0.9" },
     { loc: "https://ai-nastoika.ru/tools", priority: "0.7" },
     { loc: "https://ai-nastoika.ru/label", priority: "0.6" },
+    { loc: "https://ai-nastoika.ru/label/generate", priority: "0.5" },
     { loc: "https://ai-nastoika.ru/rules", priority: "0.3" },
   ];
 

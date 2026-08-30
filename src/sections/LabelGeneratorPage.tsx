@@ -21,7 +21,6 @@ import {
   FileText,
   Loader2,
   Upload,
-  X,
 } from "lucide-react";
 
 type SourceMode = "scratch" | "photo";
@@ -78,8 +77,8 @@ export default function LabelGeneratorPage() {
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
   });
-  const { data: examples } = trpc.labelExample.list.useQuery();
-  const [exampleLightbox, setExampleLightbox] = useState<{ imageUrl: string; title: string | null; prompt: string } | null>(null);
+  // (Витрина "Примеры" и её лайтбокс переехали на вводную страницу
+  // /label — LabelIntroPage.tsx — эта страница теперь чистый инструмент.)
 
   const generate = trpc.labelGenerator.generate.useMutation({
     onSuccess: () => refetchLimit(),
@@ -252,33 +251,6 @@ export default function LabelGeneratorPage() {
           </Link>
         </div>
       </div>
-
-      {/* Примеры сгенерированных этикеток — витрина, пополняется администраторами */}
-      {examples && examples.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-          <h2 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Примеры
-          </h2>
-          <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-4">
-            {examples.map((ex) => (
-              <button
-                key={ex.id}
-                type="button"
-                onClick={() => setExampleLightbox({ imageUrl: ex.imageUrl, title: ex.title, prompt: ex.prompt })}
-                className="shrink-0 w-40 sm:w-auto text-left rounded-xl overflow-hidden transition-transform hover:scale-[1.02]"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-              >
-                <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full aspect-square object-cover" />
-                {ex.title && (
-                  <div className="px-3 py-2">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{ex.title}</p>
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 grid lg:grid-cols-2 gap-8">
@@ -758,41 +730,6 @@ export default function LabelGeneratorPage() {
             aria-label="Закрыть"
           >
             ×
-          </button>
-        </div>
-      )}
-
-      {exampleLightbox && (
-        <div
-          onClick={() => setExampleLightbox(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-6 cursor-zoom-out"
-          style={{ background: "rgba(0,0,0,0.85)" }}
-        >
-          <div className="max-w-lg w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={exampleLightbox.imageUrl}
-              alt={exampleLightbox.title ?? "Пример этикетки — крупно"}
-              className="max-w-full max-h-[70vh] rounded-lg"
-              style={{ objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
-            />
-            <div className="mt-4 w-full rounded-xl p-4" style={{ background: "var(--bg-card)" }}>
-              {exampleLightbox.title && (
-                <p className="text-base font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  {exampleLightbox.title}
-                </p>
-              )}
-              <p className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                <span style={{ color: "var(--text-muted)" }}>Промпт: </span>{exampleLightbox.prompt}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setExampleLightbox(null)}
-            className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white text-2xl"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-            aria-label="Закрыть"
-          >
-            <X size={20} />
           </button>
         </div>
       )}

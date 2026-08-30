@@ -733,7 +733,7 @@ export default function ProfilePage() {
               <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <Tag size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
                 <div className="text-base mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Сгенерированных этикеток пока нет</div>
-                <Link to="/label" className="inline-block px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                <Link to="/label/generate" className="inline-block px-5 py-2 rounded-xl text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
                   Создать этикетку
                 </Link>
               </div>
