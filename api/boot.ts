@@ -29,6 +29,26 @@ import crypto from "crypto";
 const execFileAsync = promisify(execFile);
 
 const __dirname = import.meta.dirname;
+// Переводит человеческое "3 недели" / "45 минут" / "2 месяца" в формат ISO 8601
+// (P3W / PT45M / P2M), который требует Schema.org для cookTime — без этого
+// поле пришлось бы оставить пустым, а Google ругается именно на его отсутствие.
+// Возвращает undefined, если формат не распознан (лучше пропустить поле,
+// чем отдать поисковику мусор).
+function parseDurationToISO8601(input: string | null | undefined): string | undefined {
+  if (!input) return undefined;
+  const m = input.match(/(\d+)\s*[-–]?\s*(\d+)?\s*(минут|мин|час|ч\.?|день|дня|дней|дн\.?|недел|месяц)/i);
+  if (!m) return undefined;
+  // Если указан диапазон ("20-30 минут") — берём большее число, это ближе
+  // к реальной длительности готовки, чем оптимистичный минимум.
+  const n = Number(m[2] || m[1]);
+  const unit = m[3].toLowerCase();
+  if (unit.startsWith("минут") || unit.startsWith("мин")) return `PT${n}M`;
+  if (unit.startsWith("час") || unit.startsWith("ч")) return `PT${n}H`;
+  if (unit.startsWith("недел")) return `P${n}W`;
+  if (unit.startsWith("месяц")) return `P${n}M`;
+  return `P${n}D`; // день/дня/дней
+}
+
 const distPath = path.resolve(__dirname, "..", "dist");
 
 // Подменяет статичные title/description/OG-теги в собранном index.html на
@@ -907,6 +927,7 @@ app.get("*", async (c) => {
           .where(eq(recipeSteps.recipeId, recipe.id))
           .orderBy(recipeSteps.stepNum);
 
+        const cookTime = parseDurationToISO8601(recipe.time);
         const jsonLd = {
           "@context": "https://schema.org",
           "@type": "Recipe",
@@ -914,8 +935,23 @@ app.get("*", async (c) => {
           description,
           image: image.startsWith("http") ? image : `https://ai-nastoika.ru${image}`,
           recipeCategory: recipe.categoryLabel || recipe.category,
+          // Настоящих индивидуальных фото на каждый шаг нет — используем
+          // фото готового напитка как честный fallback, это то, что
+          // рекомендует сама Google, если отдельных иллюстраций к шагам нет.
+          recipeInstructions: steps.map((s) => ({
+            "@type": "HowToStep",
+            text: s.text,
+            image: image.startsWith("http") ? image : `https://ai-nastoika.ru${image}`,
+          })),
           recipeIngredient: ingredients.map((i) => `${i.name}${i.amount ? ` — ${i.amount}` : ""}`),
-          recipeInstructions: steps.map((s) => ({ "@type": "HowToStep", text: s.text })),
+          author: {
+            "@type": "Person",
+            name: recipe.authorName || "Ай, настойка!",
+          },
+          keywords: [recipe.categoryLabel || recipe.category, "домашняя настойка", "рецепт настойки", recipe.title]
+            .filter(Boolean)
+            .join(", "),
+          ...(cookTime ? { cookTime } : {}),
           ...(recipe.rating && Number(recipe.rating) > 0
             ? { aggregateRating: { "@type": "AggregateRating", ratingValue: recipe.rating, reviewCount: recipe.reviews || 1 } }
             : {}),
