@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import PageHero from "@/components/PageHero";
 import {
   Heart,
   Users,
@@ -47,34 +48,12 @@ const stats = [
 export default function AboutPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden py-20" style={{ background: "var(--bg-secondary)" }}>
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-10" style={{ background: "var(--accent)", transform: "translate(-30%, 30%)" }} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
-            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <Sparkles size={22} />
-            О проекте
-          </div>
-          <h1
-            className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 max-w-4xl mx-auto"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
-            Место, где настойка — это{" "}
-            <span style={{ color: "var(--accent)" }}>серьёзно и с удовольствием</span>
-          </h1>
-          <p
-            className="text-lg max-w-2xl mx-auto"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}
-          >
-            «Ай, настойка» вырос из простой идеи: собрать в одном месте всё, что нужно настоящему энтузиасту.
-            Рецепты, инструменты, обсуждения — и немного искусственного интеллекта.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        icon={Sparkles}
+        badgeText="О проекте"
+        title={<>Место, где настойка — это{" "}<span style={{ color: "var(--accent)" }}>серьёзно и с удовольствием</span></>}
+        subtitle="«Ай, настойка» вырос из простой идеи: собрать в одном месте всё, что нужно настоящему энтузиасту. Рецепты, инструменты, обсуждения — и немного искусственного интеллекта."
+      />
 
       {/* Stats */}
       <section className="py-16" style={{ background: "var(--bg-primary)" }}>

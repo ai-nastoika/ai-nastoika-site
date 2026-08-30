@@ -379,8 +379,8 @@ export default function RecipeParserPage() {
     <main className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm mb-2 transition-opacity hover:opacity-70" style={{ color: "var(--accent)" }}>
-          <ArrowLeft size={16} /> Назад
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm mb-4 transition-opacity hover:opacity-70" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+          <ArrowLeft size={18} /> Назад
         </button>
         <h1 className="text-3xl font-bold" style={{ fontFamily: "var(--font-heading)", color: "var(--accent)" }}>
           <Bot size={28} className="inline mr-2" />

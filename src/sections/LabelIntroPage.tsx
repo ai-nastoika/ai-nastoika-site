@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import PageHero from "@/components/PageHero";
 import { trpc } from "@/providers/trpc";
 import { Tag, Sparkles, Wand2, ImagePlus, Type, ArrowRight, X } from "lucide-react";
 
@@ -35,37 +36,23 @@ export default function LabelIntroPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-10" style={{ background: "var(--accent)", transform: "translate(-30%, 30%)" }} />
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
-            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <Tag size={20} />
-            Этикетка
-          </div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Время стандартных наклеек прошло
-          </h1>
-          <p className="text-lg max-w-2xl mx-auto mb-10" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
-            Раньше оформление домашнего напитка заканчивалось походом в магазин за пачкой одинаковых
-            бланков. С развитием технологий наступила эпоха разнообразия и индивидуальности — теперь
-            каждая бутылка может получить свою собственную, единственную в своём роде этикетку,
-            созданную специально под вкус, повод и настроение.
-          </p>
-          <Link
-            to="/label/generate"
-            className="group inline-flex items-center gap-2 rounded-xl px-7 py-3.5 font-medium text-white transition-all hover:scale-105"
-            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-          >
-            Создать свою этикетку
-            <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
-      </section>
+      <PageHero
+        icon={Tag}
+        badgeText="Этикетка"
+        maxWidth="max-w-5xl"
+        title="Время стандартных наклеек прошло"
+        subtitle="Раньше оформление домашнего напитка заканчивалось походом в магазин за пачкой одинаковых бланков. С развитием технологий наступила эпоха разнообразия и индивидуальности — теперь каждая бутылка может получить свою собственную, единственную в своём роде этикетку, созданную специально под вкус, повод и настроение."
+      />
+      <div className="text-center py-10">
+        <Link
+          to="/label/generate"
+          className="group inline-flex items-center gap-2 rounded-xl px-7 py-3.5 font-medium text-white transition-all hover:scale-105"
+          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+        >
+          Создать свою этикетку
+          <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+        </Link>
+      </div>
 
       {/* Три тезиса */}
       <section className="py-16 sm:py-20">

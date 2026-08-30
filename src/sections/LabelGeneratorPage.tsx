@@ -221,6 +221,32 @@ export default function LabelGeneratorPage() {
     printLabelOnA4(generatedImage, sourceMode === "photo" ? photoOrientation : orientation);
   }
 
+  // Раньше кнопка "Скачать" просто открывала картинку крупно с инструкцией
+  // "сохраните правой кнопкой" — на компьютере это неочевидно и многие
+  // считали, что скачать вообще нельзя (только печать). Настоящее скачивание
+  // через blob работает надёжно для data:-картинок (основной формат ответа
+  // ИИ, см. api/lib/imageClient.ts) — для них CORS не помеха, это тот же
+  // документ. Если когда-нибудь придёт внешняя ссылка без CORS-заголовков —
+  // fetch упадёт, и тогда мы тихо откатываемся к старому поведению
+  // (лайтбокс + инструкция), а не оставляем человека с ошибкой на пустом месте.
+  async function handleDownload() {
+    if (!generatedImage) return;
+    try {
+      const response = await fetch(generatedImage);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `etiketka-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch {
+      setLightboxOpen(true);
+    }
+  }
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* Header */}
@@ -689,14 +715,14 @@ export default function LabelGeneratorPage() {
                   <Printer size={20} /> Печать ({printGrid.count} шт. на листе A4)
                 </button>
                 <button
-                  onClick={() => setLightboxOpen(true)}
+                  onClick={handleDownload}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium mt-2 transition-all hover:opacity-70"
                   style={{ background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
                 >
                   <Download size={16} /> Скачать изображение
                 </button>
                 <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Откроет картинку крупно — на телефоне зажмите на ней палец и выберите «Сохранить изображение», на компьютере — правой кнопкой → «Сохранить как».
+                  Сохранится как файл PNG в папку загрузок. Если скачивание не началось — картинка откроется крупно, сохраните её через контекстное меню (правой кнопкой → «Сохранить как» на компьютере, зажать палец → «Сохранить» на телефоне).
                 </p>
                 <Link
                   to="/profile?tab=labels"

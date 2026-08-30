@@ -1,5 +1,5 @@
-import { ArrowLeft, Shield } from "lucide-react";
-import { Link } from "react-router";
+import { Shield } from "lucide-react";
+import PageHero from "@/components/PageHero";
 
 /**
  * Политика конфиденциальности — написана по факту того, что сайт реально
@@ -16,25 +16,16 @@ import { Link } from "react-router";
 export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+      <PageHero
+        icon={Shield}
+        badgeText="Юридическая информация"
+        maxWidth="max-w-3xl"
+        backTo="/rules"
+        backLabel="К правилам использования"
+        title="Политика конфиденциальности"
+        subtitle="Действует в отношении сайта «Ай, настойка!» (ai-nastoika.ru)"
+      />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <Link
-          to="/rules"
-          className="inline-flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
-          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-        >
-          <ArrowLeft size={18} /> К правилам использования
-        </Link>
-
-        <div className="flex items-center gap-3 mb-2">
-          <Shield size={28} style={{ color: "var(--accent)" }} />
-          <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Политика конфиденциальности
-          </h1>
-        </div>
-        <p className="text-sm mb-8" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Действует в отношении сайта «Ай, настойка!» (ai-nastoika.ru)
-        </p>
-
         <div className="space-y-8 text-base leading-relaxed" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
           <Section title="1. Оператор персональных данных">
             <p>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router";
+import PageHero from "@/components/PageHero";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
@@ -384,28 +385,12 @@ export default function VinokurPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-10" style={{ background: "var(--accent)", transform: "translate(-30%, 30%)" }} />
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-6"
-            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <Flame size={20} />
-            База знаний
-          </div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Винокур
-          </h1>
-          <p className="text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
-            Домашняя перегонка — от истории и закона до физики процесса и практики на каждом этапе:
-            брага, первый перегон, второй перегон.
-          </p>
-        </div>
-      </section>
-
+      <PageHero
+        icon={Flame}
+        badgeText="База знаний"
+        title="Винокур"
+        subtitle="Домашняя перегонка — от истории и закона до физики процесса и практики на каждом этапе: брага, первый перегон, второй перегон."
+      />
       {/* История + правовое положение */}
       <section className="py-14" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-2 gap-6">

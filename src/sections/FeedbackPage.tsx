@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowLeft, Send, MessageSquare, Phone, User, CheckCircle, LogIn } from "lucide-react";
+import PageHero from "@/components/PageHero";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -116,39 +117,16 @@ export default function FeedbackPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+      <PageHero
+        icon={MessageSquare}
+        badgeText="Обратная связь"
+        maxWidth="max-w-2xl"
+        backTo="/"
+        backLabel="На главную"
+        title="Напишите нам"
+        subtitle="Заметили ошибку в рецепте? Хотите добавить бар? Есть идея по улучшению? Мы читаем каждое письмо."
+      />
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-base font-medium mb-8 transition-opacity hover:opacity-70"
-          style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          <ArrowLeft size={22} />
-          На главную
-        </Link>
-
-        <div className="mb-10">
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
-            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <MessageSquare size={22} />
-            Обратная связь
-          </div>
-          <h1
-            className="text-2xl sm:text-3xl font-bold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
-            Напишите нам
-          </h1>
-          <p
-            className="text-lg"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
-          >
-            Заметили ошибку в рецепте? Хотите добавить бар? Есть идея по улучшению?
-            Мы читаем каждое письмо.
-          </p>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Имя */}
           <div>
