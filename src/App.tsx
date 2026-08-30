@@ -61,9 +61,9 @@ function HomePage() {
       <Stats />
       <About />
       <Tools />
+      <LabelPreview />
       <BarMapPreview />
       <VinokurPreview />
-      <LabelPreview />
       <Recipes />
     </main>
   );

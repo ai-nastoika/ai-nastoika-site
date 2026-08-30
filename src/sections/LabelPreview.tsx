@@ -3,7 +3,7 @@ import { Tag, ArrowRight } from "lucide-react";
 
 export default function LabelPreview() {
   return (
-    <section className="py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
+    <section className="py-16 sm:py-20" style={{ background: "var(--bg-primary)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           {/* ── Картинка ── */}
@@ -12,7 +12,7 @@ export default function LabelPreview() {
             style={{ border: "1px solid var(--border)", height: 340 }}
           >
             <img
-              src="/recipe-label.jpg"
+              src="/label-preview.jpg"
               alt="Этикетка, сгенерированная ИИ"
               className="w-full h-full object-cover"
             />
