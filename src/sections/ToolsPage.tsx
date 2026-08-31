@@ -721,7 +721,7 @@ export default function ToolsPage() {
             style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
           >
             <Sparkles size={22} />
-            Все инструменты в одном месте
+            Инструменты
           </div>
           <h1
             className="text-2xl sm:text-3xl font-bold mb-3"

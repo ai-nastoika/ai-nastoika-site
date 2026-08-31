@@ -8,7 +8,7 @@ export default function LabelPreview() {
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           {/* ── Картинка ── */}
           <div
-            className="relative rounded-3xl overflow-hidden shadow-xl"
+            className="relative rounded-3xl overflow-hidden order-2 lg:order-1 shadow-xl"
             style={{ border: "1px solid var(--border)", height: 340 }}
           >
             <img
@@ -19,7 +19,7 @@ export default function LabelPreview() {
           </div>
 
           {/* ── Текст ── */}
-          <div>
+          <div className="order-1 lg:order-2">
             <div
               className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-4"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
