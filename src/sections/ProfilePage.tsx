@@ -914,7 +914,8 @@ export default function ProfilePage() {
                     const typeLabels: Record<string, string> = {
                       recipe_consultation: "Консультация по рецепту",
                       infusion_consult: "Консультант трекера",
-                      taste_calculator: "Калькулятор вкуса",
+                      taste_calculator: "Прогноз настойки",
+                      taste_builder: "Калькулятор вкуса",
                       abv_ai_estimate: "Оценка крепости",
                       label_image: "Генератор этикеток",
                     };
@@ -942,7 +943,7 @@ export default function ProfilePage() {
                               {conv.status === "archived" ? " · Завершён" : " · Активен"}
                             </div>
                           </div>
-                          {conv.status === "archived" && conv.requestType !== "abv_ai_estimate" && (
+                          {conv.status === "archived" && conv.requestType !== "abv_ai_estimate" && conv.requestType !== "taste_builder" && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -955,7 +956,7 @@ export default function ProfilePage() {
                               Возобновить
                             </button>
                           )}
-                          {conv.status === "active" && conv.requestType !== "abv_ai_estimate" && (
+                          {conv.status === "active" && conv.requestType !== "abv_ai_estimate" && conv.requestType !== "taste_builder" && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

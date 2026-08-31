@@ -14,10 +14,14 @@ import {
   LogIn,
   Wallet,
   AlertTriangle,
+  X,
+  Compass,
 } from "lucide-react";
 
 /* ============================================================
-   SUB-COMPONENT: AI Taste Calculator
+   SUB-COMPONENT: Прогноз настойки (бывший «Калькулятор вкуса» — свободный
+   текст). Основной калькулятор теперь кнопочный, см. TasteBuilder ниже —
+   этот сервис оставлен вторым, для случаев, которые не покрыть кнопками.
    Требует логина — тарификация общая с recipeConsult/infusionConsult
    (5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса). См. api/tasteCalculatorRouter.ts.
    Разговорный чат с историей — так же, как RecipeAiConsult.tsx.
@@ -31,7 +35,7 @@ const TASTE_SUGGESTIONS = [
   "Как получить красивый янтарный цвет?",
 ];
 
-function TasteCalculator() {
+function InfusionForecast() {
   const { isLoggedIn } = useAuth();
   const [messages, setMessages] = useState<TasteChatMessage[]>([]);
   const [message, setMessage] = useState("");
@@ -666,6 +670,462 @@ function AbvCalculator() {
 }
 
 /* ============================================================
+   SUB-COMPONENT: Калькулятор вкуса (кнопочный) — главный инструмент раздела.
+   Требует логина, тарификация общая со всеми ИИ-фичами аккаунта (5 бесплатных
+   запросов, дальше 2 ₽ с баланса) — см. api/tasteBuilderRouter.ts. В отличие
+   от «Прогноза настойки» — без чата и истории переписки: один набор кнопок =
+   один ответ. Если чего-то не хватает в кнопках — ссылка внизу ответа ведёт
+   на свободнотекстовый сервис (/tools?tool=forecast).
+   ============================================================ */
+const BASES = [
+  { id: "samogon", label: "Самогон", emoji: "🥃", defaultStrength: 45, min: 30, max: 70 },
+  { id: "vodka", label: "Водка", emoji: "🧊", defaultStrength: 40, min: 35, max: 45 },
+  { id: "spirt", label: "Спирт", emoji: "🧪", defaultStrength: 70, min: 40, max: 96 },
+  { id: "konyak", label: "Коньяк", emoji: "🥂", defaultStrength: 40, min: 35, max: 45 },
+  { id: "rom", label: "Ром", emoji: "🍹", defaultStrength: 40, min: 35, max: 50 },
+];
+
+const INGREDIENT_GROUPS: { label: string; emoji: string; items: string[] }[] = [
+  {
+    label: "Ягоды",
+    emoji: "🍒",
+    items: ["Вишня", "Малина", "Клубника", "Смородина чёрная", "Смородина красная", "Ежевика", "Черника", "Клюква", "Брусника", "Крыжовник", "Облепиха"],
+  },
+  {
+    label: "Фрукты и цитрусы",
+    emoji: "🍊",
+    items: ["Яблоко", "Груша", "Абрикос", "Персик", "Слива", "Манго", "Апельсин", "Лимон", "Лайм", "Ананас"],
+  },
+  { label: "Овощи и коренья", emoji: "🫚", items: ["Имбирь", "Хрен", "Свёкла", "Ревень"] },
+  { label: "Орехи", emoji: "🌰", items: ["Кедровые орехи", "Грецкий орех", "Миндаль", "Фундук"] },
+  { label: "Острое и пряное", emoji: "🌶️", items: ["Перец чили", "Чёрный перец", "Мускатный орех"] },
+];
+
+const ADDITIVES = ["Сахар", "Мёд", "Ваниль", "Корица", "Гвоздика", "Бадьян", "Апельсиновая цедра", "Мята"];
+
+const MAX_INGREDIENTS = 5;
+const MAX_ADDITIVES = 3;
+
+/* Чип в строке формулы — с крестиком для быстрого снятия выбора, без поиска
+   исходной кнопки. */
+function FormulaChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full pl-3 pr-1.5 py-1 text-sm font-medium whitespace-nowrap"
+      style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        className="w-4 h-4 rounded-full flex items-center justify-center hover:opacity-70 shrink-0"
+        style={{ background: "rgba(255,255,255,0.25)" }}
+        aria-label={`Убрать ${label}`}
+      >
+        <X size={11} />
+      </button>
+    </span>
+  );
+}
+
+function TasteBuilder() {
+  const { isLoggedIn } = useAuth();
+  const [baseId, setBaseId] = useState<string | null>(null);
+  const [strength, setStrength] = useState(40);
+  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [additives, setAdditives] = useState<string[]>([]);
+  const [result, setResult] = useState<{ answer: string; similarRecipes: { id: number; slug: string; title: string }[] } | null>(null);
+  const [error, setError] = useState("");
+  const [limitNotice, setLimitNotice] = useState<"ingredients" | "additives" | null>(null);
+  const [shakeItem, setShakeItem] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: limitInfo, refetch: refetchLimit } = trpc.tasteBuilder.checkLimit.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
+
+  const generate = trpc.tasteBuilder.generate.useMutation({
+    onSuccess: (data) => {
+      setResult({ answer: data.answer, similarRecipes: data.similarRecipes });
+      setError("");
+      refetchLimit();
+    },
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
+      refetchLimit();
+    },
+  });
+
+  const selectedBase = BASES.find((b) => b.id === baseId) ?? null;
+
+  // Лёгкая тряска + короткая подсказка вместо молчаливого disabled — понятнее,
+  // почему клик по кнопке ничего не сделал.
+  function flashLimit(which: "ingredients" | "additives", key: string) {
+    setShakeItem(key);
+    setLimitNotice(which);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => {
+      setShakeItem(null);
+      setLimitNotice(null);
+    }, 900);
+  }
+
+  function toggleBase(id: string) {
+    setResult(null);
+    if (baseId === id) {
+      setBaseId(null);
+      return;
+    }
+    setBaseId(id);
+    const base = BASES.find((b) => b.id === id);
+    if (base) setStrength(base.defaultStrength);
+  }
+
+  function toggleIngredient(name: string) {
+    setResult(null);
+    if (ingredients.includes(name)) {
+      setIngredients(ingredients.filter((i) => i !== name));
+      return;
+    }
+    if (ingredients.length >= MAX_INGREDIENTS) {
+      flashLimit("ingredients", name);
+      return;
+    }
+    setIngredients([...ingredients, name]);
+  }
+
+  function toggleAdditive(name: string) {
+    setResult(null);
+    if (additives.includes(name)) {
+      setAdditives(additives.filter((i) => i !== name));
+      return;
+    }
+    if (additives.length >= MAX_ADDITIVES) {
+      flashLimit("additives", name);
+      return;
+    }
+    setAdditives([...additives, name]);
+  }
+
+  function reset() {
+    setBaseId(null);
+    setIngredients([]);
+    setAdditives([]);
+    setResult(null);
+    setError("");
+    generate.reset();
+  }
+
+  const canSubmit = !!selectedBase && ingredients.length > 0;
+  const limitReached = limitInfo ? !limitInfo.allowed : false;
+  const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
+  const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
+  const formulaEmpty = !selectedBase && ingredients.length === 0 && additives.length === 0;
+
+  function handleSubmit() {
+    if (!selectedBase || ingredients.length === 0 || generate.isPending || limitReached) return;
+    setError("");
+    generate.mutate({ base: selectedBase.label, strength, ingredients, additives });
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
+        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Соберите настойку из кнопок — основа, ингредиенты, добавки — и узнайте, что вероятно получится. Доступно после входа в аккаунт.
+        </p>
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
+          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+        >
+          <LogIn size={16} /> Войти, чтобы попробовать
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Основа */}
+      <div className="mb-6">
+        <div className="text-base font-medium mb-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+          Основа
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {BASES.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => toggleBase(b.id)}
+              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-base font-medium transition-all hover:scale-[1.03]"
+              style={{
+                background: baseId === b.id ? "var(--accent)" : "var(--bg-card)",
+                color: baseId === b.id ? "#fff" : "var(--text-primary)",
+                border: baseId === b.id ? "none" : "1px solid var(--border)",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{b.emoji}</span>
+              {b.label}
+            </button>
+          ))}
+        </div>
+
+        {selectedBase && (
+          <div className="mt-3 inline-flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              Крепость
+            </span>
+            <button
+              onClick={() => setStrength(Math.max(selectedBase.min, strength - 1))}
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: "var(--bg-card)" }}
+            >
+              <Minus size={16} style={{ color: "var(--text-secondary)" }} />
+            </button>
+            <span className="text-base font-bold w-12 text-center" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+              {strength}%
+            </span>
+            <button
+              onClick={() => setStrength(Math.min(selectedBase.max, strength + 1))}
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: "var(--bg-card)" }}
+            >
+              <Plus size={16} style={{ color: "var(--text-secondary)" }} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Ингредиенты */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            Ингредиенты
+          </span>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{
+              background: ingredients.length >= MAX_INGREDIENTS ? "var(--accent)" : "var(--surface)",
+              color: ingredients.length >= MAX_INGREDIENTS ? "#fff" : "var(--text-muted)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            {ingredients.length}/{MAX_INGREDIENTS}
+          </span>
+          {limitNotice === "ingredients" && (
+            <span className="text-xs" style={{ color: "var(--danger)", fontFamily: "var(--font-body)" }}>
+              Уберите один, чтобы добавить другой
+            </span>
+          )}
+        </div>
+        <div className="space-y-3">
+          {INGREDIENT_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div
+                className="text-xs font-medium mb-1.5 flex items-center gap-1"
+                style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+              >
+                <span>{group.emoji}</span> {group.label}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {group.items.map((item) => {
+                  const active = ingredients.includes(item);
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => toggleIngredient(item)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all hover:opacity-80 ${shakeItem === item ? "shake-btn" : ""}`}
+                      style={{
+                        background: active ? "var(--accent)" : "var(--bg-card)",
+                        color: active ? "#fff" : "var(--text-secondary)",
+                        border: active ? "none" : "1px solid var(--border)",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Добавки */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+            Добавки
+          </span>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{
+              background: additives.length >= MAX_ADDITIVES ? "var(--accent)" : "var(--surface)",
+              color: additives.length >= MAX_ADDITIVES ? "#fff" : "var(--text-muted)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            {additives.length}/{MAX_ADDITIVES}
+          </span>
+          {limitNotice === "additives" && (
+            <span className="text-xs" style={{ color: "var(--danger)", fontFamily: "var(--font-body)" }}>
+              Уберите одну, чтобы добавить другую
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {ADDITIVES.map((item) => {
+            const active = additives.includes(item);
+            return (
+              <button
+                key={item}
+                onClick={() => toggleAdditive(item)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all hover:opacity-80 ${shakeItem === item ? "shake-btn" : ""}`}
+                style={{
+                  background: active ? "var(--accent)" : "var(--bg-card)",
+                  color: active ? "#fff" : "var(--text-secondary)",
+                  border: active ? "none" : "1px solid var(--border)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Строка формулы — живое отражение выбора, каждый чип снимается кликом по крестику */}
+      <div
+        className="rounded-xl p-4 mb-5 min-h-[3.5rem] flex items-center overflow-x-auto"
+        style={{ background: "var(--bg-primary)", border: "1px dashed var(--border)" }}
+      >
+        {formulaEmpty ? (
+          <span className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Выберите основу и хотя бы один ингредиент — здесь появится формула
+          </span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedBase && <FormulaChip label={`${selectedBase.emoji} ${selectedBase.label} ${strength}%`} onRemove={() => setBaseId(null)} />}
+            {ingredients.map((ing, i) => (
+              <span key={ing} className="flex items-center gap-2">
+                {(i > 0 || !!selectedBase) && <span style={{ color: "var(--text-muted)" }}>+</span>}
+                <FormulaChip label={ing} onRemove={() => toggleIngredient(ing)} />
+              </span>
+            ))}
+            {additives.map((add, i) => (
+              <span key={add} className="flex items-center gap-2">
+                {(i > 0 || !!selectedBase || ingredients.length > 0) && <span style={{ color: "var(--text-muted)" }}>+</span>}
+                <FormulaChip label={add} onRemove={() => toggleAdditive(add)} />
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p className="text-sm mb-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+          {error}
+        </p>
+      )}
+
+      {limitReached ? (
+        <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+            Пополнить баланс
+          </Link>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit || generate.isPending}
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            <Wand2 size={20} />
+            {generate.isPending ? "Считаю..." : "Узнать вкус"}
+          </button>
+          {limitInfo && (
+            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+              {limitInfo.freeRequestsLeft > 0 ? (
+                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+              ) : (
+                <>
+                  <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос
+                </>
+              )}
+            </span>
+          )}
+        </div>
+      )}
+
+      {generate.isPending && (
+        <div className="mt-4">
+          <BottleThinkingIndicator label="Прикидываю вкус..." />
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-5 rounded-xl p-5" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-1 mb-2 text-xs font-medium" style={{ color: "var(--accent)" }}>
+            <Sparkles size={14} /> Ответ ИИ
+          </div>
+          <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+            {result.answer}
+          </p>
+          {result.similarRecipes.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <span className="text-xs w-full mb-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Похожие рецепты на сайте:
+              </span>
+              {result.similarRecipes.map((r) => (
+                <Link
+                  key={r.id}
+                  to={`/recipe/${r.slug}`}
+                  className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+                  style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                >
+                  {r.title}
+                </Link>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between flex-wrap gap-3 mt-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+            <button
+              onClick={reset}
+              className="inline-flex items-center gap-1.5 text-sm font-medium hover:opacity-70"
+              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+            >
+              <RotateCcw size={14} /> Сформировать заново
+            </button>
+            <Link to="/tools?tool=forecast" className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+              Не удалось учесть все условия? Опишите рецепт в свободной форме →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes taste-builder-shake-kf {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-3px); }
+          40% { transform: translateX(3px); }
+          60% { transform: translateX(-2px); }
+          80% { transform: translateX(2px); }
+        }
+        .shake-btn {
+          animation: taste-builder-shake-kf 0.4s ease-in-out;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* ============================================================
    MAIN: Tools Page
    ============================================================ */
 const tools = [
@@ -673,15 +1133,25 @@ const tools = [
     id: "taste",
     num: "01",
     icon: Wand2,
-    title: "Калькулятор вкуса с ИИ",
-    desc: "Опишите идею или выберите ингредиенты — ИИ составит рецептуру, расскажет о вкусовом профиле и предложит варианты.",
+    title: "Калькулятор вкуса",
+    desc: "Соберите настойку из кнопок — основа, ингредиенты, добавки — и узнайте, что вероятно получится по вкусу, цвету и аромату.",
     badge: "Главный инструмент",
     color: "var(--accent)",
-    content: <TasteCalculator />,
+    content: <TasteBuilder />,
+  },
+  {
+    id: "forecast",
+    num: "02",
+    icon: Compass,
+    title: "Прогноз настойки",
+    desc: "Опишите идею или ингредиенты свободным текстом — для случаев, которые не покрыть кнопками калькулятора.",
+    badge: null,
+    color: "var(--accent)",
+    content: <InfusionForecast />,
   },
   {
     id: "abv",
-    num: "02",
+    num: "03",
     icon: Calculator,
     title: "Расчёт крепости",
     desc: "Точный расчёт крепости напитка с учётом всех параметров, которые обычно игнорирует ареометр.",
@@ -698,7 +1168,7 @@ export default function ToolsPage() {
   /* Прямая ссылка на конкретную вкладку — /tools?tool=abv и т.п. */
   useEffect(() => {
     const tool = searchParams.get("tool");
-    if (tool === "taste" || tool === "abv") {
+    if (tool === "taste" || tool === "forecast" || tool === "abv") {
       setActiveTool(tool);
     }
   }, [searchParams]);

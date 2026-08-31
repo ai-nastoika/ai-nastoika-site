@@ -22,6 +22,7 @@ import { recipeConsultRouter } from "./recipeConsultRouter";
 import { infusionRouter } from "./infusionRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
 import { tasteCalculatorRouter } from "./tasteCalculatorRouter";
+import { tasteBuilderRouter } from "./tasteBuilderRouter";
 import { abvEstimatorRouter } from "./abvEstimatorRouter";
 import { labelGeneratorRouter } from "./labelGeneratorRouter";
 import { adminStatsRouter } from "./adminStatsRouter";
@@ -727,7 +728,10 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Калькулятор вкуса с ИИ (требует логина, тарификация как у recipeConsult) ───
+  // ─── Калькулятор вкуса с кнопками — новый, основной (требует логина, тарификация как у recipeConsult) ───
+  tasteBuilder: tasteBuilderRouter,
+
+  // ─── Прогноз настойки — старый свободнотекстовый калькулятор вкуса, оставлен как отдельный сервис ───
   tasteCalculator: tasteCalculatorRouter,
 
   // ─── Оценка итоговой крепости с учётом ингредиентов (ИИ, поверх точного расчёта базы) ───

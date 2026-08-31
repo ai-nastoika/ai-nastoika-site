@@ -5,7 +5,14 @@ import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
 import { findSimilarRecipesByText, formatRecipesForPrompt } from "./lib/recipeRetrieval";
 
-/* Тарификация общая с recipeConsult/infusionConsult (см. api/lib/aiAccess.ts):
+/* Свободнотекстовый калькулятор вкуса — на сайте называется «Прогноз настойки»
+   (вкладка /tools?tool=forecast). requestType в БД оставили старым,
+   "taste_calculator", чтобы не терять историю ЛК уже существующих
+   пользователей — хотя на сайте сервис теперь называется иначе. Основной
+   кнопочный калькулятор ("Калькулятор вкуса") — отдельный сервис,
+   см. api/tasteBuilderRouter.ts.
+
+   Тарификация общая с recipeConsult/infusionConsult (см. api/lib/aiAccess.ts):
    5 бесплатных запросов на аккаунт (разово, при регистрации), дальше — 2 ₽ за
    запрос с баланса. Неавторизованным недоступно вообще — проверяется на уровне
    authedQuery. requestType отдельный, чтобы в истории было видно источник запроса.

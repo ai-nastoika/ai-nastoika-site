@@ -120,12 +120,19 @@ export async function resumeConversation(userId: number, conversationId: number)
     .set({ status: "active", updatedAt: new Date() })
     .where(eq(aiConversations.id, conversationId));
 
+  // По умолчанию — на новый кнопочный калькулятор (requestType "taste_builder"),
+  // он владеет /tools?tool=taste. Но у него нет продолжения диалога (см.
+  // tasteBuilderRouter.ts), поэтому кнопка "Возобновить" для него скрыта в
+  // ProfilePage.tsx — сюда попасть с этим requestType на практике не должны.
   let resumeUrl = "/tools?tool=taste";
   if (existing.requestType === "infusion_consult" && existing.contextId != null) {
     resumeUrl = `/profile?tab=tracker&infusionId=${existing.contextId}`;
   } else if (existing.requestType === "recipe_consultation" && existing.contextId != null) {
     const [recipe] = await db.select({ slug: recipes.slug }).from(recipes).where(eq(recipes.id, existing.contextId));
     resumeUrl = recipe ? `/recipe/${recipe.slug}` : "/recipes";
+  } else if (existing.requestType === "taste_calculator") {
+    // Старый свободнотекстовый калькулятор — переехал на вкладку «Прогноз настойки».
+    resumeUrl = "/tools?tool=forecast";
   }
 
   return { resumeUrl };
