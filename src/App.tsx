@@ -51,7 +51,7 @@ function PageLoader() {
 
 const fontMap: Record<string, { heading: string; body: string }> = {
   classic: { heading: '"Playfair Display", Georgia, serif', body: '"Inter", system-ui, sans-serif' },
-  modern: { heading: '"Manrope", system-ui, sans-serif', body: '"Inter", system-ui, sans-serif' },
+  modern: { heading: '"Manrope", system-ui, sans-serif', body: '"Manrope", system-ui, sans-serif' },
   craft: { heading: '"Bitter", Georgia, serif', body: '"Source Sans 3", system-ui, sans-serif' },
 };
 

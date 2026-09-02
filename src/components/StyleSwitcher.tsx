@@ -12,7 +12,7 @@ const palettes = [
     id: "dark-premium",
     name: "Тёмная премиум",
     desc: "Бар, роскошь, золото",
-    colors: ["#1c160f", "#e2ba4c", "#f8f2ea"],
+    colors: ["#30271c", "#e6bd52", "#f9f4ec"],
   },
   {
     id: "herbal",
@@ -29,8 +29,8 @@ const palettes = [
 ];
 
 const fonts = [
-  { id: "classic", name: "Классическая", heading: '"Playfair Display", Georgia', body: '"Inter", sans-serif', desc: "Изящная серифная гарнитура в заголовках" },
-  { id: "modern", name: "Современная", heading: '"Manrope", sans-serif', body: '"Inter", sans-serif', desc: "Крупный геометричный гротеск в заголовках" },
+  { id: "classic", name: "Классическая", heading: '"Playfair Display", Georgia', body: '"Inter", sans-serif', desc: "Изящный серифный акцент, чистый текст" },
+  { id: "modern", name: "Современная", heading: '"Manrope", sans-serif', body: '"Manrope", sans-serif', desc: "Один геометричный гротеск везде — заголовки и текст" },
   { id: "craft", name: "Крафтовая", heading: '"Bitter", Georgia', body: '"Source Sans 3", sans-serif', desc: "Тёплый слэб-сериф — хенд-мейд характер" },
 ];
 
