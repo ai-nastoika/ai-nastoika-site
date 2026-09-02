@@ -1,7 +1,11 @@
-import { Heart } from "lucide-react";
+import { useState } from "react";
+import { Heart, Apple, Play } from "lucide-react";
 import { Link } from "react-router";
+import InstallAppModal from "@/components/InstallAppModal";
 
 export default function Footer() {
+  const [installModal, setInstallModal] = useState<"ios" | "android" | null>(null);
+
   return (
     <footer className="py-12 print:hidden" style={{ background: "var(--bg-secondary)", borderTop: "1px solid var(--border)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,6 +31,35 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* ── Значки сторов — приложений ещё нет, ведут на инструкцию по установке
+            ярлыка на экран "Домой" (см. InstallAppModal.tsx). Не настоящий листинг. ── */}
+        <div className="mt-8 flex items-center justify-center md:justify-start gap-3">
+          <button
+            onClick={() => setInstallModal("ios")}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 transition-opacity hover:opacity-80"
+            style={{ background: "#000" }}
+            aria-label="Установить на iPhone"
+          >
+            <Apple size={22} style={{ color: "#fff" }} />
+            <span className="text-left leading-none">
+              <span className="block text-[10px]" style={{ color: "#d4d4d4", fontFamily: "var(--font-body)" }}>Загрузите в</span>
+              <span className="block text-sm font-semibold" style={{ color: "#fff", fontFamily: "var(--font-body)" }}>App Store</span>
+            </span>
+          </button>
+          <button
+            onClick={() => setInstallModal("android")}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 transition-opacity hover:opacity-80"
+            style={{ background: "#000" }}
+            aria-label="Установить на Android"
+          >
+            <Play size={20} style={{ color: "#fff" }} />
+            <span className="text-left leading-none">
+              <span className="block text-[10px]" style={{ color: "#d4d4d4", fontFamily: "var(--font-body)" }}>Доступно в</span>
+              <span className="block text-sm font-semibold" style={{ color: "#fff", fontFamily: "var(--font-body)" }}>Google Play</span>
+            </span>
+          </button>
+        </div>
+
         <div
           className="mt-8 pt-6 text-center text-base flex flex-col sm:flex-row items-center justify-center gap-2"
           style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", borderTop: "1px solid var(--border)" }}
@@ -45,6 +78,12 @@ export default function Footer() {
           Чрезмерное употребление алкоголя вредит вашему здоровью. Сайт предназначен для лиц, достигших 18 лет.
         </div>
       </div>
+
+      <InstallAppModal
+        open={installModal !== null}
+        onClose={() => setInstallModal(null)}
+        initialPlatform={installModal ?? "ios"}
+      />
     </footer>
   );
 }
