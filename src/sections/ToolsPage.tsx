@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate, Link, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import PageHero from "@/components/PageHero";
 import {
   Wand2,
   Calculator,
@@ -10,7 +11,6 @@ import {
   Plus,
   Minus,
   RotateCcw,
-  ArrowLeft,
   LogIn,
   Wallet,
   AlertTriangle,
@@ -1162,7 +1162,6 @@ const tools = [
 ];
 export default function ToolsPage() {
   const [activeTool, setActiveTool] = useState("taste");
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   /* Прямая ссылка на конкретную вкладку — /tools?tool=abv и т.п. */
@@ -1176,38 +1175,12 @@ export default function ToolsPage() {
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ===== Hero ===== */}
-      <section className="relative overflow-hidden py-16" style={{ background: "var(--bg-secondary)" }}>
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm mb-4 transition-opacity hover:opacity-70"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
-          >
-            <ArrowLeft size={18} /> Назад
-          </button>
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-medium mb-4"
-            style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
-          >
-            <Sparkles size={22} />
-            Инструменты
-          </div>
-          <h1
-            className="text-2xl sm:text-3xl font-bold mb-3"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
-            Инструменты <span style={{ color: "var(--accent)" }}>проекта</span>
-          </h1>
-          <p
-            className="text-lg max-w-xl"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}
-          >
-            Базовые инструменты бесплатны. ИИ-консультант доступен после регистрации —
-            5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        icon={Sparkles}
+        badgeText="Инструменты"
+        title={<>Инструменты <span style={{ color: "var(--accent)" }}>проекта</span></>}
+        subtitle="Базовые инструменты бесплатны. ИИ-консультант доступен после регистрации — 5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса."
+      />
 
       {/* ===== Tab Navigation ===== */}
       <section className="sticky top-16 z-30 py-4" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border)" }}>
