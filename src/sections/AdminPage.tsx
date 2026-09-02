@@ -146,9 +146,12 @@ function arrStr(arr?: string[] | null): string {
    AdminPage
    ═══════════════════════════════════════ */
 export default function AdminPage() {
-  const { isLoggedIn, isLoading, isAdmin } = useAuth();
+  const { isLoggedIn, isLoading, isEditor } = useAuth();
 
-  /* Защита: только админы */
+  /* Защита: админы полностью, редакторы — только вкладки Рецепты/Места
+     (сами вкладки и запросы к ним внутри AdminPanel уже условны на isAdmin,
+     см. ниже). Бэкенд-роутеры остальных вкладок по-прежнему строго adminQuery
+     — даже если сюда как-то попадёт не тот tab, запросы 403-нутся сами. */
   if (isLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--card-bg)" }}>
@@ -157,7 +160,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!isLoggedIn || !isAdmin) {
+  if (!isLoggedIn || !isEditor) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--card-bg)" }}>
         <div className="text-center max-w-md">
@@ -167,8 +170,8 @@ export default function AdminPage() {
           </h1>
           <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
             {isLoggedIn
-              ? "Эта страница доступна только администраторам проекта."
-              : "Войдите в аккаунт администратора для доступа к этой странице."}
+              ? "Эта страница доступна только администраторам и редакторам проекта."
+              : "Войдите в аккаунт администратора или редактора для доступа к этой странице."}
           </p>
           {!isLoggedIn && (
             <a
@@ -188,23 +191,30 @@ export default function AdminPage() {
 }
 
 function AdminPanel() {
+  const { isAdmin } = useAuth();
   const utils = trpc.useUtils();
   const [tab, setTab] = useState("recipes");
   const [localRecipes, setLocalRecipes] = useState<LocalRecipe[]>(getLocalRecipes);
   const [saveNotice, setSaveNotice] = useState("");
 
   /* Queries */
+  // recipe.list и place.list — публичные, доступны и editor'у без проблем.
   const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery();
   const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
-  const { data: labelTemplatesCount } = trpc.labelTemplate.list.useQuery();
-  const { data: labelExamplesCount } = trpc.labelExample.list.useQuery();
-  const { data: submissionsCount } = trpc.submission.listAll.useQuery();
-  const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery();
-  const { data: usersCount } = trpc.user.list.useQuery();
-  const { data: feedbackCount } = trpc.feedback.list.useQuery();
-  const { data: commentsCount } = trpc.comment.listAll.useQuery();
-  const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000 });
+  // Всё остальное ниже — вкладки, недоступные editor'у (labelTemplates,
+  // labelExamples, модерация заявок, пользователи, обращения, комментарии,
+  // статистика ИИ). Роутеры на бэкенде остались строго adminQuery, поэтому
+  // без enabled: isAdmin editor получил бы здесь 403 при каждом открытии
+  // страницы — см. api/lib/middleware.ts (editorQuery только у recipe/place).
+  const { data: labelTemplatesCount } = trpc.labelTemplate.list.useQuery(undefined, { enabled: isAdmin });
+  const { data: labelExamplesCount } = trpc.labelExample.list.useQuery(undefined, { enabled: isAdmin });
+  const { data: submissionsCount } = trpc.submission.listAll.useQuery(undefined, { enabled: isAdmin });
+  const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery(undefined, { enabled: isAdmin });
+  const { data: usersCount } = trpc.user.list.useQuery(undefined, { enabled: isAdmin });
+  const { data: feedbackCount } = trpc.feedback.list.useQuery(undefined, { enabled: isAdmin });
+  const { data: commentsCount } = trpc.comment.listAll.useQuery(undefined, { enabled: isAdmin });
+  const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
+  const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -508,13 +518,17 @@ function AdminPanel() {
           <TabsList className="mb-6 flex-wrap">
             <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="labelExamples">Примеры этикеток ({labelExamplesCount?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
-            <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
-            <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied" && f.status !== "archived").length ?? 0})</TabsTrigger>
-            <TabsTrigger value="comments">Комментарии ({commentsCount?.length ?? 0})</TabsTrigger>
+            {isAdmin && (
+              <>
+                <TabsTrigger value="labelTemplates">Этикетки ({labelTemplatesCount?.length ?? 0})</TabsTrigger>
+                <TabsTrigger value="labelExamples">Примеры этикеток ({labelExamplesCount?.length ?? 0})</TabsTrigger>
+                <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
+                <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
+                <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
+                <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied" && f.status !== "archived").length ?? 0})</TabsTrigger>
+                <TabsTrigger value="comments">Комментарии ({commentsCount?.length ?? 0})</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* ─── Уведомление о локальном сохранении ─── */}

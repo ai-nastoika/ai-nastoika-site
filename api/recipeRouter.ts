@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, adminQuery } from "./middleware";
+import { createRouter, publicQuery, editorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { recipes, recipeIngredients, recipeSteps, recipeTrackerStages } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -83,7 +83,7 @@ export const recipeRouter = createRouter({
 
   /* ── Полные данные рецепта для редактора в админке (включая trackerStages,
      которые не показываются на публичной странице рецепта и не отдаются через bySlug) ── */
-  bySlugAdmin: adminQuery
+  bySlugAdmin: editorQuery
     .input(z.object({ slug: z.string() }))
     .query(async ({ input }) => {
       const db = getDb();
@@ -139,7 +139,7 @@ export const recipeRouter = createRouter({
 
   // Тот же изъян, что у upsert выше — удалить любой рецепт мог кто угодно
   // без авторизации. Используется только из админки.
-  delete: adminQuery
+  delete: editorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -153,8 +153,8 @@ export const recipeRouter = createRouter({
   // создать или отредактировать (по id) ЛЮБОЙ рецепт на сайте. Обычные
   // пользователи предлагают рецепты через отдельный промодерированный поток
   // (submission.create/submit, см. AddRecipeForm.tsx) — этот эндпоинт вызывается
-  // только из админки (AdminPage.tsx), так что adminQuery ничего не ломает.
-  upsert: adminQuery
+  // только из админки (AdminPage.tsx), так что editorQuery (admin+редактор) ничего не ломает.
+  upsert: editorQuery
     .input(
       z.object({
         id: z.number().optional(),
@@ -260,14 +260,14 @@ export const recipeRouter = createRouter({
     }),
 
   /* ── Рецепты, у которых ещё нет разметки для трекера (для массовой ИИ-обработки) ── */
-  listWithoutTrackerStages: adminQuery.query(async () => {
+  listWithoutTrackerStages: editorQuery.query(async () => {
     const db = getDb();
     const all = await db.query.recipes.findMany({ with: { trackerStages: true } });
     return all.filter((r) => r.trackerStages.length === 0).map((r) => ({ id: r.id, title: r.title }));
   }),
 
   /* ── Разметить этапы трекера через ИИ (для существующих рецептов без разметки) ── */
-  generateTrackerStagesAI: adminQuery
+  generateTrackerStagesAI: editorQuery
     .input(z.object({ recipeId: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();

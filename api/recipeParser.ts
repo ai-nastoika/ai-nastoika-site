@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery } from "./middleware";
+import { createRouter, editorQuery } from "./middleware";
 import { callChatCompletion } from "./lib/aiClient";
 import { generateImage } from "./lib/imageClient";
 import { logAiUsage, logAiFailure } from "./lib/aiAccess";
@@ -132,7 +132,7 @@ function sanitizeTrackerStages(parsed: Record<string, unknown>) {
 
 export const recipeParserRouter = createRouter({
   /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
-  generate: adminQuery
+  generate: editorQuery
     .input(z.object({ rawText: z.string().min(10).max(20000), generateImage: z.boolean().default(true) }))
     .mutation(async ({ input, ctx }) => {
       const messages = [
@@ -188,7 +188,7 @@ export const recipeParserRouter = createRouter({
     }),
 
   /* ── Перегенерировать только картинку (если автоматическая не понравилась) ── */
-  regenerateImage: adminQuery
+  regenerateImage: editorQuery
     .input(z.object({ prompt: z.string().min(3).max(2000) }))
     .mutation(async ({ input, ctx }) => {
       try {

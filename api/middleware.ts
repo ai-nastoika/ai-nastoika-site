@@ -22,3 +22,14 @@ export const adminQuery = t.procedure.use(({ ctx, next }) => {
   }
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
+
+// Редактор: доступ к CRUD рецептов и мест (вкладки «Рецепты»/«Места» в админке
+// + парсеры /tools/parse-recipe, /tools/parse-place). Всё остальное в админке
+// (пользователи, модерация заявок, этикетки, обращения, комментарии, статистика)
+// по-прежнему только для admin — см. adminQuery выше.
+export const editorQuery = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user || (ctx.user.role !== "admin" && ctx.user.role !== "editor")) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Требуются права редактора" });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});

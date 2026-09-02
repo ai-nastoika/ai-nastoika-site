@@ -189,8 +189,8 @@ export default function Header() {
             </Link>
           )}
 
-          {/* Админка — только для admin */}
-          {isAdmin && (
+          {/* Админка — для admin полностью, для editor доступны только вкладки Рецепты/Места внутри */}
+          {isEditor && (
             <Link
               to="/admin"
               className="relative px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
@@ -270,8 +270,8 @@ export default function Header() {
             </Link>
           )}
 
-          {/* Админка в мобильном меню */}
-          {isAdmin && (
+          {/* Админка в мобильном меню — для admin полностью, для editor только Рецепты/Места */}
+          {isEditor && (
             <Link
               to="/admin"
               onClick={() => setMobileOpen(false)}

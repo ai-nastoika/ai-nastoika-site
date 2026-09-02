@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, adminQuery } from "./middleware";
+import { createRouter, editorQuery } from "./middleware";
 import { callChatCompletion } from "./lib/aiClient";
 import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 
@@ -87,7 +87,7 @@ function extractYandexMapsUrl(text: string): string {
 }
 
 export const placeParserRouter = createRouter({
-  generate: adminQuery
+  generate: editorQuery
     .input(z.object({ rawText: z.string().min(10).max(20000), model: z.enum(["deepseek", "qwen", "glm"]).default("deepseek") }))
     .mutation(async ({ input, ctx }) => {
       const messages = [

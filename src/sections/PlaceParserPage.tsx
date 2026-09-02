@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, Sparkles, Loader2,
   Save, Bot, MapPin,
-  Upload,
+  Upload, Shield,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
@@ -52,6 +53,7 @@ function slugify(input: string): string {
    ═══════════════════════════════════════════ */
 export default function PlaceParserPage() {
   const navigate = useNavigate();
+  const { isLoggedIn, isLoading, isEditor } = useAuth();
   const [tab, setTab] = useState("source");
   const [placeText, setPlaceText] = useState("");
   const [form, setForm] = useState<PlaceForm>(emptyForm);
@@ -245,6 +247,42 @@ export default function PlaceParserPage() {
   };
 
   const patch = (p: Partial<PlaceForm>) => setForm((f) => ({ ...f, ...p }));
+
+  /* Защита: та же логика, что в RecipeParserPage.tsx — бэкенд (editorQuery)
+     уже отклоняет не-editor'ам, здесь просто не даём зря дойти до формы. */
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+      </main>
+    );
+  }
+  if (!isLoggedIn || !isEditor) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--bg-primary)" }}>
+        <div className="text-center max-w-md">
+          <Shield size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
+          <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Доступ ограничен
+          </h1>
+          <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            {isLoggedIn
+              ? "Эта страница доступна только редакторам и администраторам проекта."
+              : "Войдите в аккаунт редактора или администратора для доступа к этой странице."}
+          </p>
+          {!isLoggedIn && (
+            <a
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              Войти
+            </a>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>

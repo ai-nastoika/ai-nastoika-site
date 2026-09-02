@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft, Sparkles, Loader2,
   Plus, Trash2, Save, Bot, Wand2, Film, FileText,
-  Image as ImageIcon, Upload, X, RefreshCw,
+  Image as ImageIcon, Upload, X, RefreshCw, Shield,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
@@ -65,6 +66,7 @@ function slugify(title: string): string {
    ═══════════════════════════════════════════ */
 export default function RecipeParserPage() {
   const navigate = useNavigate();
+  const { isLoggedIn, isLoading, isEditor } = useAuth();
   const [tab, setTab] = useState("source");
   const [sourceMode, setSourceMode] = useState<"text" | "video">("text");
   const [recipeText, setRecipeText] = useState("");
@@ -374,6 +376,44 @@ export default function RecipeParserPage() {
   };
   const addTrackerStage = () => patch({ trackerStages: [...form.trackerStages, { stageType: "pour", title: "", dayOffset: 0 }] });
   const delTrackerStage = (i: number) => patch({ trackerStages: form.trackerStages.filter((_, j) => j !== i) });
+
+  /* Защита: страница видна кому угодно во фронтенде (роут не защищён), но
+     реальные действия (recipeParser.generate/regenerateImage, recipe.upsert)
+     бэкенд уже отклоняет не-editor'ам (editorQuery) — здесь просто не даём
+     дойти до формы зря, тем же паттерном, что и AdminPage.tsx. */
+  if (isLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
+      </main>
+    );
+  }
+  if (!isLoggedIn || !isEditor) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--bg-primary)" }}>
+        <div className="text-center max-w-md">
+          <Shield size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
+          <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Доступ ограничен
+          </h1>
+          <p className="text-base mb-6" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            {isLoggedIn
+              ? "Эта страница доступна только редакторам и администраторам проекта."
+              : "Войдите в аккаунт редактора или администратора для доступа к этой странице."}
+          </p>
+          {!isLoggedIn && (
+            <a
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium"
+              style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+            >
+              Войти
+            </a>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-8" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>

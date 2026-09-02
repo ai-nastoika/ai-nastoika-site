@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, adminQuery } from "./middleware";
+import { createRouter, publicQuery, editorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { places, placeInfusions, comments } from "@db/schema";
 import { eq, isNotNull, count } from "drizzle-orm";
@@ -101,7 +101,7 @@ export const placeRouter = createRouter({
      иначе кнопка "проверить сейчас" молча проверяла бы 0 сайтов, если все
      уже проверялись в последние 90 дней (обычное поведение checkDueWebsites,
      но не то, что ожидает админ от кнопки с таким названием). ── */
-  checkWebsitesNow: adminQuery.mutation(async () => {
+  checkWebsitesNow: editorQuery.mutation(async () => {
     const { checkDueWebsites } = await import("./lib/websiteChecker");
     return checkDueWebsites(true);
   }),
@@ -109,7 +109,7 @@ export const placeRouter = createRouter({
   /* ── Точные координаты из ссылки на Яндекс.Карты (карточка организации
      или кнопка "Поделиться") — без угадывания через ИИ или геокодер по
      адресу. См. api/lib/yandexMapsLink.ts. ── */
-  resolveCoords: adminQuery
+  resolveCoords: editorQuery
     .input(z.object({ url: z.string().min(1) }))
     .mutation(async ({ input }) => {
       try {
@@ -122,7 +122,7 @@ export const placeRouter = createRouter({
       }
     }),
 
-  delete: adminQuery
+  delete: editorQuery
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -131,7 +131,7 @@ export const placeRouter = createRouter({
       return { success: true };
     }),
 
-  upsert: adminQuery
+  upsert: editorQuery
     .input(
       z.object({
         id: z.number().optional(),
