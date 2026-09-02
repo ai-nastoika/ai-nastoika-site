@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Wand2, Calculator, ArrowRight, Sparkles } from "lucide-react";
+import { Wand2, Calculator, ArrowRight, Sparkles, Compass } from "lucide-react";
 
 const tools = [
   {
@@ -12,6 +12,14 @@ const tools = [
   },
   {
     num: "02",
+    icon: Compass,
+    title: "Прогноз настойки",
+    desc: "Опишите идею или ингредиенты свободным текстом — для случаев, которые не покрыть кнопками калькулятора.",
+    badge: null,
+    link: "/tools?tool=forecast",
+  },
+  {
+    num: "03",
     icon: Calculator,
     title: "Расчёт крепости",
     desc: "Точный расчёт крепости напитка с учётом всех параметров, которые обычно игнорирует ареометр.",
@@ -40,7 +48,7 @@ export default function Tools() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {tools.map((tool) => (
             <div
               key={tool.num}
