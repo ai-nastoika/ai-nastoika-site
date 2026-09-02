@@ -39,23 +39,23 @@
   }
 
   [data-theme="dark-premium"] {
-    --bg-primary: #1a1410;
-    --bg-secondary: #251e18;
-    --bg-card: #2d2420;
-    --text-primary: #f5efe6;
-    --text-secondary: #c4b5a5;
-    --text-muted: #8a7b6b;
-    --accent: #d4af37;
-    --accent-light: #e8c87a;
+    --bg-primary: #1c160f;
+    --bg-secondary: #261d15;
+    --bg-card: #423324;
+    --text-primary: #f8f2ea;
+    --text-secondary: #d8c6b0;
+    --text-muted: #ab9781;
+    --accent: #e2ba4c;
+    --accent-light: #edcf80;
     --accent-dark: #b8960c;
-    --border: #3d3228;
-    --surface: #352c24;
-    --surface-hover: #423830;
+    --border: #71573d;
+    --surface: #33281c;
+    --surface-hover: #53402d;
     --radius: 0.5rem;
-    --success: #7fae7a;
-    --success-tint: #2a3a27;
-    --danger: #d97b6c;
-    --danger-tint: #3d2622;
+    --success: #8fc088;
+    --success-tint: #2f3d29;
+    --danger: #e08e77;
+    --danger-tint: #47291f;
   }
 
   [data-theme="herbal"] {
@@ -122,7 +122,7 @@
   }
 
   [data-theme="dark-premium"] .glass-card {
-    background: rgba(45, 36, 32, 0.7);
-    border: 1px solid rgba(212, 175, 55, 0.15);
+    background: rgba(66, 51, 36, 0.7);
+    border: 1px solid rgba(226, 186, 76, 0.18);
   }
 }

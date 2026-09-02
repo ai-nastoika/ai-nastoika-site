@@ -12,7 +12,7 @@ const palettes = [
     id: "dark-premium",
     name: "Тёмная премиум",
     desc: "Бар, роскошь, золото",
-    colors: ["#1a1410", "#d4af37", "#f5efe6"],
+    colors: ["#1c160f", "#e2ba4c", "#f8f2ea"],
   },
   {
     id: "herbal",
@@ -29,9 +29,9 @@ const palettes = [
 ];
 
 const fonts = [
-  { id: "classic", name: "Классическая", heading: '"Playfair Display", Georgia', body: '"Inter", sans-serif', desc: "Элегантность и традиция" },
-  { id: "modern", name: "Современная", heading: '"Inter", sans-serif', body: '"Inter", sans-serif', desc: "Чистота и минимализм" },
-  { id: "craft", name: "Крафтовая", heading: '"Playfair Display", Georgia', body: '"Source Sans 3", sans-serif', desc: "Хенд-мейд характер" },
+  { id: "classic", name: "Классическая", heading: '"Playfair Display", Georgia', body: '"Inter", sans-serif', desc: "Изящная серифная гарнитура в заголовках" },
+  { id: "modern", name: "Современная", heading: '"Manrope", sans-serif', body: '"Inter", sans-serif', desc: "Крупный геометричный гротеск в заголовках" },
+  { id: "craft", name: "Крафтовая", heading: '"Bitter", Georgia', body: '"Source Sans 3", sans-serif', desc: "Тёплый слэб-сериф — хенд-мейд характер" },
 ];
 
 const scales = [
@@ -238,6 +238,12 @@ export default function StyleSwitcher({
                           style={{ color: "var(--text-primary)", fontFamily: f.heading }}
                         >
                           {f.name}
+                        </div>
+                        <div
+                          className="text-lg font-bold mt-0.5"
+                          style={{ color: "var(--accent)", fontFamily: f.heading }}
+                        >
+                          0123456789
                         </div>
                         <div
                           className="text-base mt-0.5"
