@@ -6,7 +6,6 @@ import {
   HelpCircle,
   MessageCircle,
   Heart,
-  Zap,
   Clock,
   Tag,
 } from "lucide-react";
@@ -67,60 +66,6 @@ export default function RulesPage() {
         title={<>Правила, <span style={{ color: "var(--accent)" }}>честность</span> и поддержка</>}
         subtitle="Мы стараемся быть максимально прозрачными: базовый функционал бесплатен и останется таким навсегда. ИИ — это консультант, а не генератор рецептов."
       />
-      {/* ===== AI Consultant Description ===== */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2
-            className="text-2xl sm:text-3xl font-bold mb-10 text-center"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
-            ИИ-консультант по настойкам
-          </h2>
-
-          <div className="max-w-3xl mx-auto space-y-6">
-            {/* Step 1 */}
-            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>1</div>
-              <div>
-                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Описываете свою идею</h3>
-                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                  Вы описываете рецепт, который хотите попробовать — ингредиенты, пропорции, метод настаивания, сроки. Чем подробнее описание, тем точнее будет анализ. Можете описать и существующий рецепт, чтобы понять, что получится.
-                </p>
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>2</div>
-              <div>
-                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>ИИ анализирует и советует</h3>
-                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                  ИИ изучает ваше описание и готовит развёрнутый анализ: каким будет вкусовой профиль напитка по шести параметрам (сладость, кислотность, горечь, острота, фруктовость, травянистость); чем ваш рецепт отличается от классических вариантов этого напитка; конкретные рекомендации по улучшению вкуса — что добавить, убрать или изменить.
-                </p>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>3</div>
-              <div>
-                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Готовите с уверенностью</h3>
-                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                  Получив анализ, вы точно знаете, что получится, и можете скорректировать рецепт до начала настаивания. Экономия времени и ингредиентов — вместо месяца ожидания с непредсказуемым результатом вы получаете прогноз заранее.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Important note */}
-          <div className="max-w-3xl mx-auto mt-8 p-5 rounded-2xl" style={{ background: "#fef3c7", border: "1px solid #fde68a" }}>
-            <p className="text-base" style={{ color: "#92400e", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              <strong>Важно:</strong> ИИ — это инструмент анализа и консультирования, а не генератор рецептов для базы данных. Все рецепты на сайте — это проверенные классические и народные рецепты, добавляемые администрацией из достоверных источников. ИИ помогает вам экспериментировать, но не заменяет традиционные знания.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* ===== Limits & Pricing ===== */}
       <section className="py-16" style={{ background: "var(--bg-secondary)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -131,38 +76,58 @@ export default function RulesPage() {
             Лимиты и стоимость
           </h2>
 
-          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            {/* Without registration */}
-            <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Без регистрации</h3>
-              <div className="text-3xl font-bold mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-heading)" }}>Недоступно</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>ИИ-консультант только для аккаунтов</p>
-              <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                Рецепты, барная карта и комментарии доступны без регистрации — а вот вопросы ИИ-консультанту только после входа в аккаунт.
-              </p>
-            </div>
-
-            {/* With registration */}
-            <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "2px solid var(--accent)" }}>
-              <div className="inline-flex items-center gap-1 rounded-full px-3 py-0.5 text-sm font-medium mb-3" style={{ background: "var(--accent)", color: "#fff" }}>
-                <Zap size={14} /> Рекомендуем
+          <div className="max-w-3xl mx-auto space-y-6">
+            {/* Без регистрации */}
+            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>1</div>
+              <div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Без регистрации</h3>
+                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                  Заходите и сразу пользуйтесь: смотрите рецепты и предлагайте свои, изучайте барную карту и
+                  добавляйте на неё заведения, читайте общие сведения из базы знаний. Мы рады помочь
+                  сориентироваться в мире настоек любому гостю сайта — для этого регистрация не нужна.
+                </p>
               </div>
-              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>После регистрации</h3>
-              <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>5 запросов</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Бесплатно, разово на аккаунт</p>
-              <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                Пять бесплатных вопросов ИИ-консультанту сразу после регистрации — не сгорают по дням, тратьте когда удобно.
-              </p>
             </div>
 
-            {/* Paid requests */}
-            <div className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Сверх лимита</h3>
-              <div className="text-3xl font-bold mb-2" style={{ color: "var(--accent)", fontFamily: "var(--font-heading)" }}>2 ₽</div>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>За запрос, с баланса</p>
-              <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                После пяти бесплатных — 2 ₽ за запрос, списываются с баланса личного кабинета. Баланс пополняется в профиле в любой момент.
-              </p>
+            {/* После регистрации */}
+            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>2</div>
+              <div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>После регистрации</h3>
+                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                  Аккаунт открывает элементы сообщества и личные инструменты: можно добавлять рецепты и
+                  заведения в избранное, чтобы не искать их каждый раз заново через поиск, поставить трекер
+                  созревания понравившейся настойки — он сам напомнит на почту, когда пора снимать пробу, —
+                  а ещё оставлять комментарии и оценки. Для регистрации нужна только электронная почта:
+                  никаких телефонов и личных данных мы не спрашиваем.
+                </p>
+              </div>
+            </div>
+
+            {/* Платные функции */}
+            <div className="flex gap-5 rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>3</div>
+              <div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Платные функции</h3>
+                <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                  Каждому новому пользователю сразу даётся 5 бесплатных запросов ИИ-консультанту. Когда они
+                  заканчиваются, каждый следующий запрос стоит 2 ₽.
+                </p>
+                <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                  Чем это отличается от обычных бесплатных нейросетей? Ничем — вы точно так же можете
+                  прописать ингредиенты, способ настаивания и добавки в любую другую модель и получить
+                  общий, расплывчатый ответ. Разница в промте: наши ИИ-консультанты используют исчерпывающий
+                  промт под конкретный рецепт или описание, поэтому ответ получается максимально полным и
+                  точным.
+                </p>
+                <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                  2 ₽ за запрос сегодня — это копейки: условных 100 ₽ может хватить на долгий период
+                  использования. А 10 ₽ за генерацию этикетки не сравнить с покупкой стандартных наклеек без
+                  капли индивидуальности. Пополнение базы рецептов и заведений, их актуализация и оценка — наш
+                  общий интерес и общий успех, и мы рады любому пользователю сайта.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -210,42 +175,6 @@ export default function RulesPage() {
           </div>
         </div>
       </section>
-
-      {/* ===== Donate CTA ===== */}
-      <section className="py-16" style={{ background: "var(--bg-secondary)" }}>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <Heart size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
-          <h2
-            className="text-2xl sm:text-3xl font-bold mb-4"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
-          >
-            Поддержать проект
-          </h2>
-          <p
-            className="text-base mb-8"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.75 }}
-          >
-            Проект «Ай, настойка» существует благодаря энтузиастам. Все базовые функции — рецепты,
-            барная карта, комментарии, профиль — бесплатны и всегда будут бесплатны.
-            Ваш донат помогает оплачивать сервер, API нейросетей, разработку новых функций,
-            а также идёт на вознаграждение администратора и команды за работу над проектом.
-          </p>
-          <button
-            onClick={() => setDonateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-transform hover:scale-105"
-            style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
-          >
-            <Heart size={20} />
-            Поддержать
-          </button>
-
-          <p className="text-sm mt-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Другие способы: <span style={{ color: "var(--accent)" }}>info@ai-nastoika.ru</span> или кнопка в шапке сайта
-          </p>
-        </div>
-      </section>
-
-      {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
 
       {/* ===== FAQ ===== */}
       <section className="py-16">
@@ -346,6 +275,42 @@ export default function RulesPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== Donate CTA ===== */}
+      <section className="py-16" style={{ background: "var(--bg-secondary)" }}>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <Heart size={48} className="mx-auto mb-4" style={{ color: "var(--accent)" }} />
+          <h2
+            className="text-2xl sm:text-3xl font-bold mb-4"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}
+          >
+            Поддержать проект
+          </h2>
+          <p
+            className="text-base mb-8"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.75 }}
+          >
+            Проект «Ай, настойка» существует благодаря энтузиастам. Все базовые функции — рецепты,
+            барная карта, комментарии, профиль — бесплатны и всегда будут бесплатны.
+            Ваш донат помогает оплачивать сервер, API нейросетей, разработку новых функций,
+            а также идёт на вознаграждение администратора и команды за работу над проектом.
+          </p>
+          <button
+            onClick={() => setDonateOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-transform hover:scale-105"
+            style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
+          >
+            <Heart size={20} />
+            Поддержать
+          </button>
+
+          <p className="text-sm mt-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Другие способы: <span style={{ color: "var(--accent)" }}>info@ai-nastoika.ru</span> или кнопка в шапке сайта
+          </p>
+        </div>
+      </section>
+
+      {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
     </div>
   );
 }
