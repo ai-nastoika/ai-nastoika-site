@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Heart, Apple, Play } from "lucide-react";
 import { Link } from "react-router";
 import InstallAppModal from "@/components/InstallAppModal";
+import { DonateModal } from "@/components/DonateModal";
 
 export default function Footer() {
   const [installModal, setInstallModal] = useState<"ios" | "android" | null>(null);
+  const [donateOpen, setDonateOpen] = useState(false);
 
   return (
     <footer className="py-12 print:hidden" style={{ background: "var(--bg-secondary)", borderTop: "1px solid var(--border)" }}>
@@ -27,7 +29,9 @@ export default function Footer() {
             <Link to="/privacy" className="transition-opacity hover:opacity-70">Конфиденциальность</Link>
             <Link to="/offer" className="transition-opacity hover:opacity-70">Оферта</Link>
             <Link to="/feedback" className="transition-opacity hover:opacity-70">Обратная связь</Link>
-            <Link to="/barmap" className="transition-opacity hover:opacity-70">Барная карта</Link>
+            <button onClick={() => setDonateOpen(true)} className="flex items-center gap-1 transition-opacity hover:opacity-70">
+              <Heart size={16} style={{ color: "var(--accent)" }} /> Поддержать
+            </button>
           </div>
         </div>
 
@@ -84,6 +88,7 @@ export default function Footer() {
         onClose={() => setInstallModal(null)}
         initialPlatform={installModal ?? "ios"}
       />
+      {donateOpen && <DonateModal onClose={() => setDonateOpen(false)} />}
     </footer>
   );
 }
