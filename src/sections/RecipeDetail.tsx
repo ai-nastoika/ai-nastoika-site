@@ -356,7 +356,7 @@ export default function RecipeDetail() {
 
             <div className="space-y-4">
               {steps.map((s, idx) => (
-                <div key={idx} className="flex gap-4 rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <div key={idx} id={`step-${s.stepNum}`} className="flex gap-4 rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shrink-0" style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-heading)" }}>
                     {s.stepNum}
                   </div>

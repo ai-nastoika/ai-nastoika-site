@@ -923,7 +923,7 @@ app.get("*", async (c) => {
           .from(recipeIngredients)
           .where(eq(recipeIngredients.recipeId, recipe.id));
         const steps = await db
-          .select({ text: recipeSteps.text })
+          .select({ stepNum: recipeSteps.stepNum, title: recipeSteps.title, text: recipeSteps.text })
           .from(recipeSteps)
           .where(eq(recipeSteps.recipeId, recipe.id))
           .orderBy(recipeSteps.stepNum);
@@ -936,13 +936,21 @@ app.get("*", async (c) => {
           description,
           image: image.startsWith("http") ? image : `https://ai-nastoika.ru${image}`,
           recipeCategory: recipe.categoryLabel || recipe.category,
+          // Все рецепты сайта — русская традиция домашнего настаивания, это
+          // верно для 100% каталога, а не догадка под конкретный рецепт.
+          recipeCuisine: "Русская",
           // Настоящих индивидуальных фото на каждый шаг нет — используем
           // фото готового напитка как честный fallback, это то, что
           // рекомендует сама Google, если отдельных иллюстраций к шагам нет.
+          // name/url — из реального заголовка шага (recipe_steps.title, тот
+          // же текст, что виден на странице) и настоящего якоря на странице
+          // (id="step-N" в RecipeDetail.tsx) — не выдумываем то, чего нет.
           recipeInstructions: steps.map((s) => ({
             "@type": "HowToStep",
+            name: s.title || `Шаг ${s.stepNum}`,
             text: s.text,
             image: image.startsWith("http") ? image : `https://ai-nastoika.ru${image}`,
+            url: `${url}#step-${s.stepNum}`,
           })),
           recipeIngredient: ingredients.map((i) => `${i.name}${i.amount ? ` — ${i.amount}` : ""}`),
           author: {
