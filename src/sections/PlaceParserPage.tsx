@@ -58,7 +58,6 @@ export default function PlaceParserPage() {
   const [placeText, setPlaceText] = useState("");
   const [form, setForm] = useState<PlaceForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
-  const [aiModel, setAiModel] = useState<"deepseek" | "qwen" | "glm">("deepseek");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -95,7 +94,7 @@ export default function PlaceParserPage() {
     },
   });
 
-  /* ── Шаг 1 → карточка одним запросом (Timeweb AI Gateway, DeepSeek) ── */
+  /* ── Шаг 1 → карточка одним запросом (Timeweb AI Gateway, Qwen) ── */
   const generatePlace = trpc.placeParser.generate.useMutation({
     onSuccess: (data) => {
       applyParsedData(data);
@@ -113,7 +112,7 @@ export default function PlaceParserPage() {
   const handleGenerate = () => {
     if (!placeText.trim()) return;
     setGenerating(true);
-    generatePlace.mutate({ rawText: placeText, model: aiModel });
+    generatePlace.mutate({ rawText: placeText });
   };
 
   /* ── Upload image ── */
@@ -295,7 +294,7 @@ export default function PlaceParserPage() {
           AI-парсер заведений
         </h1>
         <p className="mt-1 mb-8" style={{ color: "var(--text-secondary)" }}>
-          Разбирает данные о заведении и анализирует отзывы на упоминания настоек — через Timeweb AI Gateway (DeepSeek)
+          Разбирает данные о заведении и анализирует отзывы на упоминания настоек — через Timeweb AI Gateway (Qwen)
         </p>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -332,48 +331,6 @@ export default function PlaceParserPage() {
 "Бар «Тоник», Санкт-Петербург. Сайт: https://tonyc.clients.site/. Ссылка на Яндекс.Карты: https://yandex.ru/maps/-/CTuJZL0D. В отзывах часто хвалят домашнюю хреновуху и облепиховую настойку, кто-то жаловался на медленное обслуживание в выходные."`}
                   className="min-h-[250px]"
                 />
-
-                <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Модель</span>
-                  <div className="flex gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setAiModel("deepseek")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        background: aiModel === "deepseek" ? "var(--accent)" : "var(--bg-card)",
-                        color: aiModel === "deepseek" ? "#fff" : "var(--text-secondary)",
-                        border: aiModel === "deepseek" ? "none" : "1px solid var(--border)",
-                      }}
-                    >
-                      DeepSeek
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAiModel("qwen")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        background: aiModel === "qwen" ? "var(--accent)" : "var(--bg-card)",
-                        color: aiModel === "qwen" ? "#fff" : "var(--text-secondary)",
-                        border: aiModel === "qwen" ? "none" : "1px solid var(--border)",
-                      }}
-                    >
-                      Qwen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAiModel("glm")}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        background: aiModel === "glm" ? "var(--accent)" : "var(--bg-card)",
-                        color: aiModel === "glm" ? "#fff" : "var(--text-secondary)",
-                        border: aiModel === "glm" ? "none" : "1px solid var(--border)",
-                      }}
-                    >
-                      GLM 4.7 FlashX
-                    </button>
-                  </div>
-                </div>
 
                 <Button onClick={handleGenerate} disabled={!placeText.trim() || generating} size="lg" className="w-full">
                   {generating ? (
