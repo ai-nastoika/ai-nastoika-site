@@ -24,7 +24,10 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+          <div
+            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-6 text-sm sm:text-base text-center"
+            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}
+          >
             <Link to="/rules" className="transition-opacity hover:opacity-70">Правила</Link>
             <Link to="/privacy" className="transition-opacity hover:opacity-70">Конфиденциальность</Link>
             <Link to="/offer" className="transition-opacity hover:opacity-70">Оферта</Link>
@@ -37,7 +40,7 @@ export default function Footer() {
 
         {/* ── Значки сторов — приложений ещё нет, ведут на инструкцию по установке
             ярлыка на экран "Домой" (см. InstallAppModal.tsx). Не настоящий листинг. ── */}
-        <div className="mt-8 flex items-center justify-center md:justify-start gap-3">
+        <div className="mt-8 flex flex-wrap items-center justify-center md:justify-start gap-3">
           <button
             onClick={() => setInstallModal("ios")}
             className="flex items-center gap-2 rounded-xl px-4 py-2 transition-opacity hover:opacity-80"
