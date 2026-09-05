@@ -234,25 +234,6 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
     setError("");
   }
 
-  // Автозавершение при уходе со страницы. ВАЖНО: этот компонент также
-  // размонтируется при переключении вкладок этапов (как и калькулятор вкуса
-  // в ToolsPage) — значит архивация сработает и просто при переключении
-  // вкладки "Брага"/"Первый перегон"/"Второй перегон", не только при полном
-  // уходе со страницы Винокура.
-  const conversationRef = useRef<{ id: number | undefined; hasMessages: boolean }>({ id: undefined, hasMessages: false });
-  useEffect(() => {
-    conversationRef.current = { id: conversationId, hasMessages: messages.length > 0 };
-  }, [conversationId, messages.length]);
-  useEffect(() => {
-    return () => {
-      const conv = conversationRef.current;
-      if (conv.id && conv.hasMessages) {
-        finishConversation.mutate({ conversationId: conv.id });
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, generate.isPending]);

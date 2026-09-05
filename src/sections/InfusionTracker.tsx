@@ -422,21 +422,6 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
     setError("");
   }
 
-  // Автозавершение при уходе со страницы/переключении трекера (размонтирование).
-  const conversationRef = useRef<{ id: number | undefined; hasMessages: boolean }>({ id: undefined, hasMessages: false });
-  useEffect(() => {
-    conversationRef.current = { id: conversationId, hasMessages: messages.length > 0 };
-  }, [conversationId, messages.length]);
-  useEffect(() => {
-    return () => {
-      const conv = conversationRef.current;
-      if (conv.id && conv.hasMessages) {
-        finishConversation.mutate({ conversationId: conv.id });
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function handleAsk() {
     const q = question.trim();
     if (!q || ask.isPending) return;
