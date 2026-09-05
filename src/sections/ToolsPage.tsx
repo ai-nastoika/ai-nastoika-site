@@ -1141,7 +1141,7 @@ const tools = [
 ];
 export default function ToolsPage() {
   const [activeTool, setActiveTool] = useState("taste");
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   /* Прямая ссылка на конкретную вкладку — /tools?tool=abv и т.п. */
   useEffect(() => {
@@ -1168,7 +1168,10 @@ export default function ToolsPage() {
             {tools.map((tool) => (
               <button
                 key={tool.id}
-                onClick={() => setActiveTool(tool.id)}
+                onClick={() => {
+                  setActiveTool(tool.id);
+                  setSearchParams({ tool: tool.id }, { replace: true });
+                }}
                 className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-base font-medium whitespace-nowrap transition-all hover:scale-[1.02]"
                 style={{
                   background: activeTool === tool.id ? "var(--accent)" : "var(--bg-card)",
