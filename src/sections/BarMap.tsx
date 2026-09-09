@@ -397,8 +397,18 @@ export default function BarMap() {
     placemarks.forEach((pm) => clusterer.add(pm));
     map.geoObjects.add(clusterer);
 
-    if (placemarks.length > 0) {
+    if (placemarks.length > 0 && (activeCity !== "Все города" || searchQuery.trim().length > 0)) {
+      // Выбран конкретный город или есть поисковый запрос — подгоняем масштаб
+      // под реально найденные метки.
       map.setBounds(clusterer.getBounds(), { checkZoomRange: true, zoomMargin: 40 });
+    } else if (activeCity === "Все города" && !searchQuery.trim()) {
+      // Дефолтное состояние — без выбранного города, без поиска (в том числе
+      // если геолокация недоступна/пользователь не дал согласие). Раньше здесь
+      // масштаб всегда подгонялся под ВСЕ метки по всей России сразу — из-за
+      // этого при заходе без согласия на геопозицию карта показывала не
+      // Москву, а сильно отдалённый вид всей страны. Теперь в этом случае
+      // явно возвращаем карту на Москву.
+      map.setCenter(DEFAULT_CENTER, 11);
     }
   }
 
