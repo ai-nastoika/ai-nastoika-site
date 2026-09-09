@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { MapPin, Clock, Wine, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles, FileText, ChevronDown } from "lucide-react";
 import SuggestPlaceForm from "./SuggestPlaceForm";
 import { ShotGlassCardSummary } from "@/components/ShotGlassRating";
@@ -16,8 +17,15 @@ function PlaceRatingBadge({ placeId }: { placeId: number }) {
 // Видимые сразу пилюли — самые крупные/частые города. Остальные — в одну
 // раскрывающуюся пилюлю "Другие", тем же паттерном, что и категории рецептов
 // (см. MAIN_CATEGORIES/OTHER_CATEGORIES в RecipesPage.tsx).
-const MAIN_CITIES = ["Москва", "Санкт-Петербург", "Казань", "Сочи", "Калининград"];
-const OTHER_CITIES = [
+// На мобильном пилюль меньше — гарантированно влезают Москва и Санкт-Петербург
+// в 2 строки вместе с "Все города", остальное (включая Сочи/Казань/Калининград)
+// уходит в "Другие города". На десктопе места больше — эти три остаются видны.
+const ALL_CITIES = [
+  "Москва",
+  "Санкт-Петербург",
+  "Казань",
+  "Сочи",
+  "Калининград",
   "Нижний Новгород",
   "Краснодар",
   "Ростов-на-Дону",
@@ -30,6 +38,8 @@ const OTHER_CITIES = [
   "Хабаровск",
   "Владивосток",
 ];
+const MAIN_CITIES_DESKTOP = ["Москва", "Санкт-Петербург", "Казань", "Сочи", "Калининград"];
+const MAIN_CITIES_MOBILE = ["Москва", "Санкт-Петербург"];
 
 // Примерные координаты центров городов — только для автовыбора ближайшего
 // города по геолокации при заходе на страницу (см. useEffect ниже).
@@ -148,6 +158,9 @@ export default function BarMap() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showOtherCities, setShowOtherCities] = useState(false);
+  const isMobile = useIsMobile();
+  const mainCities = isMobile ? MAIN_CITIES_MOBILE : MAIN_CITIES_DESKTOP;
+  const otherCities = ALL_CITIES.filter((c) => !mainCities.includes(c));
   const GRID_LIMIT_OPTIONS = [10, 20, 50, 100];
   const [gridLimit, setGridLimit] = useState(10);
 
@@ -434,8 +447,11 @@ export default function BarMap() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* Hero */}
-      <section className="relative overflow-hidden py-16" style={{ background: "var(--bg-secondary)" }}>
+      {/* Hero — overflow-hidden только ради декоративного круга-подложки ниже;
+          пилюли городов вынесены в отдельную секцию без overflow-hidden, иначе
+          выпадающий список "Другие города" обрезался бы этой же секцией
+          (см. баг-репорт: список было не видно и без прокрутки). */}
+      <section className="relative overflow-hidden pt-16" style={{ background: "var(--bg-secondary)" }}>
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10" style={{ background: "var(--accent-light)", transform: "translate(30%, -30%)" }} />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <button
@@ -465,7 +481,11 @@ export default function BarMap() {
               <SlidersHorizontal size={22} style={{ color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }} />
             </div>
           </div>
+        </div>
+      </section>
 
+      <section className="pb-16" style={{ background: "var(--bg-secondary)" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap gap-2 mt-8 items-center justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -480,7 +500,7 @@ export default function BarMap() {
               >
                 Все города
               </button>
-              {MAIN_CITIES.map((city) => (
+              {mainCities.map((city) => (
                 <button
                   key={city}
                   onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }}
@@ -501,18 +521,18 @@ export default function BarMap() {
                   onClick={() => setShowOtherCities(!showOtherCities)}
                   className="flex items-center gap-1.5 rounded-full px-5 py-2 text-base font-medium whitespace-nowrap transition-all"
                   style={{
-                    background: OTHER_CITIES.includes(activeCity) ? "var(--accent)" : "var(--bg-card)",
-                    color: OTHER_CITIES.includes(activeCity) ? "#fff" : "var(--text-secondary)",
-                    border: OTHER_CITIES.includes(activeCity) ? "none" : "1px solid var(--border)",
+                    background: otherCities.includes(activeCity) ? "var(--accent)" : "var(--bg-card)",
+                    color: otherCities.includes(activeCity) ? "#fff" : "var(--text-secondary)",
+                    border: otherCities.includes(activeCity) ? "none" : "1px solid var(--border)",
                     fontFamily: "var(--font-body)",
                   }}
                 >
-                  {OTHER_CITIES.includes(activeCity) ? activeCity : "Другие города"}
+                  {otherCities.includes(activeCity) ? activeCity : "Другие города"}
                   <ChevronDown size={16} style={{ transition: "transform 0.2s", transform: showOtherCities ? "rotate(180deg)" : "rotate(0deg)" }} />
                 </button>
                 {showOtherCities && (
-                  <div className="absolute left-0 top-full mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                    {OTHER_CITIES.map((city) => (
+                  <div className="absolute left-0 top-full mt-2 w-56 max-h-72 overflow-y-auto rounded-xl shadow-xl z-50" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    {otherCities.map((city) => (
                       <button
                         key={city}
                         onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); setShowOtherCities(false); }}
