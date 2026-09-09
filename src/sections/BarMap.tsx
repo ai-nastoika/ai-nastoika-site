@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
-import { MapPin, Clock, Wine, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles, FileText } from "lucide-react";
+import { MapPin, Clock, Wine, Search, SlidersHorizontal, Navigation, ArrowLeft, Plus, LocateFixed, TrendingUp, Sparkles, FileText, ChevronDown } from "lucide-react";
 import SuggestPlaceForm from "./SuggestPlaceForm";
 import { ShotGlassCardSummary } from "@/components/ShotGlassRating";
 
@@ -13,18 +13,22 @@ function PlaceRatingBadge({ placeId }: { placeId: number }) {
   return <ShotGlassCardSummary summary={summary} />;
 }
 
-/* Города сгруппированы по федеральным округам — так проще найти свой
-   среди полутора десятков пилюль, чем в одном плоском ряду. Порядок групп —
-   с запада на восток. "Все города" — отдельная пилюля вне групп, это сброс
-   фильтра, а не географическая единица. */
-const cityGroups: { label: string; cities: string[] }[] = [
-  { label: "Центральный", cities: ["Москва"] },
-  { label: "Северо-Западный", cities: ["Санкт-Петербург", "Калининград"] },
-  { label: "Южный", cities: ["Краснодар", "Сочи", "Ростов-на-Дону"] },
-  { label: "Приволжский", cities: ["Нижний Новгород", "Казань", "Пермь"] },
-  { label: "Уральский", cities: ["Екатеринбург", "Тюмень", "Челябинск"] },
-  { label: "Сибирский", cities: ["Новосибирск", "Омск"] },
-  { label: "Дальневосточный", cities: ["Хабаровск", "Владивосток"] },
+// Видимые сразу пилюли — самые крупные/частые города. Остальные — в одну
+// раскрывающуюся пилюлю "Другие", тем же паттерном, что и категории рецептов
+// (см. MAIN_CATEGORIES/OTHER_CATEGORIES в RecipesPage.tsx).
+const MAIN_CITIES = ["Москва", "Санкт-Петербург", "Казань", "Сочи", "Калининград"];
+const OTHER_CITIES = [
+  "Нижний Новгород",
+  "Краснодар",
+  "Ростов-на-Дону",
+  "Пермь",
+  "Екатеринбург",
+  "Тюмень",
+  "Челябинск",
+  "Новосибирск",
+  "Омск",
+  "Хабаровск",
+  "Владивосток",
 ];
 
 // Примерные координаты центров городов — только для автовыбора ближайшего
@@ -143,6 +147,7 @@ export default function BarMap() {
   const [activeCity, setActiveCity] = useState("Все города");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showOtherCities, setShowOtherCities] = useState(false);
   const GRID_LIMIT_OPTIONS = [10, 20, 50, 100];
   const [gridLimit, setGridLimit] = useState(10);
 
@@ -461,11 +466,11 @@ export default function BarMap() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-8 items-start justify-between">
-            <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+          <div className="flex flex-wrap gap-2 mt-8 items-center justify-between">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => { cityManuallyChosenRef.current = true; setActiveCity("Все города"); }}
-                className="rounded-full px-5 py-2 text-base font-medium transition-all self-center"
+                className="rounded-full px-5 py-2 text-base font-medium whitespace-nowrap transition-all"
                 style={{
                   background: activeCity === "Все города" ? "var(--accent)" : "var(--bg-card)",
                   color: activeCity === "Все города" ? "#fff" : "var(--text-secondary)",
@@ -475,33 +480,55 @@ export default function BarMap() {
               >
                 Все города
               </button>
-              {cityGroups.map((group) => (
-                <div key={group.label}>
-                  <div
-                    className="text-xs font-medium mb-1.5"
-                    style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
-                  >
-                    {group.label}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {group.cities.map((city) => (
+              {MAIN_CITIES.map((city) => (
+                <button
+                  key={city}
+                  onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }}
+                  className="rounded-full px-5 py-2 text-base font-medium whitespace-nowrap transition-all"
+                  style={{
+                    background: activeCity === city ? "var(--accent)" : "var(--bg-card)",
+                    color: activeCity === city ? "#fff" : "var(--text-secondary)",
+                    border: activeCity === city ? "none" : "1px solid var(--border)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {city}
+                </button>
+              ))}
+              {/* Остальные города — одной раскрывающейся пилюлей, как категории на странице рецептов */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowOtherCities(!showOtherCities)}
+                  className="flex items-center gap-1.5 rounded-full px-5 py-2 text-base font-medium whitespace-nowrap transition-all"
+                  style={{
+                    background: OTHER_CITIES.includes(activeCity) ? "var(--accent)" : "var(--bg-card)",
+                    color: OTHER_CITIES.includes(activeCity) ? "#fff" : "var(--text-secondary)",
+                    border: OTHER_CITIES.includes(activeCity) ? "none" : "1px solid var(--border)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                >
+                  {OTHER_CITIES.includes(activeCity) ? activeCity : "Другие города"}
+                  <ChevronDown size={16} style={{ transition: "transform 0.2s", transform: showOtherCities ? "rotate(180deg)" : "rotate(0deg)" }} />
+                </button>
+                {showOtherCities && (
+                  <div className="absolute left-0 top-full mt-2 w-56 rounded-xl shadow-xl z-50 overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    {OTHER_CITIES.map((city) => (
                       <button
                         key={city}
-                        onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }}
-                        className="rounded-full px-5 py-2 text-base font-medium transition-all"
+                        onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); setShowOtherCities(false); }}
+                        className="block w-full text-left px-4 py-2.5 text-base transition-colors hover:opacity-70"
                         style={{
-                          background: activeCity === city ? "var(--accent)" : "var(--bg-card)",
-                          color: activeCity === city ? "#fff" : "var(--text-secondary)",
-                          border: activeCity === city ? "none" : "1px solid var(--border)",
+                          color: activeCity === city ? "var(--accent)" : "var(--text-secondary)",
                           fontFamily: "var(--font-body)",
+                          fontWeight: activeCity === city ? 600 : 400,
                         }}
                       >
                         {city}
                       </button>
                     ))}
                   </div>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
             <button
               onClick={() => setShowAddForm(true)}
