@@ -13,7 +13,19 @@ function PlaceRatingBadge({ placeId }: { placeId: number }) {
   return <ShotGlassCardSummary summary={summary} />;
 }
 
-const cities = ["Все города", "Москва", "Санкт-Петербург", "Казань", "Нижний Новгород"];
+/* Города сгруппированы по федеральным округам — так проще найти свой
+   среди полутора десятков пилюль, чем в одном плоском ряду. Порядок групп —
+   с запада на восток. "Все города" — отдельная пилюля вне групп, это сброс
+   фильтра, а не географическая единица. */
+const cityGroups: { label: string; cities: string[] }[] = [
+  { label: "Центральный", cities: ["Москва"] },
+  { label: "Северо-Западный", cities: ["Санкт-Петербург", "Калининград"] },
+  { label: "Южный", cities: ["Краснодар", "Сочи", "Ростов-на-Дону"] },
+  { label: "Приволжский", cities: ["Нижний Новгород", "Казань", "Пермь"] },
+  { label: "Уральский", cities: ["Екатеринбург", "Тюмень", "Челябинск"] },
+  { label: "Сибирский", cities: ["Новосибирск", "Омск"] },
+  { label: "Дальневосточный", cities: ["Хабаровск", "Владивосток"] },
+];
 
 // Примерные координаты центров городов — только для автовыбора ближайшего
 // города по геолокации при заходе на страницу (см. useEffect ниже).
@@ -23,6 +35,18 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   "Санкт-Петербург": [59.9311, 30.3609],
   "Казань": [55.7963, 49.1088],
   "Нижний Новгород": [56.2965, 43.9361],
+  "Калининград": [54.7104, 20.4522],
+  "Краснодар": [45.0355, 38.9753],
+  "Сочи": [43.6028, 39.7342],
+  "Ростов-на-Дону": [47.2357, 39.7015],
+  "Пермь": [58.0105, 56.2502],
+  "Екатеринбург": [56.8389, 60.6057],
+  "Тюмень": [57.1522, 65.5272],
+  "Челябинск": [55.1644, 61.4368],
+  "Новосибирск": [55.0084, 82.9357],
+  "Омск": [54.9885, 73.3242],
+  "Хабаровск": [48.4827, 135.0838],
+  "Владивосток": [43.1155, 131.8855],
 };
 
 /* Ближайший из известных городов сайта к произвольным координатам —
@@ -437,12 +461,46 @@ export default function BarMap() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-8 items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              {cities.map((city) => (
-                <button key={city} onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }} className="rounded-full px-5 py-2 text-base font-medium transition-all" style={{ background: activeCity === city ? "var(--accent)" : "var(--bg-card)", color: activeCity === city ? "#fff" : "var(--text-secondary)", border: activeCity === city ? "none" : "1px solid var(--border)", fontFamily: "var(--font-body)" }}>
-                  {city}
-                </button>
+          <div className="flex flex-wrap gap-2 mt-8 items-start justify-between">
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+              <button
+                onClick={() => { cityManuallyChosenRef.current = true; setActiveCity("Все города"); }}
+                className="rounded-full px-5 py-2 text-base font-medium transition-all self-center"
+                style={{
+                  background: activeCity === "Все города" ? "var(--accent)" : "var(--bg-card)",
+                  color: activeCity === "Все города" ? "#fff" : "var(--text-secondary)",
+                  border: activeCity === "Все города" ? "none" : "1px solid var(--border)",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                Все города
+              </button>
+              {cityGroups.map((group) => (
+                <div key={group.label}>
+                  <div
+                    className="text-xs font-medium mb-1.5"
+                    style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}
+                  >
+                    {group.label}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.cities.map((city) => (
+                      <button
+                        key={city}
+                        onClick={() => { cityManuallyChosenRef.current = true; setActiveCity(city); }}
+                        className="rounded-full px-5 py-2 text-base font-medium transition-all"
+                        style={{
+                          background: activeCity === city ? "var(--accent)" : "var(--bg-card)",
+                          color: activeCity === city ? "#fff" : "var(--text-secondary)",
+                          border: activeCity === city ? "none" : "1px solid var(--border)",
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <button
