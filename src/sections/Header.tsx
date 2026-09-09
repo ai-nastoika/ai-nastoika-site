@@ -55,7 +55,7 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-2 shrink-0">
             <button
               onClick={() => setDonateOpen(true)}
-              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
+              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-sm font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
               title="Поддержать проект"
             >
@@ -65,7 +65,7 @@ export default function Header() {
 
             <Link
               to="/feedback"
-              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
+              className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-sm font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{
                 background: isActive("/feedback") ? "var(--accent)" : "var(--surface)",
                 color: isActive("/feedback") ? "#fff" : "var(--accent)",
@@ -82,7 +82,7 @@ export default function Header() {
               <div className="flex items-center gap-1">
                 <Link
                   to="/profile"
-                  className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-xs font-medium transition-all hover:opacity-70 whitespace-nowrap"
+                  className="flex items-center justify-center w-8 h-8 lg:w-auto lg:h-auto lg:px-2 lg:py-1 rounded-lg text-sm font-medium transition-all hover:opacity-70 whitespace-nowrap"
                   style={{ background: "var(--surface)", color: "var(--accent)", fontFamily: "var(--font-body)" }}
                 >
                   <User size={14} />
@@ -100,7 +100,7 @@ export default function Header() {
             ) : (
               <Link
                 to="/login"
-                className="px-2 py-1 rounded-lg text-xs lg:text-sm font-medium transition-all hover:opacity-70 whitespace-nowrap"
+                className="px-2 py-1 rounded-lg text-sm lg:text-base font-medium transition-all hover:opacity-70 whitespace-nowrap"
                 style={{ background: "var(--accent)", color: "#fff", fontFamily: "var(--font-body)" }}
               >
                 Вход
@@ -144,7 +144,7 @@ export default function Header() {
             <Link
               key={item.label}
               to={item.href}
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
+              className="px-2 lg:px-2.5 py-1 text-base font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap"
               style={{
                 color: isActive(item.href) ? "var(--accent)" : "var(--text-secondary)",
                 fontFamily: "var(--font-body)",
@@ -159,7 +159,7 @@ export default function Header() {
           {isEditor && (
             <Link
               to="/tools/parse-recipe"
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              className="px-2 lg:px-2.5 py-1 text-base font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
               style={{
                 color: isActive("/tools/parse-recipe") ? "#fff" : "var(--accent)",
                 fontFamily: "var(--font-body)",
@@ -167,7 +167,7 @@ export default function Header() {
                 border: "1px solid var(--accent)",
               }}
             >
-              <Bot size={12} />
+              <Bot size={14} />
               Парсер
             </Link>
           )}
@@ -176,7 +176,7 @@ export default function Header() {
           {isEditor && (
             <Link
               to="/tools/parse-place"
-              className="px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              className="px-2 lg:px-2.5 py-1 text-base font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
               style={{
                 color: isActive("/tools/parse-place") ? "#fff" : "var(--accent)",
                 fontFamily: "var(--font-body)",
@@ -184,7 +184,7 @@ export default function Header() {
                 border: "1px solid var(--accent)",
               }}
             >
-              <Bot size={12} />
+              <Bot size={14} />
               Парсер мест
             </Link>
           )}
@@ -193,7 +193,7 @@ export default function Header() {
           {isEditor && (
             <Link
               to="/admin"
-              className="relative px-1.5 lg:px-2 py-1 text-xs lg:text-sm font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
+              className="relative px-2 lg:px-2.5 py-1 text-base font-medium rounded-lg transition-all hover:opacity-70 whitespace-nowrap flex items-center gap-1"
               style={{
                 color: isActive("/admin") ? "#fff" : "var(--accent)",
                 fontFamily: "var(--font-body)",
@@ -201,7 +201,7 @@ export default function Header() {
                 border: "1px solid var(--accent)",
               }}
             >
-              <Shield size={12} />
+              <Shield size={14} />
               Админ
               {!!pendingCount?.total && (
                 <span
