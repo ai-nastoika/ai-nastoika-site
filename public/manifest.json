@@ -1,9 +1,15 @@
 {
   "name": "Ай, настойка!",
   "short_name": "Ай, настойка!",
-  "description": "Рецепты домашних настоек",
+  "description": "Рецепты домашних настоек и наливок, барная карта заведений, ИИ-консультации по вкусу и генератор этикеток.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
+  "lang": "ru",
+  "dir": "ltr",
+  "categories": ["food", "lifestyle"],
   "background_color": "#1a0f0a",
   "theme_color": "#8B4513",
   "icons": [
@@ -11,13 +17,25 @@
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

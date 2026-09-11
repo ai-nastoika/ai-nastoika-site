@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#8B4513" />
+    <title>Нет соединения — Ай, настойка!</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        background: #1a0f0a;
+        color: #f5efe6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .wrap {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 24px;
+      }
+      img { width: 88px; height: 88px; border-radius: 20px; margin-bottom: 24px; }
+      h1 { font-size: 22px; margin-bottom: 12px; color: #f5efe6; }
+      p { font-size: 16px; line-height: 1.6; color: #c4b5a5; max-width: 340px; margin-bottom: 28px; }
+      button {
+        background: #8B4513;
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        padding: 13px 28px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:active { opacity: 0.85; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="/icons/icon-192x192.png" alt="" />
+      <h1>Нет соединения с интернетом</h1>
+      <p>
+        «Ай, настойка!» работает онлайн — рецепты, карта и ИИ-инструменты
+        загружаются с сервера. Проверьте подключение и попробуйте снова.
+      </p>
+      <button onclick="location.reload()">Обновить</button>
+    </div>
+  </body>
+</html>
