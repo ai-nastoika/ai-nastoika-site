@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- В тон сайту: theme_color и background_color из public/manifest.json -->
+    <color name="colorPrimary">#8B4513</color>
+    <color name="splashBackground">#1a0f0a</color>
+</resources>

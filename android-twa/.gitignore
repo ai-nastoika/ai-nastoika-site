@@ -1,0 +1,13 @@
+# КРИТИЧНО: ключ подписи и его пароли НИКОГДА не коммитим.
+# Потеря/утечка ключа = невозможность обновлять приложение в Google Play.
+*.keystore
+*.jks
+keystore.properties
+
+# Сборочные артефакты
+.gradle/
+build/
+app/build/
+local.properties
+*.aab
+*.apk

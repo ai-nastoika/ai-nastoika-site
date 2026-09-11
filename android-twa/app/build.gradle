@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ru.ainastoika.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'ru.ainastoika.app'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+
+        // Хост сайта, который открывает приложение. Меняется в одном месте —
+        // подхватывается и манифестом, и strings.xml через resValue/manifestPlaceholders.
+        manifestPlaceholders = [
+            hostName            : 'ai-nastoika.ru',
+            launchUrl           : '/',
+            // Цвета верхней/нижней системных панелей в приложении.
+            // Держим в тон сайту (theme_color из manifest.json).
+            statusBarColor      : '@color/colorPrimary'
+        ]
+    }
+
+    signingConfigs {
+        release {
+            // Значения берутся из android-twa/keystore.properties (см. README).
+            // Файл keystore.properties и сам .keystore НЕ коммитятся в git.
+            def keystorePropsFile = rootProject.file('keystore.properties')
+            if (keystorePropsFile.exists()) {
+                def props = new Properties()
+                props.load(new FileInputStream(keystorePropsFile))
+                storeFile file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Официальная библиотека Google для Trusted Web Activity — она и делает
+    // всю работу: открывает сайт на весь экран без адресной строки браузера.
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

@@ -1,0 +1,24 @@
+// Корневой build.gradle — TWA-обёртка для сайта ai-nastoika.ru.
+// Это НЕ часть основного сайта: отдельный Android-проект, который лишь
+// открывает сайт как приложение (Trusted Web Activity). Собирается отдельно
+// на машине с установленными JDK 17 и Android SDK (см. android-twa/README.md).
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
