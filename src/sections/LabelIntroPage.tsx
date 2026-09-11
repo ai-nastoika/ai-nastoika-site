@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import PageHero from "@/components/PageHero";
 import { trpc } from "@/providers/trpc";
-import { Tag, Sparkles, Wand2, ImagePlus, Type, ArrowRight, X } from "lucide-react";
+import { Tag, Sparkles, Wand2, ImagePlus, Type, ArrowRight, X, Pencil, Download } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Вводная страница раздела «Этикетка» — статический редакторский лонгрид
@@ -10,7 +10,31 @@ import { Tag, Sparkles, Wand2, ImagePlus, Type, ArrowRight, X } from "lucide-rea
    примеров, которую пополняют администраторы через labelExampleRouter.
    Сам генератор — на отдельном шаге /label/generate, эта страница только
    объясняет и вдохновляет, не грузит форму генерации сразу.
+
+   Порядок блоков (сверху вниз): герой → CTA → «Было/Стало» → «3 шага» →
+   витрина примеров (поднята выше, чтобы результат виден сразу) → «Что умеет
+   ИИ» → финальный CTA. «Было» в блоке до/после — нарисованная CSS/SVG заглушка
+   типовой безликой наклейки (не внешняя картинка), «Стало» — первый реальный
+   пример из витрины, если он есть.
    ───────────────────────────────────────────────────────────────────────── */
+
+const steps: { icon: typeof Wand2; title: string; text: string }[] = [
+  {
+    icon: Pencil,
+    title: "Опишите задумку",
+    text: "Пара слов о поводе и стиле: «на юбилей папе, солидная тёмная с золотом» или «вишнёвая, акварель, ягоды и веточки». Чем конкретнее — тем точнее результат.",
+  },
+  {
+    icon: ImagePlus,
+    title: "Добавьте фото и текст",
+    text: "По желанию загрузите фото человека и впишите надписи — имя, дату, крепость, поздравление. Всё это ИИ впишет в композицию, а не приклеит поверх.",
+  },
+  {
+    icon: Download,
+    title: "Получите и скачайте",
+    text: "Через пару минут готовая этикетка перед вами. Скачайте её и распечатайте сами или отправьте файл в типографию.",
+  },
+];
 
 const points: { icon: typeof Wand2; title: string; text: string }[] = [
   {
@@ -53,29 +77,89 @@ export default function LabelIntroPage() {
         </Link>
       </div>
 
-      {/* Три тезиса */}
+      {/* Было / Стало */}
+      <section className="py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Почувствуйте разницу
+          </h2>
+          <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            Одинаковый бланк из магазина — и этикетка, созданная под ваш повод, вкус и настроение.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-stretch">
+            {/* Было — стилизованная заглушка типовой наклейки (без внешней картинки) */}
+            <div className="flex flex-col">
+              <div className="text-sm font-medium mb-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Было
+              </div>
+              <div
+                className="flex-1 rounded-2xl flex items-center justify-center aspect-square"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
+                <div
+                  className="w-3/5 aspect-[3/4] rounded-md flex flex-col items-center justify-center gap-2"
+                  style={{ background: "#e8e4dc", border: "1px dashed #b8b0a2" }}
+                >
+                  <div className="w-2/3 h-2 rounded-sm" style={{ background: "#b8b0a2" }} />
+                  <div className="w-1/2 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
+                  <div className="w-1/3 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
+                  <div className="text-xs mt-2" style={{ color: "#9a9284", fontFamily: "var(--font-body)" }}>
+                    НАСТОЙКА
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Стало — первый реальный пример из витрины, если он есть */}
+            <div className="flex flex-col">
+              <div className="text-sm font-medium mb-3 text-center" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                Стало
+              </div>
+              <div
+                className="flex-1 rounded-2xl overflow-hidden aspect-square"
+                style={{ background: "var(--bg-card)", border: "2px solid var(--accent)" }}
+              >
+                {examples && examples.length > 0 ? (
+                  <img src={examples[0].imageUrl} alt={examples[0].title ?? "Пример этикетки"} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Sparkles size={40} style={{ color: "var(--accent)" }} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Как это работает — 3 шага */}
       <section className="py-16 sm:py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Что умеет ИИ-художник
+            Как это работает
           </h2>
           <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-            Каждый может сгенерировать этикетку по своему вкусу и желанию — приуроченную к любому
-            событию или с изображением любого близкого человека.
+            Три простых шага — от задумки до готового файла за пару минут.
           </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {points.map((p) => {
-              const Icon = p.icon;
+          <div className="grid sm:grid-cols-3 gap-6">
+            {steps.map((s, i) => {
+              const Icon = s.icon;
               return (
-                <div key={p.title} className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <div key={s.title} className="rounded-2xl p-6 relative" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <div
+                    className="absolute top-5 right-5 text-3xl font-bold"
+                    style={{ color: "var(--surface)", fontFamily: "var(--font-heading)" }}
+                  >
+                    {i + 1}
+                  </div>
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ background: "var(--surface)" }}>
                     <Icon size={22} style={{ color: "var(--accent)" }} />
                   </div>
                   <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                    {p.title}
+                    {s.title}
                   </h3>
                   <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-                    {p.text}
+                    {s.text}
                   </p>
                 </div>
               );
@@ -84,7 +168,7 @@ export default function LabelIntroPage() {
         </div>
       </section>
 
-      {/* Примеры */}
+      {/* Примеры — подняты выше тезисов, чтобы результат был виден сразу */}
       {examples && examples.length > 0 && (
         <section className="py-16 sm:py-20" style={{ background: "var(--bg-secondary)" }}>
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -116,6 +200,37 @@ export default function LabelIntroPage() {
           </div>
         </section>
       )}
+
+      {/* Три тезиса — что умеет ИИ */}
+      <section className="py-16 sm:py-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Что умеет ИИ-художник
+          </h2>
+          <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+            Каждый может сгенерировать этикетку по своему вкусу и желанию — приуроченную к любому
+            событию или с изображением любого близкого человека.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {points.map((p) => {
+              const Icon = p.icon;
+              return (
+                <div key={p.title} className="rounded-2xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ background: "var(--surface)" }}>
+                    <Icon size={22} style={{ color: "var(--accent)" }} />
+                  </div>
+                  <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                    {p.title}
+                  </h3>
+                  <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
+                    {p.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {/* Финальный CTA */}
       <section className="py-16 sm:py-20 text-center">
