@@ -17,6 +17,11 @@
     <meta name="theme-color" content="#8B4513" />
     <meta name="apple-mobile-web-app-title" content="Ай, настойка!" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Цвет статус-бара на iOS в установленной PWA. black-translucent делает
+         строку состояния прозрачной, контент уходит под неё — цельно смотрится
+         с тёмным фоном сайта. (Android берёт цвет из theme-color выше; Apple
+         theme-color игнорирует и требует этот отдельный тег.) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Ай, настойка!</title>
     <meta name="description" content="Рецепты домашних настоек и наливок, барная карта заведений, ИИ-консультации по вкусу и генератор этикеток." />
     <link rel="canonical" href="https://ai-nastoika.ru/" />
