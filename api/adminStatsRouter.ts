@@ -1,6 +1,6 @@
 import { createRouter, adminQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { feedback, userRecipeSubmissions, placeSubmissions, aiUsage } from "@db/schema";
+import { feedback, userRecipeSubmissions, placeSubmissions, aiUsage, siteVisits } from "@db/schema";
 import { eq, count, and, ne, desc, gte, sql, inArray } from "drizzle-orm";
 
 // Все requestType, которые считаются "генерацией изображения" — раньше тут
@@ -91,6 +91,47 @@ export const adminStatsRouter = createRouter({
       lastAttemptAt: lastAttempt?.createdAt ?? null,
       attemptsLastHour: Number(hourStats?.total ?? 0),
       failedAttemptsLastHour: Number(hourStats?.failedCount ?? 0),
+    };
+  }),
+
+  /* ── Собственный счётчик посещений (серверный, не режется блокировщиками) ──
+     Возвращает: суммарные цифры за всё время, сегодня, за 7 и 30 дней, и ряд
+     по дням за последние 30 дней для графика. См. api/lib/visitCounter.ts. */
+  visitStats: adminQuery.query(async () => {
+    const db = getDb();
+    const today = new Date().toISOString().slice(0, 10);
+    const date30 = new Date(Date.now() - 29 * 86400_000).toISOString().slice(0, 10);
+    const date7 = new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10);
+
+    // Всё время — суммарно.
+    const [totals] = await db
+      .select({
+        pageviews: sql<number>`COALESCE(SUM(${siteVisits.pageviews}), 0)`,
+        visits: sql<number>`COALESCE(SUM(${siteVisits.visits}), 0)`,
+      })
+      .from(siteVisits);
+
+    // Последние 30 дней — по дням (для графика и для сумм за 7/30 дней).
+    const rows = await db
+      .select({ day: siteVisits.day, pageviews: siteVisits.pageviews, visits: siteVisits.visits })
+      .from(siteVisits)
+      .where(gte(siteVisits.day, date30))
+      .orderBy(siteVisits.day);
+
+    const todayRow = rows.find((r) => r.day === today);
+    const sum = (from: string, key: "pageviews" | "visits") =>
+      rows.filter((r) => r.day >= from).reduce((acc, r) => acc + Number(r[key]), 0);
+
+    return {
+      totalPageviews: Number(totals?.pageviews ?? 0),
+      totalVisits: Number(totals?.visits ?? 0),
+      todayPageviews: Number(todayRow?.pageviews ?? 0),
+      todayVisits: Number(todayRow?.visits ?? 0),
+      last7Pageviews: sum(date7, "pageviews"),
+      last7Visits: sum(date7, "visits"),
+      last30Pageviews: sum(date30, "pageviews"),
+      last30Visits: sum(date30, "visits"),
+      daily: rows.map((r) => ({ day: r.day, pageviews: Number(r.pageviews), visits: Number(r.visits) })),
     };
   }),
 });

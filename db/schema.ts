@@ -576,3 +576,28 @@ export const generatedLabels = mysqlTable("generated_labels", {
 });
 
 export type GeneratedLabel = typeof generatedLabels.$inferSelect;
+
+// ─── Site Visits (собственный счётчик посещений) ───────────
+// Серверный счётчик заходов на сайт — считается на бэкенде при отдаче
+// HTML-страниц (api/boot.ts), поэтому его НЕ режут рекламные блокировщики,
+// в отличие от Яндекс.Метрики/Google. Агрегируем по дням (одна строка на
+// дату), а не пишем строку на каждый заход — иначе таблица быстро распухнет.
+// pageviews — все просмотры страниц; visits — уникальные заходы за день
+// (по хэшу IP+UA, см. api/lib/visitCounter.ts), чтобы отличать "обновил
+// страницу 10 раз" от "10 разных людей".
+export const siteVisits = mysqlTable("site_visits", {
+  // Дата в формате YYYY-MM-DD (строка, а не timestamp — ключ агрегации по дню)
+  day: varchar("day", { length: 10 }).primaryKey(),
+  pageviews: int("pageviews").notNull().default(0),
+  visits: int("visits").notNull().default(0),
+});
+
+export type SiteVisit = typeof siteVisits.$inferSelect;
+
+// Уникальность заходов в пределах дня: короткие хэши IP+UA, уже учтённые
+// сегодня. Чистится автоматически (записи не сегодняшнего дня удаляются).
+// Отдельная таблица, чтобы не хранить сырые IP (приватность) — только хэш.
+export const visitDedup = mysqlTable("visit_dedup", {
+  hash: varchar("hash", { length: 64 }).primaryKey(),
+  day: varchar("day", { length: 10 }).notNull(),
+});

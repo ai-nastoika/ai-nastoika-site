@@ -12,6 +12,7 @@ import { fetchPaymentStatus } from "./lib/payments";
 import { transcribeAudio } from "./lib/sttClient";
 import { editImage, buildPhotoEditPrompt } from "./lib/imageClient";
 import { compressImageIfNeeded, cropToOrientation } from "./lib/imageCompress";
+import { recordVisit } from "./lib/visitCounter";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -893,6 +894,18 @@ app.get("*", async (c) => {
   // прямо в HTML на сервере. Иначе поисковик (особенно Яндекс, который заметно
   // хуже Google выполняет JS при обходе) видит одинаковый заголовок и описание
   // на всех страницах сайта — это плохо и для позиций, и для вида в выдаче.
+  // Серверный счётчик посещений (устойчив к блокировщикам, в отличие от
+  // Метрики/Google). Fire-and-forget: не ждём результат и глушим ошибки, чтобы
+  // счётчик ни при каких условиях не задерживал и не ломал отдачу страницы.
+  // Сюда попадают только HTML-страницы — API и статика отсеяны маршрутами выше.
+  // Реальный IP за Nginx-прокси Timeweb приходит в x-forwarded-for.
+  {
+    const xff = c.req.header("x-forwarded-for");
+    const ip = xff ? xff.split(",")[0].trim() : (c.req.header("x-real-ip") || null);
+    const ua = c.req.header("user-agent") || null;
+    void recordVisit(ip, ua);
+  }
+
   let file: string;
   try {
     file = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");

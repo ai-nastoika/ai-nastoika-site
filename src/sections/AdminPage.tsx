@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink, FileText } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink, FileText, BarChart3 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -214,6 +214,7 @@ function AdminPanel() {
   const { data: commentsCount } = trpc.comment.listAll.useQuery(undefined, { enabled: isAdmin });
   const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
+  const { data: visitStats } = trpc.adminStats.visitStats.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
 
   /* Merge: API first, then local, then fallback */
   const recipes = [
@@ -511,6 +512,67 @@ function AdminPanel() {
               Генераций этикеток пока не было — статус появится после первого обращения.
             </div>
           )
+        )}
+
+        {/* ── Счётчик посещений (собственный, серверный) ── */}
+        {visitStats && (
+          <div className="mb-6 rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 size={18} style={{ color: "var(--accent)" }} />
+              <h3 className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Посещаемость сайта
+              </h3>
+              <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                собственный счётчик — не режется блокировщиками
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {[
+                { label: "Сегодня", views: visitStats.todayPageviews, vis: visitStats.todayVisits },
+                { label: "7 дней", views: visitStats.last7Pageviews, vis: visitStats.last7Visits },
+                { label: "30 дней", views: visitStats.last30Pageviews, vis: visitStats.last30Visits },
+                { label: "Всё время", views: visitStats.totalPageviews, vis: visitStats.totalVisits },
+              ].map((c) => (
+                <div key={c.label} className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
+                  <div className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{c.label}</div>
+                  <div className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{c.vis}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                    посетителей
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    {c.views} просмотров
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Мини-график по дням за 30 дней (простые столбики, без внешних либ) */}
+            {visitStats.daily.length > 0 && (
+              <div>
+                <div className="flex items-end gap-0.5 h-24" style={{ borderBottom: "1px solid var(--border)" }}>
+                  {(() => {
+                    const maxV = Math.max(1, ...visitStats.daily.map((d) => d.visits));
+                    return visitStats.daily.map((d) => (
+                      <div
+                        key={d.day}
+                        className="flex-1 rounded-t transition-all"
+                        style={{
+                          height: `${Math.max(2, (d.visits / maxV) * 100)}%`,
+                          background: "var(--accent)",
+                          minWidth: 3,
+                        }}
+                        title={`${d.day}: ${d.visits} посетителей, ${d.pageviews} просмотров`}
+                      />
+                    ));
+                  })()}
+                </div>
+                <div className="flex justify-between text-xs mt-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  <span>{visitStats.daily[0]?.day}</span>
+                  <span>уникальные посетители по дням</span>
+                  <span>{visitStats.daily[visitStats.daily.length - 1]?.day}</span>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         <Tabs value={tab} onValueChange={setTab}>
