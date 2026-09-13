@@ -12,7 +12,14 @@
                         пробуем эту модель тем же ключом/URL, без участия пользователя.
 */
 
-export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+// content остаётся строкой для всех существующих вызовов (recipeConsult,
+// infusionConsult, tasteCalculator и т.д.) — массив нужен только для
+// мультимодальных (vision) запросов, см. recipeParser.ts (recognizeImage).
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ChatContentPart[] };
 
 export type AiCallResult = {
   answer: string;

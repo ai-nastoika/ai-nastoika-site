@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRouter, editorQuery } from "./middleware";
-import { callChatCompletion } from "./lib/aiClient";
+import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 import { generateImage } from "./lib/imageClient";
 import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 import fs from "fs";
@@ -23,6 +23,26 @@ import crypto from "crypto";
 
 const REQUEST_TYPE_TEXT = "recipe_parser";
 const REQUEST_TYPE_IMAGE = "recipe_parser_image";
+// varchar(20) в ai_usage.request_type — "recipe_parser_ocr" (17 симв.) укладывается.
+const REQUEST_TYPE_OCR = "recipe_parser_ocr";
+
+/* Распознавание рецепта со скриншота (см. recognizeImage ниже). Пришло на
+   замену парсеру видео (расшифровка речи через ffmpeg+STT) — тот снесли:
+   для рецептов из Инстаграма и подобных обычно нужен текст со скриншота
+   поста, а не расшифровка озвучки видео. См. историю api/boot.ts.
+
+   Модель — Qwen (dashscope/qwen3.5-flash), подключена для быстрого старта.
+   Умеет ли она реально читать текст с картинок — ещё не подтверждено тестом,
+   при необходимости поменять на другую строку модели через AI_VISION_MODEL,
+   без изменений в коде. */
+const VISION_MODEL_QWEN = process.env.AI_VISION_MODEL || "dashscope/qwen3.5-flash";
+
+const VISION_SYSTEM_PROMPT = `Ты распознаёшь текст рецепта настойки на изображении — это скриншот поста из
+соцсети, фото страницы рецепта или похожее. Перепиши ВЕСЬ видимый текст, относящийся к рецепту, как есть:
+название, список ингредиентов, шаги приготовления, время настаивания, любые примечания автора. Ничего не
+придумывай, не пересказывай своими словами, не переводи и не форматируй заново — просто аккуратно перенеси
+то, что реально написано на картинке, сохраняя порядок. Не включай посторонний текст: хэштеги, никнейм
+автора поста, интерфейс приложения (лайки, время публикации), рекламные вставки.`;
 
 const __dirname = import.meta.dirname;
 // Та же папка, что в api/boot.ts для /api/upload-image (там из api/, тут тоже из api/ — один уровень вверх).
@@ -131,7 +151,46 @@ function sanitizeTrackerStages(parsed: Record<string, unknown>) {
 }
 
 export const recipeParserRouter = createRouter({
-  /* ── Текст (набранный вручную или расшифровка видео) → структурированная карточка + картинка ── */
+  /* ── Скриншот рецепта → распознанный текст. Результат кладётся в то же
+     поле rawText, что и ручной ввод — дальше единый маршрут через generate
+     ниже, без дублирования логики разбора. ── */
+  recognizeImage: editorQuery
+    .input(z.object({ imageBase64: z.string().min(10), mimeType: z.string().default("image/jpeg") }))
+    .mutation(async ({ input, ctx }) => {
+      const dataUrl = `data:${input.mimeType};base64,${input.imageBase64}`;
+      const messages: ChatMessage[] = [
+        { role: "system", content: VISION_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Распознай текст рецепта на этой картинке." },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ];
+
+      try {
+        const res = await callChatCompletion(messages, { temperature: 0.2, maxTokens: 3000, model: VISION_MODEL_QWEN });
+        const text = res.answer.trim();
+        if (text.length < 5) {
+          throw new Error("Модель не распознала текст на изображении — попробуйте более чёткий скриншот или впишите рецепт вручную.");
+        }
+        await logAiUsage({
+          userId: ctx.user.id,
+          requestType: REQUEST_TYPE_OCR,
+          tokensUsed: res.tokensUsed,
+          charge: { wasFree: true, costKopecks: 0 },
+          modelUsed: res.modelUsed,
+          usedFallback: res.usedFallback,
+        });
+        return { text };
+      } catch (err) {
+        await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE_OCR });
+        throw new Error(err instanceof Error ? err.message : "Не удалось распознать изображение");
+      }
+    }),
+
+  /* ── Текст (набранный вручную или распознанный со скриншота) → структурированная карточка + картинка ── */
   generate: editorQuery
     .input(z.object({ rawText: z.string().min(10).max(20000), generateImage: z.boolean().default(true) }))
     .mutation(async ({ input, ctx }) => {

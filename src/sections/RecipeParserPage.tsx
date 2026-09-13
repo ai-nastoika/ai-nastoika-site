@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft, Sparkles, Loader2,
-  Plus, Trash2, Save, Bot, Wand2, Film, FileText,
+  Plus, Trash2, Save, Bot, Wand2, FileText,
   Image as ImageIcon, Upload, X, RefreshCw, Shield,
 } from "lucide-react";
 
@@ -68,7 +68,7 @@ export default function RecipeParserPage() {
   const navigate = useNavigate();
   const { isLoggedIn, isLoading, isEditor } = useAuth();
   const [tab, setTab] = useState("source");
-  const [sourceMode, setSourceMode] = useState<"text" | "video">("text");
+  const [sourceMode, setSourceMode] = useState<"text" | "screenshot">("text");
   const [recipeText, setRecipeText] = useState("");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
@@ -80,7 +80,7 @@ export default function RecipeParserPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
   const upsertRecipe = trpc.recipe.upsert.useMutation({
@@ -160,58 +160,41 @@ export default function RecipeParserPage() {
     generateRecipe.mutate({ rawText: recipeText, generateImage: generateImageEnabled });
   };
 
-  /* ── Видео → расшифровка речи (заполняет текстовое поле, дальше — как обычный текст) ── */
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /* ── Скриншот → распознанный текст (заполняет текстовое поле, дальше — как обычный текст) ── */
+  const recognizeImage = trpc.recipeParser.recognizeImage.useMutation();
+
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("video/")) {
-      alert("Выберите видеофайл");
+    if (!file.type.startsWith("image/")) {
+      alert("Выберите файл изображения (скриншот)");
       return;
     }
-    if (file.size > 150 * 1024 * 1024) {
-      alert("Максимальный размер видео — 150 МБ");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Максимальный размер файла — 15 МБ");
       return;
     }
 
     setTranscribing(true);
     try {
-      const token = localStorage.getItem("auth-token") || "";
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/parse-recipe-video", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData,
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // reader.result — "data:image/png;base64,XXXX", нужна только часть после запятой.
+          const result = reader.result as string;
+          resolve(result.split(",")[1] ?? "");
+        };
+        reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+        reader.readAsDataURL(file);
       });
 
-      let data: { success?: boolean; transcript?: string; error?: string } | null = null;
-      try {
-        data = await res.json();
-      } catch {
-        // Сервер вернул не-JSON — обычно это HTML-страница ошибки от nginx
-        // (например, при превышении client_max_body_size на большом видео),
-        // а не наш код. Показываем код статуса, а не немую ошибку "не удалось".
-        throw new Error(
-          `Сервер вернул некорректный ответ (HTTP ${res.status}). Файл, похоже, не дошёл до сервера целиком — ` +
-          `если видео большое, проверьте лимит client_max_body_size в конфиге nginx.`
-        );
-      }
-
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || `Ошибка сервера (HTTP ${res.status})`);
-      }
-
-      if (typeof data.transcript === "string") {
-        setRecipeText(data.transcript);
-        if (!data.transcript.trim()) {
-          alert("Речь в видео не распознана — если рецепт показан текстом на экране без озвучки, впишите его вручную в поле ниже.");
-        }
-      }
+      const res = await recognizeImage.mutateAsync({ imageBase64: base64, mimeType: file.type });
+      setRecipeText(res.text);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка загрузки видео");
+      alert(err instanceof Error ? err.message : "Не удалось распознать изображение");
     } finally {
       setTranscribing(false);
-      if (videoInputRef.current) videoInputRef.current.value = "";
+      if (screenshotInputRef.current) screenshotInputRef.current.value = "";
     }
   };
 
@@ -427,7 +410,7 @@ export default function RecipeParserPage() {
           AI-парсер рецептов
         </h1>
         <p className="mt-1 mb-8" style={{ color: "var(--text-secondary)" }}>
-          Текст, или видео с озвучкой рецепта — ИИ сам разберёт и заполнит карточку, включая картинку
+          Текст, или скриншот рецепта — ИИ сам разберёт и заполнит карточку, включая картинку
         </p>
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -436,13 +419,13 @@ export default function RecipeParserPage() {
             <TabsTrigger value="edit" disabled={!form.title}>2. Редактировать</TabsTrigger>
           </TabsList>
 
-          {/* ═════ STEP 1: Text or video → auto-generated card ═════ */}
+          {/* ═════ STEP 1: Text or screenshot → auto-generated card ═════ */}
           <TabsContent value="source">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles size={20} />
-                  Шаг 1: Текст или видео рецепта
+                  Шаг 1: Текст или скриншот рецепта
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -458,25 +441,25 @@ export default function RecipeParserPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={sourceMode === "video" ? "default" : "outline"}
-                    onClick={() => setSourceMode("video")}
+                    variant={sourceMode === "screenshot" ? "default" : "outline"}
+                    onClick={() => setSourceMode("screenshot")}
                     className="flex-1"
                   >
-                    <Film size={16} className="mr-2" /> Видео
+                    <ImageIcon size={16} className="mr-2" /> Скриншот
                   </Button>
                 </div>
 
-                {sourceMode === "video" && (
+                {sourceMode === "screenshot" && (
                   <div>
                     <input
-                      ref={videoInputRef}
+                      ref={screenshotInputRef}
                       type="file"
-                      accept="video/*"
+                      accept="image/*"
                       className="hidden"
-                      onChange={handleVideoUpload}
+                      onChange={handleScreenshotUpload}
                     />
                     <button
-                      onClick={() => videoInputRef.current?.click()}
+                      onClick={() => screenshotInputRef.current?.click()}
                       disabled={transcribing}
                       className="w-full h-32 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:opacity-70"
                       style={{ border: "2px dashed var(--border)", color: "var(--text-muted)" }}
@@ -484,27 +467,27 @@ export default function RecipeParserPage() {
                       {transcribing ? (
                         <>
                           <Loader2 size={28} className="animate-spin" style={{ color: "var(--accent)" }} />
-                          <span className="text-sm font-medium">Распознаём речь...</span>
+                          <span className="text-sm font-medium">Распознаём текст на картинке...</span>
                         </>
                       ) : (
                         <>
                           <Upload size={28} />
-                          <span className="text-sm font-medium">Загрузить видео с рецептом</span>
-                          <span className="text-xs">До 150 МБ · речь распознается автоматически</span>
+                          <span className="text-sm font-medium">Загрузить скриншот рецепта</span>
+                          <span className="text-xs">Пост из Инстаграма, фото страницы рецепта и т.п. · до 15 МБ</span>
                         </>
                       )}
                     </button>
                     <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                      Ссылки на YouTube/TikTok/Instagram пока не поддерживаются — сохраните видео на устройство и загрузите файлом.
-                      Если в ролике рецепт показан текстом на экране без озвучки — распознавание речи ничего не найдёт,
-                      впишите рецепт в поле ниже вручную (можно поглядывая на видео).
+                      Работает лучше на чётких, контрастных скриншотах текста. Рукописный текст, мелкий шрифт
+                      или текст поверх пёстрого фото может распознаться с ошибками — всегда проверяйте
+                      результат ниже перед тем, как генерировать карточку.
                     </p>
                   </div>
                 )}
 
                 <div>
-                  {sourceMode === "video" && (
-                    <Label className="mb-1 block">Расшифровка (проверьте и поправьте при необходимости)</Label>
+                  {sourceMode === "screenshot" && (
+                    <Label className="mb-1 block">Распознанный текст (проверьте и поправьте при необходимости)</Label>
                   )}
                   <Textarea
                     value={recipeText}
