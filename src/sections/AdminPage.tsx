@@ -545,32 +545,55 @@ function AdminPanel() {
                 </div>
               ))}
             </div>
-            {/* Мини-график по дням за 30 дней (простые столбики, без внешних либ) */}
+            {/* Мини-график по дням за 30 дней (простые столбики, без внешних либ).
+                При малом числе дней (сайт только начал считать) один-два столбика
+                растягивались на всю ширину и превращались в сплошную полосу без
+                видимых цифр — непонятно, что это вообще такое. Ниже 3 дней данных
+                показываем просто список по дням текстом, это честнее графика. */}
             {visitStats.daily.length > 0 && (
-              <div>
-                <div className="flex items-end gap-0.5 h-24" style={{ borderBottom: "1px solid var(--border)" }}>
-                  {(() => {
-                    const maxV = Math.max(1, ...visitStats.daily.map((d) => d.visits));
-                    return visitStats.daily.map((d) => (
-                      <div
-                        key={d.day}
-                        className="flex-1 rounded-t transition-all"
-                        style={{
-                          height: `${Math.max(2, (d.visits / maxV) * 100)}%`,
-                          background: "var(--accent)",
-                          minWidth: 3,
-                        }}
-                        title={`${d.day}: ${d.visits} посетителей, ${d.pageviews} просмотров`}
-                      />
-                    ));
-                  })()}
+              visitStats.daily.length < 3 ? (
+                <div className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
+                  <p className="text-xs mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    Данных пока мало — график по дням появится через несколько дней. Пока по дням:
+                  </p>
+                  <div className="space-y-1">
+                    {visitStats.daily.map((d) => (
+                      <div key={d.day} className="flex items-center justify-between text-sm" style={{ fontFamily: "var(--font-body)" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>{d.day}</span>
+                        <span style={{ color: "var(--text-primary)" }}>{d.visits} посетителей · {d.pageviews} просмотров</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs mt-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  <span>{visitStats.daily[0]?.day}</span>
-                  <span>уникальные посетители по дням</span>
-                  <span>{visitStats.daily[visitStats.daily.length - 1]?.day}</span>
+              ) : (
+                <div>
+                  <div className="flex items-end justify-center gap-1 h-24" style={{ borderBottom: "1px solid var(--border)" }}>
+                    {(() => {
+                      const maxV = Math.max(1, ...visitStats.daily.map((d) => d.visits));
+                      const showLabels = visitStats.daily.length <= 10;
+                      return visitStats.daily.map((d) => (
+                        <div key={d.day} className="flex flex-col items-center justify-end h-full" style={{ flex: showLabels ? "0 1 48px" : "1 1 0", maxWidth: showLabels ? 48 : undefined }}>
+                          {showLabels && (
+                            <span className="text-xs mb-1" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+                              {d.visits}
+                            </span>
+                          )}
+                          <div
+                            className="w-full rounded-t transition-all"
+                            style={{ height: `${Math.max(2, (d.visits / maxV) * 100)}%`, background: "var(--accent)", minWidth: 3 }}
+                            title={`${d.day}: ${d.visits} посетителей, ${d.pageviews} просмотров`}
+                          />
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="flex justify-between text-xs mt-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    <span>{visitStats.daily[0]?.day}</span>
+                    <span>уникальные посетители по дням</span>
+                    <span>{visitStats.daily[visitStats.daily.length - 1]?.day}</span>
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         )}
