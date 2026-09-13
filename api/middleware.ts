@@ -4,6 +4,23 @@ import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  // Без этого форматтера ошибка валидации Zod долетает до пользователя как
+  // сырой JSON-массив issues (err.message у ZodError — это буквально
+  // JSON.stringify(issues) по умолчанию) — и всплывает в alert() как
+  // нечитаемая простыня фигурных скобок. Достаём человеческий текст.
+  //
+  // Проверяем СТРУКТУРУ (наличие массива issues), а не `instanceof ZodError` —
+  // при бандлинге esbuild сервер может получить свою копию модуля zod,
+  // отличную от той, что импортирована в этом файле, и instanceof тогда
+  // молча не сработает (проверено на практике — так и было).
+  errorFormatter({ shape, error }) {
+    const cause = error.cause as { issues?: { message?: string }[] } | undefined;
+    if (cause && Array.isArray(cause.issues)) {
+      const readable = cause.issues.map((i) => i.message).filter(Boolean).join("; ");
+      if (readable) return { ...shape, message: readable };
+    }
+    return shape;
+  },
 });
 
 export const createRouter = t.router;

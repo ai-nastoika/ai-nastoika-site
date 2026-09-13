@@ -207,7 +207,7 @@ export const recipeParserRouter = createRouter({
 
   /* ── Текст (набранный вручную или распознанный со скриншота) → структурированная карточка + картинка ── */
   generate: editorQuery
-    .input(z.object({ rawText: z.string().min(10).max(20000), generateImage: z.boolean().default(true) }))
+    .input(z.object({ rawText: z.string().min(10, "Текст слишком короткий").max(60000, "Текст слишком длинный — максимум 60 000 символов, сократите или разбейте на части"), generateImage: z.boolean().default(true) }))
     .mutation(async ({ input, ctx }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },

@@ -87,7 +87,7 @@ function extractYandexMapsUrl(text: string): string {
 
 export const placeParserRouter = createRouter({
   generate: editorQuery
-    .input(z.object({ rawText: z.string().min(10).max(20000) }))
+    .input(z.object({ rawText: z.string().min(10, "Текст слишком короткий").max(60000, "Текст слишком длинный — максимум 60 000 символов, сократите или разбейте на части") }))
     .mutation(async ({ input, ctx }) => {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },

@@ -109,8 +109,21 @@ export async function getAuthUser(token: string) {
 }
 
 // ─── tRPC setup ───
+// ВАЖНО: это ОТДЕЛЬНЫЙ от api/middleware.ts экземпляр initTRPC (легаси —
+// часть процедур в api/router.ts объявлена прямо здесь, а не через
+// createRouter/editorQuery из middleware.ts). errorFormatter приходится
+// дублировать в обоих местах, иначе половина процедур сайта (все, что здесь,
+// включая auth.register) остаётся с сырым JSON вместо человеческой ошибки.
 const t = initTRPC.create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    const cause = error.cause as { issues?: { message?: string }[] } | undefined;
+    if (cause && Array.isArray(cause.issues)) {
+      const readable = cause.issues.map((i) => i.message).filter(Boolean).join("; ");
+      if (readable) return { ...shape, message: readable };
+    }
+    return shape;
+  },
 });
 
 export const router = t.router;
