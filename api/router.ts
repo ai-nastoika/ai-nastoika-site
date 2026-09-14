@@ -16,6 +16,7 @@ import { recipeRouter } from "./recipeRouter";
 import { savedLabelsRouter } from "./savedLabelsRouter";
 import { placeRouter } from "./placeRouter";
 import { labelExampleRouter } from "./labelExampleRouter";
+import { labelBeforeAfterRouter } from "./labelBeforeAfterRouter";
 import { placeSubmissionRouter } from "./placeSubmissionRouter";
 import { favoritesRouter } from "./favoritesRouter";
 import { recipeConsultRouter } from "./recipeConsultRouter";
@@ -696,6 +697,7 @@ export const appRouter = router({
   // ─── Места (барная карта) ───
   place: placeRouter,
   labelExample: labelExampleRouter,
+  labelBeforeAfter: labelBeforeAfterRouter,
   placeSubmission: placeSubmissionRouter,
 
   // ─── Избранное ───

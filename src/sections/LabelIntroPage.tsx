@@ -56,6 +56,8 @@ const points: { icon: typeof Wand2; title: string; text: string }[] = [
 
 export default function LabelIntroPage() {
   const { data: examples } = trpc.labelExample.list.useQuery();
+  const { data: beforeAfterPairs } = trpc.labelBeforeAfter.list.useQuery();
+  const beforeAfter = beforeAfterPairs?.[0];
   const [lightbox, setLightbox] = useState<{ imageUrl: string; title: string | null; prompt: string } | null>(null);
 
   return (
@@ -87,30 +89,35 @@ export default function LabelIntroPage() {
             Одинаковый бланк из магазина — и этикетка, созданная под ваш повод, вкус и настроение.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-stretch">
-            {/* Было — стилизованная заглушка типовой наклейки (без внешней картинки) */}
+            {/* Было — реальное фото из админки, если загружено, иначе стилизованная заглушка */}
             <div className="flex flex-col">
               <div className="text-sm font-medium mb-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                 Было
               </div>
               <div
-                className="flex-1 rounded-2xl flex items-center justify-center aspect-square"
+                className="flex-1 rounded-2xl overflow-hidden flex items-center justify-center aspect-square"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
-                <div
-                  className="w-3/5 aspect-[3/4] rounded-md flex flex-col items-center justify-center gap-2"
-                  style={{ background: "#e8e4dc", border: "1px dashed #b8b0a2" }}
-                >
-                  <div className="w-2/3 h-2 rounded-sm" style={{ background: "#b8b0a2" }} />
-                  <div className="w-1/2 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
-                  <div className="w-1/3 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
-                  <div className="text-xs mt-2" style={{ color: "#9a9284", fontFamily: "var(--font-body)" }}>
-                    НАСТОЙКА
+                {beforeAfter ? (
+                  <img src={beforeAfter.beforeImageUrl} alt="Обычная наклейка" className="w-full h-full object-cover" />
+                ) : (
+                  <div
+                    className="w-3/5 aspect-[3/4] rounded-md flex flex-col items-center justify-center gap-2"
+                    style={{ background: "#e8e4dc", border: "1px dashed #b8b0a2" }}
+                  >
+                    <div className="w-2/3 h-2 rounded-sm" style={{ background: "#b8b0a2" }} />
+                    <div className="w-1/2 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
+                    <div className="w-1/3 h-2 rounded-sm" style={{ background: "#cfc8bb" }} />
+                    <div className="text-xs mt-2" style={{ color: "#9a9284", fontFamily: "var(--font-body)" }}>
+                      НАСТОЙКА
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Стало — первый реальный пример из витрины, если он есть */}
+            {/* Стало — та же пара из админки (см. LabelBeforeAfterAdmin в AdminPage.tsx),
+                а не первый попавшийся пример общей витрины, как было раньше */}
             <div className="flex flex-col">
               <div className="text-sm font-medium mb-3 text-center" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
                 Стало
@@ -119,8 +126,8 @@ export default function LabelIntroPage() {
                 className="flex-1 rounded-2xl overflow-hidden aspect-square"
                 style={{ background: "var(--bg-card)", border: "2px solid var(--accent)" }}
               >
-                {examples && examples.length > 0 ? (
-                  <img src={examples[0].imageUrl} alt={examples[0].title ?? "Пример этикетки"} className="w-full h-full object-cover" />
+                {beforeAfter ? (
+                  <img src={beforeAfter.afterImageUrl} alt={beforeAfter.title ?? "Сгенерированная этикетка"} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Sparkles size={40} style={{ color: "var(--accent)" }} />

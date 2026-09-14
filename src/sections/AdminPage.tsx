@@ -769,7 +769,10 @@ function AdminPanel() {
 
           {/* ─── Примеры этикеток (витрина на странице генератора) ─── */}
           <TabsContent value="labelExamples">
-            <LabelExamplesAdmin />
+            <div className="space-y-8">
+              <LabelBeforeAfterAdmin />
+              <LabelExamplesAdmin />
+            </div>
           </TabsContent>
 
           {/* ─── Места ─── */}
@@ -1804,6 +1807,186 @@ function ModerationTab() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/* ═══════════════════════════════════════
+   LabelBeforeAfterAdmin — блок "Было/Стало" на вводной странице Этикетки
+   (LabelIntroPage.tsx). Раньше "Стало" молча подтягивало первый пример из
+   общей витрины labelExamples — непредсказуемо для самого заметного блока
+   на странице. Теперь отдельная сущность: администратор загружает СВОЮ пару
+   фото (было/стало) осознанно. Публичная страница показывает самую свежую.
+   ═══════════════════════════════════════ */
+function LabelBeforeAfterAdmin() {
+  const utils = trpc.useUtils();
+  const { data: pairs, isLoading } = trpc.labelBeforeAfter.list.useQuery();
+
+  const create = trpc.labelBeforeAfter.create.useMutation({
+    onSuccess: () => {
+      utils.labelBeforeAfter.list.invalidate();
+      setBeforeImage("");
+      setAfterImage("");
+      setTitle("");
+    },
+  });
+  const del = trpc.labelBeforeAfter.delete.useMutation({
+    onSuccess: () => utils.labelBeforeAfter.list.invalidate(),
+  });
+
+  const [beforeImage, setBeforeImage] = useState("");
+  const [beforeUploading, setBeforeUploading] = useState(false);
+  const [afterImage, setAfterImage] = useState("");
+  const [afterUploading, setAfterUploading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState("");
+  const beforeFileRef = useRef<HTMLInputElement>(null);
+  const afterFileRef = useRef<HTMLInputElement>(null);
+
+  async function uploadFile(file: File): Promise<string> {
+    const token = localStorage.getItem("auth-token") || "";
+    const fd = new FormData();
+    fd.append("file", file);
+    // Тот же generic-загрузчик картинок, что и у примеров этикеток —
+    // единственное требование у него — права админа, формат ему не важен.
+    const res = await fetch("/api/upload-label-example", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.path) throw new Error(data.error || "Не удалось загрузить файл");
+    return data.path as string;
+  }
+
+  async function handleBeforeUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBeforeUploading(true);
+    setError("");
+    try {
+      setBeforeImage(await uploadFile(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки файла");
+    } finally {
+      setBeforeUploading(false);
+      if (beforeFileRef.current) beforeFileRef.current.value = "";
+    }
+  }
+
+  async function handleAfterUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAfterUploading(true);
+    setError("");
+    try {
+      setAfterImage(await uploadFile(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки файла");
+    } finally {
+      setAfterUploading(false);
+      if (afterFileRef.current) afterFileRef.current.value = "";
+    }
+  }
+
+  function UploadSlot({
+    label,
+    image,
+    uploading,
+    fileRef,
+    onUpload,
+    onClear,
+  }: {
+    label: string;
+    image: string;
+    uploading: boolean;
+    fileRef: React.RefObject<HTMLInputElement>;
+    onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onClear: () => void;
+  }) {
+    return (
+      <div>
+        <label className="text-sm font-medium mb-1 block">{label}</label>
+        {image ? (
+          <div className="flex items-start gap-3 mb-2">
+            <img src={image} alt="Превью" className="w-32 rounded-lg border" style={{ borderColor: "var(--border)" }} />
+            <Button type="button" variant="outline" size="sm" onClick={onClear}>
+              <Trash2 size={14} className="mr-1.5" /> Убрать
+            </Button>
+          </div>
+        ) : (
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onUpload} className="hidden" />
+        )}
+        {!image && (
+          <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+            {uploading ? "Загрузка..." : <><Upload size={14} className="mr-1.5" /> Загрузить</>}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Было / Стало (вводная страница «Этикетка»)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Показывается самая свежая пара из добавленных ниже. Отдельно от общей витрины примеров —
+            здесь вы осознанно выбираете, что именно попадёт в самый заметный блок страницы.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <UploadSlot label="Было (типовая наклейка)" image={beforeImage} uploading={beforeUploading} fileRef={beforeFileRef} onUpload={handleBeforeUpload} onClear={() => setBeforeImage("")} />
+            <UploadSlot label="Стало (сгенерированная этикетка)" image={afterImage} uploading={afterUploading} fileRef={afterFileRef} onUpload={handleAfterUpload} onClear={() => setAfterImage("")} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Подпись (необязательно)</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: Вишнёвая настойка" />
+          </div>
+
+          {error && <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>}
+
+          <Button
+            onClick={() => create.mutate({ beforeImageUrl: beforeImage, afterImageUrl: afterImage, title: title.trim() || undefined })}
+            disabled={!beforeImage || !afterImage || create.isPending}
+          >
+            {create.isPending ? "Сохранение..." : "Сохранить пару"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {!isLoading && pairs && pairs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Сохранённые пары ({pairs.length}) — сверху показывается на сайте</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pairs.map((p) => (
+                <div key={p.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                  <div className="grid grid-cols-2">
+                    <img src={p.beforeImageUrl} alt="Было" className="w-full aspect-square object-cover" />
+                    <img src={p.afterImageUrl} alt="Стало" className="w-full aspect-square object-cover" />
+                  </div>
+                  <div className="p-3">
+                    {p.title && <p className="text-sm font-medium mb-2">{p.title}</p>}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => { if (confirm("Удалить эту пару?")) del.mutate({ id: p.id }); }}
+                    >
+                      Удалить
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

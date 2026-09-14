@@ -323,6 +323,22 @@ export const labelExamples = mysqlTable("label_examples", {
 export type LabelExample = typeof labelExamples.$inferSelect;
 export type InsertLabelExample = typeof labelExamples.$inferInsert;
 
+// ─── Label Before/After (блок "Было/Стало" на вводной странице Этикетки) ───
+// Отдельная сущность от labelExamples намеренно: раньше блок "Стало" молча
+// подтягивал первый пример из общей витрины (что на практике оказывалось
+// последним загруженным из-за особенностей сортировки) — непредсказуемо и
+// не то, что нужно показывать в самом заметном месте страницы. Теперь у
+// этого блока своя пара фото, которую администратор выбирает осознанно.
+export const labelBeforeAfter = mysqlTable("label_before_after", {
+  id: serial("id").primaryKey(),
+  beforeImageUrl: varchar("before_image_url", { length: 255 }).notNull(),
+  afterImageUrl: varchar("after_image_url", { length: 255 }).notNull(),
+  title: varchar("title", { length: 150 }), // необязательная подпись, напр. "Вишнёвая настойка"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type LabelBeforeAfter = typeof labelBeforeAfter.$inferSelect;
+
 // ─── User Recipe Submissions ───────────────────────────────
 export const userRecipeSubmissions = mysqlTable("user_recipe_submissions", {
   id: serial("id").primaryKey(),
