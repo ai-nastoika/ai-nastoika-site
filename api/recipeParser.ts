@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, editorQuery } from "./middleware";
 import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
-import { generateImage } from "./lib/imageClient";
+import { generateImage, ensureImageBase64 } from "./lib/imageClient";
 import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 import fs from "fs";
 import path from "path";
@@ -25,11 +25,6 @@ const REQUEST_TYPE_TEXT = "recipe_parser";
 const REQUEST_TYPE_IMAGE = "recipe_parser_image";
 // varchar(20) в ai_usage.request_type — "recipe_parser_ocr" (17 симв.) укладывается.
 const REQUEST_TYPE_OCR = "recipe_parser_ocr";
-
-/* Распознавание рецепта со скриншота (см. recognizeImage ниже). Пришло на
-   замену парсеру видео (расшифровка речи через ffmpeg+STT) — тот снесли:
-   для рецептов из Инстаграма и подобных обычно нужен текст со скриншота
-   поста, а не расшифровка озвучки видео. См. историю api/boot.ts.
 
 /* Распознавание рецепта со скриншота (см. recognizeImage ниже). Пришло на
    замену парсеру видео (расшифровка речи через ffmpeg+STT) — тот снесли:
@@ -245,7 +240,7 @@ export const recipeParserRouter = createRouter({
       if (input.generateImage && imagePrompt) {
         try {
           const image = await generateImage(imagePrompt, "1536x1024");
-          heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+          heroImage = saveGeneratedImage(await ensureImageBase64(image));
           await logAiUsage({
             userId: ctx.user.id,
             requestType: REQUEST_TYPE_IMAGE,
@@ -267,7 +262,7 @@ export const recipeParserRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       try {
         const image = await generateImage(input.prompt, "1536x1024");
-        const heroImage = image.imageBase64 ? saveGeneratedImage(image.imageBase64) : image.imageUrl;
+        const heroImage = saveGeneratedImage(await ensureImageBase64(image));
         if (!heroImage) throw new Error("ИИ не вернул изображение — попробуйте ещё раз");
         await logAiUsage({
           userId: ctx.user.id,

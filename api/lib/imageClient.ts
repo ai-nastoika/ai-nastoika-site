@@ -143,3 +143,25 @@ export async function editImage(prompt: string, imageBuffer: Buffer, filename: s
 
   throw new Error("ИИ не вернул изображение — попробуйте ещё раз или измените описание");
 }
+
+/* Некоторые модели через шлюз возвращают не base64, а временную ссылку на
+   картинку у себя (item.url) — такие ссылки часто недолговечны (истекают
+   через какое-то время) и не всегда отдают CORS-заголовки. Из-за этого
+   скачивание на фронтенде (fetch + blob, см. LabelGeneratorPage.tsx) тихо
+   падало, а после истечения срока ссылка переставала открываться вовсе —
+   значит, доверять ей на будущее нельзя, картинку нужно забрать себе сразу.
+   Эта функция гарантирует: дальше по коду всегда есть base64, никогда
+   голая внешняя ссылка. Используется и в labelGeneratorRouter.ts, и в
+   recipeParser.ts — не размножаем одну и ту же защиту в двух местах. */
+export async function ensureImageBase64(image: GeneratedImage): Promise<string> {
+  if (image.imageBase64) return image.imageBase64;
+  if (image.imageUrl) {
+    const res = await fetch(image.imageUrl);
+    if (!res.ok) {
+      throw new Error(`Не удалось скачать сгенерированное изображение по временной ссылке (HTTP ${res.status})`);
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.toString("base64");
+  }
+  throw new Error("Модель не вернула изображение");
+}

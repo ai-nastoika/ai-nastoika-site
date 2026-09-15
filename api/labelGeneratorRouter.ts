@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, authedQuery } from "./middleware";
 import { chargeImageRequest, getImageAccessState, logAiUsage, logAiFailure, refundAiRequest } from "./lib/aiAccess";
-import { generateImage } from "./lib/imageClient";
+import { generateImage, ensureImageBase64 } from "./lib/imageClient";
 import { saveConversationTurn } from "./lib/aiConversations";
 import { getDb } from "./queries/connection";
 import { generatedLabels } from "@db/schema";
@@ -94,9 +94,15 @@ export const labelGeneratorRouter = createRouter({
 
       const prompt = buildLabelPrompt(input);
 
-      let image: { imageBase64?: string; imageUrl?: string };
+      let imageBase64: string;
       try {
-        image = await generateImage(prompt, ORIENTATIONS[input.orientation].apiSize);
+        const image = await generateImage(prompt, ORIENTATIONS[input.orientation].apiSize);
+        // Гарантируем base64 сразу — если модель вернула временную ссылку,
+        // скачиваем её прямо сейчас. Иначе кнопка "Скачать" на фронтенде
+        // (fetch + blob) может упасть из-за CORS/истёкшей ссылки, а через
+        // время ссылка вообще перестанет открываться — тогда и в личном
+        // кабинете, и на распечатке останется битая картинка навсегда.
+        imageBase64 = await ensureImageBase64(image);
       } catch (err) {
         await refundAiRequest(ctx.user.id, charge);
         await logAiFailure({ userId: ctx.user.id, requestType: REQUEST_TYPE });
@@ -109,7 +115,7 @@ export const labelGeneratorRouter = createRouter({
       // кабинете можно было пересмотреть/перепечатать последние этикетки.
       // Описание сохраняем полностью, без обрезки (text, не varchar).
       const db = getDb();
-      const imageData = image.imageBase64 ?? image.imageUrl ?? "";
+      const imageData = imageBase64;
       await db.insert(generatedLabels).values({
         userId: ctx.user.id,
         title: input.title,
@@ -152,7 +158,7 @@ export const labelGeneratorRouter = createRouter({
       });
 
       const access = await getImageAccessState(ctx.user.id);
-      return { image, costKopecks: charge.costKopecks, access };
+      return { image: { imageBase64 }, costKopecks: charge.costKopecks, access };
     }),
 
   /* Последние 3 сгенерированные этикетки — для личного кабинета */

@@ -1967,8 +1967,12 @@ function LabelBeforeAfterAdmin() {
               {pairs.map((p) => (
                 <div key={p.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                   <div className="grid grid-cols-2">
-                    <img src={p.beforeImageUrl} alt="Было" className="w-full aspect-square object-cover" />
-                    <img src={p.afterImageUrl} alt="Стало" className="w-full aspect-square object-cover" />
+                    <div className="h-32" style={{ background: "var(--surface)" }}>
+                      <img src={p.beforeImageUrl} alt="Было" className="w-full h-full object-contain" />
+                    </div>
+                    <div className="h-32" style={{ background: "var(--surface)" }}>
+                      <img src={p.afterImageUrl} alt="Стало" className="w-full h-full object-contain" />
+                    </div>
                   </div>
                   <div className="p-3">
                     {p.title && <p className="text-sm font-medium mb-2">{p.title}</p>}
@@ -2109,7 +2113,9 @@ function LabelExamplesAdmin() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {examples.map((ex) => (
                 <div key={ex.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                  <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full aspect-square object-cover" />
+                  <div className="h-56" style={{ background: "var(--surface)" }}>
+                    <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
+                  </div>
                   <div className="p-3">
                     {ex.title && <p className="text-sm font-medium mb-1">{ex.title}</p>}
                     <p className="text-xs line-clamp-3" style={{ color: "var(--text-muted)" }}>{ex.prompt}</p>

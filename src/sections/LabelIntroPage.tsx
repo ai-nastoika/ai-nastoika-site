@@ -99,7 +99,7 @@ export default function LabelIntroPage() {
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
                 {beforeAfter ? (
-                  <img src={beforeAfter.beforeImageUrl} alt="Обычная наклейка" className="w-full h-full object-cover" />
+                  <img src={beforeAfter.beforeImageUrl} alt="Обычная наклейка" className="w-full h-full object-contain" />
                 ) : (
                   <div
                     className="w-3/5 aspect-[3/4] rounded-md flex flex-col items-center justify-center gap-2"
@@ -127,7 +127,7 @@ export default function LabelIntroPage() {
                 style={{ background: "var(--bg-card)", border: "2px solid var(--accent)" }}
               >
                 {beforeAfter ? (
-                  <img src={beforeAfter.afterImageUrl} alt={beforeAfter.title ?? "Сгенерированная этикетка"} className="w-full h-full object-cover" />
+                  <img src={beforeAfter.afterImageUrl} alt={beforeAfter.title ?? "Сгенерированная этикетка"} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Sparkles size={40} style={{ color: "var(--accent)" }} />
@@ -195,7 +195,9 @@ export default function LabelIntroPage() {
                   className="text-left rounded-xl overflow-hidden transition-transform hover:scale-[1.02]"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
-                  <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full aspect-square object-cover" />
+                  <div className="w-full h-48" style={{ background: "var(--surface)" }}>
+                    <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
+                  </div>
                   {ex.title && (
                     <div className="px-3 py-2">
                       <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{ex.title}</p>

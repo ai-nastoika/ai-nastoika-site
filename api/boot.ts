@@ -9,7 +9,7 @@ import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
-import { editImage, buildPhotoEditPrompt } from "./lib/imageClient";
+import { editImage, buildPhotoEditPrompt, ensureImageBase64 } from "./lib/imageClient";
 import { compressImageIfNeeded, cropToOrientation } from "./lib/imageCompress";
 import { recordVisit } from "./lib/visitCounter";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
@@ -579,6 +579,7 @@ app.post("/api/edit-label-photo", async (c) => {
     });
 
     const image = await editImage(finalPrompt, photoBuffer, photoFilename, photoMimeType);
+    const imageData = await ensureImageBase64(image);
 
     await logAiUsage({ userId, requestType: "label_photo_edit", tokensUsed: 0, charge });
 
@@ -590,7 +591,6 @@ app.post("/api/edit-label-photo", async (c) => {
     // оно частично дублировало title (тоже обрезаясь до 500 символов),
     // а при наличии labelText вообще нигде не было видно в ЛК.
     const db = getDb();
-    const imageData = image.imageBase64 ?? image.imageUrl ?? "";
     const labelTitle = typeof labelText === "string" && labelText.trim() ? labelText.trim() : prompt.trim();
     await db.insert(generatedLabels).values({
       userId,
@@ -607,7 +607,7 @@ app.post("/api/edit-label-photo", async (c) => {
       await db.delete(generatedLabels).where(eq(generatedLabels.id, row.id));
     }
 
-    return c.json({ success: true, image });
+    return c.json({ success: true, image: { imageBase64: imageData } });
   } catch (err) {
     console.error("Label photo edit error:", err);
     if (charge) {

@@ -137,7 +137,7 @@ export default function LabelGeneratorPage() {
       }
 
       const img = data.image;
-      setPhotoResult(img.imageUrl ?? (img.imageBase64 ? `data:image/png;base64,${img.imageBase64}` : ""));
+      setPhotoResult(img.imageBase64 ? `data:image/png;base64,${img.imageBase64}` : "");
       refetchLimit();
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Не удалось обработать фото");
@@ -164,7 +164,7 @@ export default function LabelGeneratorPage() {
     sourceMode === "photo"
       ? photoResult
       : generate.data
-      ? generate.data.image.imageUrl ?? (generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : "")
+      ? generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : ""
       : "";
 
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
