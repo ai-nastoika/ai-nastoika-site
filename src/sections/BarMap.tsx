@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useNavigationType } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { fallbackPlaces } from "@/data/fallbackData";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -111,6 +111,46 @@ function loadYmaps(): Promise<any> {
   return ymapsLoadPromise;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Сохранение состояния страницы на время сессии вкладки.
+   Без этого при уходе на карточку заведения и возврате назад компонент
+   создаётся заново: пропадают геопозиция и блок "рядом со мной", выбранный
+   город, поиск, лимит списка и позиция прокрутки.
+   Восстанавливаем только при возврате назад/перезагрузке (POP) и не дольше
+   30 минут — чтобы устаревшие координаты не висели вечно.
+   ═══════════════════════════════════════════════════════════════ */
+const BARMAP_STATE_KEY = "barmap-state-v1";
+const BARMAP_STATE_TTL_MS = 30 * 60 * 1000;
+
+type SavedBarMapState = {
+  savedAt: number;
+  activeCity: string;
+  searchQuery: string;
+  gridLimit: number;
+  userCoords: { lat: number; lng: number } | null;
+  scrollY: number;
+};
+
+function loadBarMapState(): SavedBarMapState | null {
+  try {
+    const raw = sessionStorage.getItem(BARMAP_STATE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as SavedBarMapState;
+    if (!s || typeof s.savedAt !== "number" || Date.now() - s.savedAt > BARMAP_STATE_TTL_MS) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function saveBarMapState(s: Omit<SavedBarMapState, "savedAt">) {
+  try {
+    sessionStorage.setItem(BARMAP_STATE_KEY, JSON.stringify({ ...s, savedAt: Date.now() }));
+  } catch {
+    /* приватный режим / переполнение — не критично, просто не сохраняем */
+  }
+}
+
 type Venue = {
   id: number;
   slug: string;
@@ -151,26 +191,78 @@ function estimateTravel(km: number): { label: string; mode: string } {
 
 export default function BarMap() {
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
+  // Сохранённое состояние подхватываем только при возврате назад (POP);
+  // обычный заход на страницу по ссылке/из меню начинается с чистого листа.
+  const [saved] = useState<SavedBarMapState | null>(() => (navigationType === "POP" ? loadBarMapState() : null));
   const { data: apiPlaces, isLoading } = trpc.place.list.useQuery();
   const { data: ratingSummaries } = trpc.place.ratingSummaries.useQuery();
   const places = (apiPlaces && apiPlaces.length > 0 ? apiPlaces : fallbackPlaces) as Venue[];
-  const [activeCity, setActiveCity] = useState("Все города");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCity, setActiveCity] = useState(saved?.activeCity ?? "Все города");
+  const [searchQuery, setSearchQuery] = useState(saved?.searchQuery ?? "");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showOtherCities, setShowOtherCities] = useState(false);
   const isMobile = useIsMobile();
   const mainCities = isMobile ? MAIN_CITIES_MOBILE : MAIN_CITIES_DESKTOP;
   const otherCities = ALL_CITIES.filter((c) => !mainCities.includes(c));
   const GRID_LIMIT_OPTIONS = [10, 20, 50, 100];
-  const [gridLimit, setGridLimit] = useState(10);
+  const [gridLimit, setGridLimit] = useState(saved?.gridLimit ?? 10);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "granted" | "denied" | "unsupported">("idle");
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const cityManuallyChosenRef = useRef(false);
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "granted" | "denied" | "unsupported">(
+    saved?.userCoords ? "granted" : "idle"
+  );
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(saved?.userCoords ?? null);
+  // При восстановлении состояния город уже выбран (вручную или автоопределением) — не перебиваем его
+  const cityManuallyChosenRef = useRef(!!saved);
+  const scrollYRef = useRef(saved?.scrollY ?? 0);
+
+  /* ── Сохраняем состояние страницы: при любом изменении и при уходе со страницы ── */
+  const persistRef = useRef<() => void>(() => {});
+  persistRef.current = () =>
+    saveBarMapState({ activeCity, searchQuery, gridLimit, userCoords, scrollY: scrollYRef.current });
+
+  useEffect(() => {
+    persistRef.current();
+  }, [activeCity, searchQuery, gridLimit, userCoords]);
+
+  useEffect(() => {
+    const onScroll = () => { scrollYRef.current = window.scrollY; };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      persistRef.current(); // уход со страницы — фиксируем итоговую позицию прокрутки
+    };
+  }, []);
+
+  /* ── Возврат на прежнее место страницы. ScrollToTop при смене маршрута
+     прокручивает вверх, поэтому восстанавливаем с небольшой задержкой и
+     только после того, как данные загрузились и страница реально отрисована. ── */
+  useEffect(() => {
+    if (isLoading || !saved || saved.scrollY <= 0) return;
+    const t = setTimeout(() => window.scrollTo(0, saved.scrollY), 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  /* ── Ссылки внутри балуна Яндекс.Карт — обычные <a href>, они перезагружали бы
+     страницу целиком и стирали всё состояние. Перехватываем и ведём через роутер. ── */
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[data-spa-link]") as HTMLAnchorElement | null;
+      if (!a) return;
+      const href = a.getAttribute("href");
+      if (!href) return;
+      e.preventDefault();
+      navigate(href);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [navigate]);
 
   function handleLocate() {
     if (!("geolocation" in navigator)) {
@@ -194,6 +286,7 @@ export default function BarMap() {
      доступе", если пользователь ничего не нажимал). При отказе/отсутствии
      геолокации просто остаёмся на "Все города" — никакого видимого следа. ── */
   useEffect(() => {
+    if (saved) return; // состояние восстановлено — город уже выбран, повторно не определяем
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -204,7 +297,7 @@ export default function BarMap() {
       () => { /* тихо игнорируем — остаёмся на "Все города" */ },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     );
-  }, []);
+  }, [saved]);
 
   const venues = places ?? [];
 
@@ -348,17 +441,21 @@ export default function BarMap() {
       const lat = Number(venue.lat);
       const lng = Number(venue.lng);
 
+      // Компактный балун: только главное (фото, название, адрес, рейтинг) + одна
+      // заметная кнопка-ссылка. Фиксированная небольшая высота — на iPhone узкая
+      // карта не срезает содержимое, и ссылку не нужно прокручивать.
+      const balloonAddress = venue.address || venue.city || "";
       const balloonContent = `
-        <div style="max-width:220px;font-family:sans-serif;">
-          ${venue.image ? `<img src="${venue.image}" alt="" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:6px;" />` : ""}
-          <div style="font-weight:700;font-size:14px;margin-bottom:2px;">${escapeHtml(venue.name)}</div>
-          <div style="font-size:12px;color:#666;margin-bottom:4px;">${escapeHtml(venue.address ?? "")}</div>
-          ${venue.hours ? `<div style="font-size:12px;color:#666;margin-bottom:4px;">🕒 ${escapeHtml(venue.hours)}</div>` : ""}
-          ${venue.rating ? `<div style="font-size:12px;margin-bottom:6px;">⭐ ${venue.rating} (${venue.reviews ?? 0} отзывов)</div>` : ""}
+        <div style="width:230px;max-width:100%;font-family:sans-serif;">
           <div style="display:flex;gap:10px;align-items:center;">
-            <a href="/place/${venue.slug}" style="font-size:13px;color:#8B4513;font-weight:600;text-decoration:none;">Подробнее →</a>
-            <a href="https://yandex.ru/maps/?rtext=~${lat},${lng}&rtt=auto" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:#666;text-decoration:none;">🧭 Маршрут</a>
+            ${venue.image ? `<img src="${venue.image}" alt="" width="56" height="56" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
+            <div style="min-width:0;flex:1;">
+              <div style="font-weight:700;font-size:14px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(venue.name)}</div>
+              ${balloonAddress ? `<div style="font-size:12px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(balloonAddress)}</div>` : ""}
+              ${venue.rating ? `<div style="font-size:12px;margin-top:2px;">⭐ ${venue.rating} · ${venue.reviews ?? 0} отзывов</div>` : ""}
+            </div>
           </div>
+          <a href="/place/${venue.slug}" data-spa-link style="display:block;margin-top:8px;padding:9px 0;text-align:center;background:${accentColor};color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">Подробнее →</a>
         </div>
       `;
 
