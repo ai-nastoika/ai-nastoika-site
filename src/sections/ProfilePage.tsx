@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   Check,
   Printer,
+  Pencil,
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
@@ -720,6 +721,27 @@ export default function ProfilePage() {
                               Скачать
                             </button>
                           </div>
+                          {/* «Доработать» открывает генератор с этой этикеткой: правки (до 3, по 5 ₽) и бесплатный возврат прошлой версии */}
+                          {(() => {
+                            const left = Math.max(0, 3 - genLabel.revisions);
+                            if (left === 0 && !genLabel.hasPrevious) return null;
+                            return (
+                              <div className="mt-2">
+                                <Link
+                                  to={`/label/generate?refine=${genLabel.id}`}
+                                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium"
+                                  style={{ background: "var(--bg-card)", color: "var(--accent)", border: "1px solid var(--accent)", fontFamily: "var(--font-body)" }}
+                                >
+                                  <Pencil size={14} /> Доработать
+                                </Link>
+                                <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                                  {left > 0
+                                    ? `Правок осталось: ${left} из 3 · по 5 ₽`
+                                    : "Правки исчерпаны — можно вернуть предыдущую версию"}
+                                </p>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     );

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, useSearchParams, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
@@ -22,9 +22,27 @@ import {
   Loader2,
   Upload,
   Pencil,
+  Undo2,
 } from "lucide-react";
 
 type SourceMode = "scratch" | "photo";
+
+/* Этикетка, с которой сейчас работаем (правки / возврат версии). Создаётся тремя путями:
+   генерация с нуля, генерация по фото и «Доработать» из личного кабинета (?refine=ID).
+   Сами версии хранит сервер — здесь только то, что на экране. */
+type WorkingLabel = {
+  id: number;
+  mode: SourceMode | "cabinet";
+  image: string; // data URL самой свежей показанной версии; "" — показывать результат генерации
+  revisionsLeft: number;
+  hasPrevious: boolean; // есть ли предыдущая версия, которую можно вернуть
+  showingPrevious: boolean; // в этой сессии человек уже вернул предыдущую версию (для подсказки на кнопке)
+};
+
+/* Совсем старые этикетки могли храниться ссылкой, а не base64 */
+function toImageSrc(b64: string) {
+  return b64.startsWith("http") ? b64 : `data:image/png;base64,${b64}`;
+}
 
 /* Готовые формулировки правок — чтобы не было пустого поля: нажал — текст подставился,
    при желании дописал своё. */
@@ -84,16 +102,18 @@ export default function LabelGeneratorPage() {
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Доработка готовой этикетки (до 3 правок, см. labelGenerator.revise) ──
-  // labelId — запись этикетки в БД, к которой относятся правки; labelMode — каким способом она
-  // создана (правки предлагаем, только пока на экране именно она); revisedImage — последняя
-  // версия после правок (data URL). Сами версии хранит сервер — здесь только то, что на экране.
-  const [labelId, setLabelId] = useState<number | null>(null);
-  const [labelMode, setLabelMode] = useState<SourceMode | null>(null);
-  const [revisionsLeft, setRevisionsLeft] = useState(3);
-  const [revisedImage, setRevisedImage] = useState("");
+  // ── Доработка готовой этикетки (до 3 правок по 5 ₽ — labelGenerator.revise; возврат предыдущей
+  // версии бесплатно — labelGenerator.undoRevision). session — этикетка, с которой работаем сейчас. ──
+  const [session, setSession] = useState<WorkingLabel | null>(null);
   const [instruction, setInstruction] = useState("");
   const previewRef = useRef<HTMLDivElement>(null);
+  const utils = trpc.useUtils();
+
+  // «Доработать» из личного кабинета: /label/generate?refine=<id>. Этикетку берём из списка
+  // последних трёх (тот же запрос, что в кабинете) и НЕ копируем в состояние эффектом —
+  // она просто вычисляется из результата запроса, пока человек не начал работать с ней сам.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const refineParam = Number(searchParams.get("refine")) || 0;
 
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
@@ -101,35 +121,67 @@ export default function LabelGeneratorPage() {
   // (Витрина "Примеры" и её лайтбокс переехали на вводную страницу
   // /label — LabelIntroPage.tsx — эта страница теперь чистый инструмент.)
 
+  const { data: cabinetLabels } = trpc.labelGenerator.myLabels.useQuery(undefined, {
+    enabled: isLoggedIn && refineParam > 0,
+  });
+  const cabinetLabel = refineParam > 0 ? cabinetLabels?.find((l) => l.id === refineParam) : undefined;
+  const fromCabinet: WorkingLabel | null = cabinetLabel
+    ? {
+        id: cabinetLabel.id,
+        mode: "cabinet",
+        image: toImageSrc(cabinetLabel.imageBase64),
+        revisionsLeft: Math.max(0, (limitInfo?.maxRevisions ?? 3) - cabinetLabel.revisions),
+        hasPrevious: cabinetLabel.hasPrevious,
+        showingPrevious: false,
+      }
+    : null;
+  const working = session ?? fromCabinet;
+
   const revise = trpc.labelGenerator.revise.useMutation({
-    onSuccess: (data) => {
-      setRevisedImage(`data:image/png;base64,${data.image.imageBase64}`);
-      setRevisionsLeft(data.revisionsLeft);
+    onSuccess: (data, variables) => {
+      setSession((prev) =>
+        prev && prev.id === variables.labelId
+          ? { ...prev, image: toImageSrc(data.image.imageBase64), revisionsLeft: data.revisionsLeft, hasPrevious: data.hasPrevious, showingPrevious: false }
+          : prev
+      );
       setInstruction("");
       refetchLimit();
+      utils.labelGenerator.myLabels.invalidate();
       // Человек печатал правку внизу — возвращаем его к картинке, чтобы сразу увидел результат
       previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     },
     onError: () => refetchLimit(),
   });
 
+  /* Возврат предыдущей версии — бесплатно, счётчик правок не трогает. Повторное нажатие
+     возвращает обратно (сервер меняет версии местами, ничего не стирая). */
+  const undo = trpc.labelGenerator.undoRevision.useMutation({
+    onSuccess: (data, variables) => {
+      setSession((prev) =>
+        prev && prev.id === variables.labelId
+          ? { ...prev, image: toImageSrc(data.image.imageBase64), hasPrevious: data.hasPrevious, showingPrevious: !prev.showingPrevious }
+          : prev
+      );
+      utils.labelGenerator.myLabels.invalidate();
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+  });
+
   /* Новая этикетка (любым способом) начинает свою историю правок с нуля */
   function startRevisionsFor(id: number, mode: SourceMode, left: number) {
-    setLabelId(id);
-    setLabelMode(mode);
-    setRevisionsLeft(left);
-    setRevisedImage("");
+    setSession({ id, mode, image: "", revisionsLeft: left, hasPrevious: false, showingPrevious: false });
     setInstruction("");
     revise.reset();
+    undo.reset();
+    if (refineParam) setSearchParams({}, { replace: true }); // ушли от этикетки из кабинета — параметр больше не нужен
   }
 
   function clearRevisions() {
-    setLabelId(null);
-    setLabelMode(null);
-    setRevisionsLeft(3);
-    setRevisedImage("");
+    setSession(null);
     setInstruction("");
     revise.reset();
+    undo.reset();
+    if (refineParam) setSearchParams({}, { replace: true });
   }
 
   const generate = trpc.labelGenerator.generate.useMutation({
@@ -224,10 +276,13 @@ export default function LabelGeneratorPage() {
       ? generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : ""
       : "";
 
-  // Правки предлагаем, только пока на экране этикетка, созданная в этом же режиме
-  const refineActive = labelId !== null && labelMode === sourceMode && !!baseImage;
-  // После правок показываем, печатаем и скачиваем ПОСЛЕДНЮЮ версию
-  const generatedImage = refineActive && revisedImage ? revisedImage : baseImage;
+  // Правки предлагаем, только пока на экране именно эта этикетка: созданная в текущем режиме
+  // формы либо открытая из личного кабинета (для неё картинка приходит с сервера, а не из формы).
+  const refineActive =
+    working !== null && (working.mode === "cabinet" ? !!working.image : working.mode === sourceMode && !!baseImage);
+  const w = refineActive ? working : null;
+  // После правок и возврата версии показываем, печатаем и скачиваем ТО, ЧТО СЕЙЧАС ТЕКУЩЕЕ
+  const generatedImage = w ? w.image || baseImage : baseImage;
 
   const revisionCostRub = limitInfo ? limitInfo.revisionCostKopecks / 100 : 5;
   const canRevise = limitInfo ? limitInfo.canRevise : true;
@@ -283,8 +338,26 @@ export default function LabelGeneratorPage() {
 
   function handleRevise() {
     const text = instruction.trim();
-    if (labelId === null || text.length < 3 || revise.isPending || !canRevise || revisionsLeft <= 0) return;
-    revise.mutate({ labelId, instruction: text });
+    if (!w || text.length < 3 || revise.isPending || undo.isPending || !canRevise || w.revisionsLeft <= 0) return;
+    if (!session) setSession(w); // этикетка из кабинета: с этого момента ведём её в состоянии страницы
+    revise.mutate({ labelId: w.id, instruction: text });
+  }
+
+  function handleUndo() {
+    if (!w || !w.hasPrevious || undo.isPending || revise.isPending) return;
+    if (!session) setSession(w);
+    undo.mutate({ labelId: w.id });
+  }
+
+  /* У этикетки из кабинета ориентация заранее неизвестна — определяем по реальным пропорциям
+     картинки, чтобы рамка, подпись и раскладка печати на A4 соответствовали ей. */
+  function handleImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    if (working?.mode !== "cabinet") return;
+    const { naturalWidth: iw, naturalHeight: ih } = e.currentTarget;
+    if (!iw || !ih) return;
+    const o: Orientation = Math.abs(iw - ih) / Math.max(iw, ih) < 0.05 ? "square" : iw > ih ? "horizontal" : "vertical";
+    if (orientation !== o) setOrientation(o);
+    if (photoOrientation !== o) setPhotoOrientation(o);
   }
 
   function handlePrint() {
@@ -352,6 +425,27 @@ export default function LabelGeneratorPage() {
       </div>
 
       {/* Content */}
+      {/* Пришли из личного кабинета по кнопке «Доработать» */}
+      {isLoggedIn && refineParam > 0 && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+          <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <Pencil size={20} className="shrink-0 mt-0.5" style={{ color: "var(--accent)" }} />
+            <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+              {cabinetLabels === undefined ? (
+                "Загружаю вашу этикетку…"
+              ) : cabinetLabel ? (
+                <>
+                  Вы дорабатываете сохранённую этикетку <strong>«{cabinetLabel.title}»</strong>. Чтобы создать новую, нажмите
+                  «Начать заново».
+                </>
+              ) : (
+                "Эта этикетка недоступна: в личном кабинете хранятся только три последние. Можно создать новую ниже."
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 grid lg:grid-cols-2 gap-8">
         {/* ─── Левая колонка: форма ─── */}
         <div className="space-y-6">
@@ -752,7 +846,10 @@ export default function LabelGeneratorPage() {
 
         {/* ─── Правая колонка: результат + печать ─── */}
         {/* Пока показан блок правок, колонка высокая — «прилипание» отключаем, иначе нижняя часть недоступна */}
-        <div ref={previewRef} className={`${refineActive ? "" : "lg:sticky lg:top-24"} self-start scroll-mt-24`}>
+        <div
+          ref={previewRef}
+          className={`${refineActive ? "" : "lg:sticky lg:top-24"} ${working?.mode === "cabinet" ? "order-first lg:order-none" : ""} self-start scroll-mt-24`}
+        >
           <div className="flex flex-col items-center justify-center rounded-2xl p-8" style={{ background: "var(--bg-secondary)" }}>
             {generatedImage ? (
               <button
@@ -764,6 +861,7 @@ export default function LabelGeneratorPage() {
                 <img
                   src={generatedImage}
                   alt="Сгенерированная этикетка"
+                  onLoad={handleImageLoad}
                   className="max-w-full max-h-full"
                   style={{ objectFit: "contain" }}
                 />
@@ -781,22 +879,50 @@ export default function LabelGeneratorPage() {
 
             {generatedImage && (
               <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задана заранее{sourceMode === "photo" ? " при подготовке фото" : " при подготовке описания"}.
+                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» {working?.mode === "cabinet" ? "определена по сохранённой этикетке" : `задана заранее${sourceMode === "photo" ? " при подготовке фото" : " при подготовке описания"}`}.
               </p>
             )}
 
-            {refineActive && (
+            {w && (
               <div className="w-full mt-6 pt-6" style={{ borderTop: "1px solid var(--border)" }}>
                 <h3 className="text-lg font-bold flex items-center gap-2 mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                   <Pencil size={20} style={{ color: "var(--accent)" }} />
                   Что-то хочется изменить?
                 </h3>
 
-                {revisionsLeft > 0 ? (
+                {/* Бесплатный возврат предыдущей версии — появляется, когда правки уже были */}
+                {w.hasPrevious && (
+                  <div className="mt-2 mb-4 rounded-xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <p className="text-base mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                      {w.showingPrevious
+                        ? "Сейчас показана предыдущая версия. Версия после правки не потеряна — её можно вернуть."
+                        : "Правка не понравилась? Можно вернуть версию, которая была до неё."}
+                    </p>
+                    <button
+                      onClick={handleUndo}
+                      disabled={undo.isPending || revise.isPending}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                      style={{ background: "var(--bg-card)", color: "var(--accent)", border: "1px solid var(--accent)", fontFamily: "var(--font-body)" }}
+                    >
+                      {undo.isPending ? <Loader2 size={20} className="animate-spin" /> : <Undo2 size={20} />}
+                      {undo.isPending ? "Возвращаю..." : w.showingPrevious ? "Вернуть версию после правки" : "Вернуть предыдущую версию"}
+                    </button>
+                    <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                      Бесплатно. Счётчик правок не меняется.
+                    </p>
+                    {undo.error && (
+                      <p className="text-sm mt-2" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                        {undo.error.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {w.revisionsLeft > 0 ? (
                   <>
                     <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                      Напишите своими словами, что поправить, — правка внесётся в последнюю версию этикетки. Можно до {maxRevisions} правок,
-                      каждая {revisionCostRub} ₽. Осталось правок: <strong>{revisionsLeft} из {maxRevisions}</strong>.
+                      Напишите своими словами, что поправить, — правка внесётся в ту версию, которая сейчас на экране. Можно до {maxRevisions} правок,
+                      каждая {revisionCostRub} ₽. Осталось правок: <strong>{w.revisionsLeft} из {maxRevisions}</strong>.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {REVISION_EXAMPLES.map((ex) => (
@@ -833,7 +959,7 @@ export default function LabelGeneratorPage() {
                       <>
                         <button
                           onClick={handleRevise}
-                          disabled={instruction.trim().length < 3 || revise.isPending}
+                          disabled={instruction.trim().length < 3 || revise.isPending || undo.isPending}
                           className="w-full mt-3 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                           style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                         >
@@ -856,7 +982,7 @@ export default function LabelGeneratorPage() {
                 ) : (
                   <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
                     Все {maxRevisions} правки для этой этикетки использованы. Скачайте или распечатайте её ниже — либо создайте новую
-                    (кнопка «Начать заново» слева).
+                    (кнопка «Начать заново»).
                   </p>
                 )}
               </div>

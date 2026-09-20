@@ -592,6 +592,11 @@ export const generatedLabels = mysqlTable("generated_labels", {
   // и LABEL_REVISION_COST_KOPECKS в api/lib/aiAccess.ts). Хранится на сервере, чтобы
   // лимит нельзя было обойти с клиента. В imageBase64 всегда лежит ПОСЛЕДНЯЯ версия.
   revisions: int("revisions").default(0).notNull(),
+  // Версия ДО последней правки — чтобы можно было бесплатно вернуть предыдущий вариант
+  // (labelGenerator.undoRevision). Одна ступень: при каждой правке сюда попадает то, что
+  // было текущим. Тяжёлая колонка (mediumtext) — в списки для клиента её не отдаём,
+  // только флаг наличия (см. myLabels).
+  prevImageBase64: mediumtext("prev_image_base64"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

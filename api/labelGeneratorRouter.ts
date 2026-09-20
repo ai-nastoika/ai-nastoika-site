@@ -15,7 +15,7 @@ import { compressImageIfNeeded } from "./lib/imageCompress";
 import { saveConversationTurn } from "./lib/aiConversations";
 import { getDb } from "./queries/connection";
 import { generatedLabels } from "@db/schema";
-import { and, eq, desc, gt, lt, sql } from "drizzle-orm";
+import { and, eq, desc, gt, lt, isNotNull, sql } from "drizzle-orm";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
 const REVISION_REQUEST_TYPE = "label_revision"; // 14 симв., укладывается в varchar(20)
@@ -195,7 +195,7 @@ export const labelGeneratorRouter = createRouter({
       });
 
       const access = await getImageAccessState(ctx.user.id);
-      return { image: { imageBase64 }, costKopecks: charge.costKopecks, access, labelId, revisionsLeft: LABEL_MAX_REVISIONS };
+      return { image: { imageBase64 }, costKopecks: charge.costKopecks, access, labelId, revisionsLeft: LABEL_MAX_REVISIONS, hasPrevious: false };
     }),
 
   /* ── Доработка готовой этикетки свободным текстом ──
@@ -217,7 +217,10 @@ export const labelGeneratorRouter = createRouter({
       const userId = ctx.user.id;
       const owned = and(eq(generatedLabels.id, input.labelId), eq(generatedLabels.userId, userId));
 
-      const [label] = await db.select().from(generatedLabels).where(owned);
+      const [label] = await db
+        .select({ id: generatedLabels.id, imageBase64: generatedLabels.imageBase64 })
+        .from(generatedLabels)
+        .where(owned);
       if (!label) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -226,12 +229,16 @@ export const labelGeneratorRouter = createRouter({
       }
 
       // Подготавливаем исходную картинку ДО списания денег: если с ней что-то не так — человек ничего не теряет.
+      // sourceBase64 — нормализованный текущий вариант (без data:-префикса, ссылки уже скачаны):
+      // именно он после успешной правки станет «предыдущей версией».
       let sourceBuffer: Buffer;
+      let sourceBase64: string;
       try {
         let raw = label.imageBase64;
         // Совсем старые записи могли хранить ссылку вместо base64 — забираем картинку себе.
         if (raw.startsWith("http")) raw = await ensureImageBase64({ imageUrl: raw });
         raw = raw.replace(/^data:image\/[a-zA-Z+.-]+;base64,/, "");
+        sourceBase64 = raw;
         sourceBuffer = Buffer.from(raw, "base64");
         if (sourceBuffer.length < 100) throw new Error("empty image");
       } catch (err) {
@@ -285,14 +292,16 @@ export const labelGeneratorRouter = createRouter({
 
       await logAiUsage({ userId, requestType: REVISION_REQUEST_TYPE, tokensUsed: 0, charge });
 
-      // Сохраняем новую версию как текущую. Что именно просили — дописываем в описание,
-      // чтобы в личном кабинете было видно историю правок этой этикетки.
+      // Сохраняем новую версию как текущую, а прежнюю — как «предыдущую» (её можно бесплатно вернуть,
+      // см. undoRevision). Что именно просили — дописываем в описание, чтобы в личном кабинете
+      // было видно историю правок этой этикетки.
       const [after] = await db.select({ revisions: generatedLabels.revisions }).from(generatedLabels).where(owned);
       const revisionNo = after?.revisions ?? 1;
       await db
         .update(generatedLabels)
         .set({
           imageBase64: newImageBase64,
+          prevImageBase64: sourceBase64,
           description: sql`CONCAT(COALESCE(${generatedLabels.description}, ''), ${`\nПравка ${revisionNo}: ${input.instruction}`})`,
         })
         .where(owned);
@@ -301,16 +310,60 @@ export const labelGeneratorRouter = createRouter({
       return {
         image: { imageBase64: newImageBase64 },
         revisionsLeft: Math.max(0, LABEL_MAX_REVISIONS - revisionNo),
+        hasPrevious: true,
         costKopecks: charge.costKopecks,
         access,
       };
     }),
 
-  /* Последние 3 сгенерированные этикетки — для личного кабинета */
+  /* ── Вернуть предыдущую версию — бесплатно ──
+     Меняет местами текущую и предыдущую версии (а не стирает новую): если человек нажал
+     по ошибке или передумал, повторное нажатие возвращает всё как было — оплаченная правка
+     не пропадает. Счётчик правок НЕ откатывается: работа модели уже выполнена и оплачена. */
+  undoRevision: authedQuery
+    .input(z.object({ labelId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const owned = and(eq(generatedLabels.id, input.labelId), eq(generatedLabels.userId, ctx.user.id));
+
+      const [label] = await db
+        .select({ imageBase64: generatedLabels.imageBase64, prevImageBase64: generatedLabels.prevImageBase64 })
+        .from(generatedLabels)
+        .where(owned);
+      if (!label) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Эту этикетку не удалось найти — возможно, она уже вытеснена более новыми." });
+      }
+      if (!label.prevImageBase64) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "У этой этикетки нет предыдущей версии — правок ещё не было." });
+      }
+
+      // Обмен значениями делаем в коде, а не одним UPDATE вида SET a = b, b = a: в MySQL присваивания
+      // выполняются слева направо и вторая колонка получила бы уже новое значение первой — обе версии
+      // стали бы одинаковыми, и одна из них пропала бы. Условие IS NOT NULL страхует от гонки.
+      await db
+        .update(generatedLabels)
+        .set({ imageBase64: label.prevImageBase64, prevImageBase64: label.imageBase64 })
+        .where(and(owned, isNotNull(generatedLabels.prevImageBase64)));
+
+      return { image: { imageBase64: label.prevImageBase64 }, hasPrevious: true };
+    }),
+
+  /* Последние 3 сгенерированные этикетки — для личного кабинета и для «Доработать».
+     Колонки перечислены явно: предыдущая версия (мегабайты base64) клиенту не нужна —
+     отдаём только флаг hasPrevious и сколько правок уже потрачено. */
   myLabels: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
     return db
-      .select()
+      .select({
+        id: generatedLabels.id,
+        userId: generatedLabels.userId,
+        title: generatedLabels.title,
+        description: generatedLabels.description,
+        imageBase64: generatedLabels.imageBase64,
+        revisions: generatedLabels.revisions,
+        hasPrevious: sql<number>`(${generatedLabels.prevImageBase64} IS NOT NULL)`.mapWith(Boolean),
+        createdAt: generatedLabels.createdAt,
+      })
       .from(generatedLabels)
       .where(eq(generatedLabels.userId, ctx.user.id))
       .orderBy(desc(generatedLabels.createdAt))
