@@ -190,6 +190,13 @@
       "when": 1789380261266,
       "tag": "0026_label_before_after",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1789922505971,
+      "tag": "0027_label_revisions",
+      "breakpoints": true
     }
   ]
 }

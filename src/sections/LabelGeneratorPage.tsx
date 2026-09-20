@@ -21,9 +21,19 @@ import {
   FileText,
   Loader2,
   Upload,
+  Pencil,
 } from "lucide-react";
 
 type SourceMode = "scratch" | "photo";
+
+/* Готовые формулировки правок — чтобы не было пустого поля: нажал — текст подставился,
+   при желании дописал своё. */
+const REVISION_EXAMPLES = [
+  "Сделай фон темнее",
+  "Сделай название крупнее",
+  "Убери лишние украшения",
+  "Добавь золотую рамку",
+];
 
 type Orientation = "vertical" | "square" | "horizontal";
 
@@ -74,14 +84,59 @@ export default function LabelGeneratorPage() {
   const [photoError, setPhotoError] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Доработка готовой этикетки (до 3 правок, см. labelGenerator.revise) ──
+  // labelId — запись этикетки в БД, к которой относятся правки; labelMode — каким способом она
+  // создана (правки предлагаем, только пока на экране именно она); revisedImage — последняя
+  // версия после правок (data URL). Сами версии хранит сервер — здесь только то, что на экране.
+  const [labelId, setLabelId] = useState<number | null>(null);
+  const [labelMode, setLabelMode] = useState<SourceMode | null>(null);
+  const [revisionsLeft, setRevisionsLeft] = useState(3);
+  const [revisedImage, setRevisedImage] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const previewRef = useRef<HTMLDivElement>(null);
+
   const { data: limitInfo, refetch: refetchLimit } = trpc.labelGenerator.checkLimit.useQuery(undefined, {
     enabled: isLoggedIn,
   });
   // (Витрина "Примеры" и её лайтбокс переехали на вводную страницу
   // /label — LabelIntroPage.tsx — эта страница теперь чистый инструмент.)
 
+  const revise = trpc.labelGenerator.revise.useMutation({
+    onSuccess: (data) => {
+      setRevisedImage(`data:image/png;base64,${data.image.imageBase64}`);
+      setRevisionsLeft(data.revisionsLeft);
+      setInstruction("");
+      refetchLimit();
+      // Человек печатал правку внизу — возвращаем его к картинке, чтобы сразу увидел результат
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    onError: () => refetchLimit(),
+  });
+
+  /* Новая этикетка (любым способом) начинает свою историю правок с нуля */
+  function startRevisionsFor(id: number, mode: SourceMode, left: number) {
+    setLabelId(id);
+    setLabelMode(mode);
+    setRevisionsLeft(left);
+    setRevisedImage("");
+    setInstruction("");
+    revise.reset();
+  }
+
+  function clearRevisions() {
+    setLabelId(null);
+    setLabelMode(null);
+    setRevisionsLeft(3);
+    setRevisedImage("");
+    setInstruction("");
+    revise.reset();
+  }
+
   const generate = trpc.labelGenerator.generate.useMutation({
-    onSuccess: () => refetchLimit(),
+    onSuccess: (data) => {
+      startRevisionsFor(data.labelId, "scratch", data.revisionsLeft);
+      refetchLimit();
+    },
     onError: () => refetchLimit(),
   });
 
@@ -125,7 +180,7 @@ export default function LabelGeneratorPage() {
         body: formData,
       });
 
-      let data: { success?: boolean; image?: { imageBase64?: string; imageUrl?: string }; error?: string } | null = null;
+      let data: { success?: boolean; image?: { imageBase64?: string; imageUrl?: string }; error?: string; labelId?: number; revisionsLeft?: number } | null = null;
       try {
         data = await res.json();
       } catch {
@@ -138,6 +193,7 @@ export default function LabelGeneratorPage() {
 
       const img = data.image;
       setPhotoResult(img.imageBase64 ? `data:image/png;base64,${img.imageBase64}` : "");
+      if (typeof data.labelId === "number") startRevisionsFor(data.labelId, "photo", data.revisionsLeft ?? 3);
       refetchLimit();
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Не удалось обработать фото");
@@ -158,14 +214,24 @@ export default function LabelGeneratorPage() {
     setPhotoResult("");
     setPhotoError("");
     if (photoInputRef.current) photoInputRef.current.value = "";
+    clearRevisions();
   }
 
-  const generatedImage =
+  const baseImage =
     sourceMode === "photo"
       ? photoResult
       : generate.data
       ? generate.data.image.imageBase64 ? `data:image/png;base64,${generate.data.image.imageBase64}` : ""
       : "";
+
+  // Правки предлагаем, только пока на экране этикетка, созданная в этом же режиме
+  const refineActive = labelId !== null && labelMode === sourceMode && !!baseImage;
+  // После правок показываем, печатаем и скачиваем ПОСЛЕДНЮЮ версию
+  const generatedImage = refineActive && revisedImage ? revisedImage : baseImage;
+
+  const revisionCostRub = limitInfo ? limitInfo.revisionCostKopecks / 100 : 5;
+  const canRevise = limitInfo ? limitInfo.canRevise : true;
+  const maxRevisions = limitInfo?.maxRevisions ?? 3;
 
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 10;
@@ -212,6 +278,13 @@ export default function LabelGeneratorPage() {
     setLabelAbv("");
     setLabelDate("");
     generate.reset();
+    clearRevisions();
+  }
+
+  function handleRevise() {
+    const text = instruction.trim();
+    if (labelId === null || text.length < 3 || revise.isPending || !canRevise || revisionsLeft <= 0) return;
+    revise.mutate({ labelId, instruction: text });
   }
 
   function handlePrint() {
@@ -678,7 +751,8 @@ export default function LabelGeneratorPage() {
         </div>
 
         {/* ─── Правая колонка: результат + печать ─── */}
-        <div className="lg:sticky lg:top-24 self-start">
+        {/* Пока показан блок правок, колонка высокая — «прилипание» отключаем, иначе нижняя часть недоступна */}
+        <div ref={previewRef} className={`${refineActive ? "" : "lg:sticky lg:top-24"} self-start scroll-mt-24`}>
           <div className="flex flex-col items-center justify-center rounded-2xl p-8" style={{ background: "var(--bg-secondary)" }}>
             {generatedImage ? (
               <button
@@ -709,6 +783,83 @@ export default function LabelGeneratorPage() {
               <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                 Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задана заранее{sourceMode === "photo" ? " при подготовке фото" : " при подготовке описания"}.
               </p>
+            )}
+
+            {refineActive && (
+              <div className="w-full mt-6 pt-6" style={{ borderTop: "1px solid var(--border)" }}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                  <Pencil size={20} style={{ color: "var(--accent)" }} />
+                  Что-то хочется изменить?
+                </h3>
+
+                {revisionsLeft > 0 ? (
+                  <>
+                    <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                      Напишите своими словами, что поправить, — правка внесётся в последнюю версию этикетки. Можно до {maxRevisions} правок,
+                      каждая {revisionCostRub} ₽. Осталось правок: <strong>{revisionsLeft} из {maxRevisions}</strong>.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {REVISION_EXAMPLES.map((ex) => (
+                        <button
+                          key={ex}
+                          type="button"
+                          onClick={() => setInstruction(ex)}
+                          disabled={revise.isPending}
+                          className="text-sm px-3 py-1.5 rounded-full transition-all hover:opacity-70 disabled:opacity-40"
+                          style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+                        >
+                          {ex}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={instruction}
+                      onChange={(e) => setInstruction(e.target.value)}
+                      placeholder="Например: сделай фон темнее и добавь золотую рамку"
+                      maxLength={400}
+                      rows={3}
+                      disabled={revise.isPending}
+                      className="w-full rounded-lg px-4 py-3 text-base outline-none resize-none"
+                      style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+                    />
+                    {!canRevise ? (
+                      <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                        На балансе меньше {revisionCostRub} ₽ — на правку не хватает.{" "}
+                        <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
+                          Пополнить баланс
+                        </Link>
+                      </p>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleRevise}
+                          disabled={instruction.trim().length < 3 || revise.isPending}
+                          className="w-full mt-3 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-base font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+                        >
+                          {revise.isPending ? <Loader2 size={20} className="animate-spin" /> : <Pencil size={20} />}
+                          {revise.isPending ? "Вношу правку..." : `Внести правку (${revisionCostRub} ₽)`}
+                        </button>
+                        <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                          Спишется {revisionCostRub} ₽ с вашего баланса. Правка рисуется дольше обычного ответа — не закрывайте страницу.
+                          Если не получится, деньги вернутся и правка не засчитается.
+                        </p>
+                      </>
+                    )}
+                    {revise.isPending && <div className="mt-3"><BottleThinkingIndicator label="Вношу правку в этикетку..." /></div>}
+                    {revise.error && (
+                      <p className="text-sm mt-3" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>
+                        {revise.error.message}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+                    Все {maxRevisions} правки для этой этикетки использованы. Скачайте или распечатайте её ниже — либо создайте новую
+                    (кнопка «Начать заново» слева).
+                  </p>
+                )}
+              </div>
             )}
 
             {generatedImage && (

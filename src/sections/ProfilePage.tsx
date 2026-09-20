@@ -697,7 +697,7 @@ export default function ProfilePage() {
                             {genLabel.title}
                           </div>
                           {genLabel.description && (
-                            <p className="text-xs mb-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                            <p className="text-xs mb-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.5, whiteSpace: "pre-line" }}>
                               {genLabel.description}
                             </p>
                           )}

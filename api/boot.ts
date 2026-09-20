@@ -12,7 +12,7 @@ import { fetchPaymentStatus } from "./lib/payments";
 import { editImage, buildPhotoEditPrompt, ensureImageBase64 } from "./lib/imageClient";
 import { compressImageIfNeeded, cropToOrientation } from "./lib/imageCompress";
 import { recordVisit } from "./lib/visitCounter";
-import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure } from "./lib/aiAccess";
+import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure, LABEL_MAX_REVISIONS } from "./lib/aiAccess";
 import { jwtVerify } from "jose";
 import { getDb } from "./queries/connection";
 import { users, generatedLabels, recipes, recipeIngredients, recipeSteps, places } from "@db/schema";
@@ -592,12 +592,13 @@ app.post("/api/edit-label-photo", async (c) => {
     // а при наличии labelText вообще нигде не было видно в ЛК.
     const db = getDb();
     const labelTitle = typeof labelText === "string" && labelText.trim() ? labelText.trim() : prompt.trim();
-    await db.insert(generatedLabels).values({
+    const [inserted] = await db.insert(generatedLabels).values({
       userId,
       title: labelTitle.slice(0, 500),
       description: prompt.trim(),
       imageBase64: imageData,
     });
+    const labelId = Number(inserted.insertId);
     const existing = await db
       .select({ id: generatedLabels.id })
       .from(generatedLabels)
@@ -607,7 +608,8 @@ app.post("/api/edit-label-photo", async (c) => {
       await db.delete(generatedLabels).where(eq(generatedLabels.id, row.id));
     }
 
-    return c.json({ success: true, image: { imageBase64: imageData } });
+    // labelId нужен, чтобы потом отправить эту этикетку на правки (labelGenerator.revise)
+    return c.json({ success: true, image: { imageBase64: imageData }, labelId, revisionsLeft: LABEL_MAX_REVISIONS });
   } catch (err) {
     console.error("Label photo edit error:", err);
     if (charge) {

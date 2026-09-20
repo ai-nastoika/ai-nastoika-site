@@ -588,6 +588,10 @@ export const generatedLabels = mysqlTable("generated_labels", {
   // видно, что именно просили. Text — без ограничения длины, не обрезаем.
   description: text("description"),
   imageBase64: mediumtext("image_base64").notNull(),
+  // Сколько правок уже внесено в эту этикетку (лимит и цена — см. LABEL_MAX_REVISIONS
+  // и LABEL_REVISION_COST_KOPECKS в api/lib/aiAccess.ts). Хранится на сервере, чтобы
+  // лимит нельзя было обойти с клиента. В imageBase64 всегда лежит ПОСЛЕДНЯЯ версия.
+  revisions: int("revisions").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -21,6 +21,12 @@ export const AI_REQUEST_COST_KOPECKS = 200; // 2 ₽
    изменятся — проверьте актуальный расход в панели Timeweb и поправьте константу. */
 export const IMAGE_REQUEST_COST_KOPECKS = 1000; // 10 ₽
 
+/* Доработка уже созданной этикетки: до LABEL_MAX_REVISIONS правок на одну этикетку,
+   каждая стоит LABEL_REVISION_COST_KOPECKS. Дешевле новой генерации: модель правит
+   готовую картинку, а не рисует с нуля. Бесплатного лимита нет — как и у самой этикетки. */
+export const LABEL_REVISION_COST_KOPECKS = 500; // 5 ₽
+export const LABEL_MAX_REVISIONS = 3;
+
 export type AiCharge = { wasFree: boolean; costKopecks: number };
 
 /**
@@ -74,29 +80,52 @@ export async function chargeAiRequest(userId: number): Promise<AiCharge> {
  * изображений (этикетки), где операция заметно дороже обычного текстового запроса.
  */
 export async function chargeImageRequest(userId: number): Promise<AiCharge> {
+  return chargeFromBalance(
+    userId,
+    IMAGE_REQUEST_COST_KOPECKS,
+    "image_request",
+    `Для генерации изображения нужно минимум ${IMAGE_REQUEST_COST_KOPECKS / 100} ₽ на балансе (бесплатных генераций нет — эта операция дороже обычного запроса). Пополните баланс в личном кабинете.`
+  );
+}
+
+/** Списание за одну правку готовой этикетки — только с баланса, без бесплатного лимита. */
+export async function chargeLabelRevision(userId: number): Promise<AiCharge> {
+  return chargeFromBalance(
+    userId,
+    LABEL_REVISION_COST_KOPECKS,
+    "label_revision",
+    `Для правки этикетки нужно минимум ${LABEL_REVISION_COST_KOPECKS / 100} ₽ на балансе. Пополните баланс в личном кабинете.`
+  );
+}
+
+/* Общая часть: атомарный условный UPDATE баланса (см. пояснение у chargeAiRequest)
+   + запись в историю операций. Отказ — понятное сообщение, а не «внутренняя ошибка». */
+async function chargeFromBalance(
+  userId: number,
+  costKopecks: number,
+  reason: string,
+  insufficientMessage: string
+): Promise<AiCharge> {
   const db = getDb();
 
   const [balanceResult] = await db
     .update(users)
-    .set({ balanceKopecks: sql`${users.balanceKopecks} - ${IMAGE_REQUEST_COST_KOPECKS}` })
-    .where(and(eq(users.id, userId), gte(users.balanceKopecks, IMAGE_REQUEST_COST_KOPECKS)));
+    .set({ balanceKopecks: sql`${users.balanceKopecks} - ${costKopecks}` })
+    .where(and(eq(users.id, userId), gte(users.balanceKopecks, costKopecks)));
 
   if (balanceResult.affectedRows > 0) {
     const [user] = await db.select({ balanceKopecks: users.balanceKopecks }).from(users).where(eq(users.id, userId));
     await db.insert(transactions).values({
       userId,
       type: "debit",
-      amountKopecks: -IMAGE_REQUEST_COST_KOPECKS,
+      amountKopecks: -costKopecks,
       balanceAfter: user?.balanceKopecks ?? 0,
-      meta: { reason: "image_request" },
+      meta: { reason },
     });
-    return { wasFree: false, costKopecks: IMAGE_REQUEST_COST_KOPECKS };
+    return { wasFree: false, costKopecks };
   }
 
-  throw new TRPCError({
-    code: "FORBIDDEN",
-    message: `Для генерации изображения нужно минимум ${IMAGE_REQUEST_COST_KOPECKS / 100} ₽ на балансе (бесплатных генераций нет — эта операция дороже обычного запроса). Пополните баланс в личном кабинете.`,
-  });
+  throw new TRPCError({ code: "FORBIDDEN", message: insufficientMessage });
 }
 
 /**
@@ -194,5 +223,9 @@ export async function getImageAccessState(userId: number) {
     balanceKopecks,
     costKopecks: IMAGE_REQUEST_COST_KOPECKS,
     allowed: balanceKopecks >= IMAGE_REQUEST_COST_KOPECKS,
+    // Правка готовой этикетки — своя цена и свой порог баланса
+    revisionCostKopecks: LABEL_REVISION_COST_KOPECKS,
+    canRevise: balanceKopecks >= LABEL_REVISION_COST_KOPECKS,
+    maxRevisions: LABEL_MAX_REVISIONS,
   };
 }

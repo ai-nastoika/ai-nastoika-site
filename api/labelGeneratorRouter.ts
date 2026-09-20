@@ -1,13 +1,48 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createRouter, authedQuery } from "./middleware";
-import { chargeImageRequest, getImageAccessState, logAiUsage, logAiFailure, refundAiRequest } from "./lib/aiAccess";
-import { generateImage, ensureImageBase64 } from "./lib/imageClient";
+import {
+  chargeImageRequest,
+  chargeLabelRevision,
+  getImageAccessState,
+  logAiUsage,
+  logAiFailure,
+  refundAiRequest,
+  LABEL_MAX_REVISIONS,
+} from "./lib/aiAccess";
+import { generateImage, editImage, ensureImageBase64 } from "./lib/imageClient";
+import { compressImageIfNeeded } from "./lib/imageCompress";
 import { saveConversationTurn } from "./lib/aiConversations";
 import { getDb } from "./queries/connection";
 import { generatedLabels } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, gt, lt, sql } from "drizzle-orm";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
+const REVISION_REQUEST_TYPE = "label_revision"; // 14 симв., укладывается в varchar(20)
+
+/* Формат картинки определяем по первым байтам, а не по имени: в базе лежит чистый base64
+   от модели (обычно PNG), а /images/edits требует честный Content-Type файла. */
+function detectImageMime(buf: Buffer): string {
+  if (buf.length > 3 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e) return "image/png";
+  if (buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf.length > 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  return "image/png";
+}
+
+/* Промпт правки: свободный текст пользователя + жёсткая рамка «меняй только то, о чём просят».
+   Без неё модель при редактировании любит перерисовывать всё подряд и портить надписи.
+   Формулировка намеренно универсальна — она подходит и для плоской этикетки «с нуля»,
+   и для картинки бутылки, сделанной по фото пользователя. */
+function buildRevisionPrompt(instruction: string): string {
+  return (
+    "Edit this image according to the user's instruction below. " +
+    "Keep everything else exactly as it is — the composition, proportions, colors, style and all existing text — " +
+    "and change only what the instruction asks for. " +
+    "Do not add any new text, logos or watermarks unless the instruction asks for it. " +
+    "All text on the image must stay fully legible and spelled exactly as it is now, unless the instruction is to change it. " +
+    `Instruction: ${instruction.trim()}`
+  );
+}
 
 /* Три ориентации вместо типа бутылки — жёстко привязаны к реально поддерживаемым
    API размерам (см. lib/imageClient.ts), поэтому пропорция гарантированно
@@ -116,12 +151,14 @@ export const labelGeneratorRouter = createRouter({
       // Описание сохраняем полностью, без обрезки (text, не varchar).
       const db = getDb();
       const imageData = imageBase64;
-      await db.insert(generatedLabels).values({
+      const [inserted] = await db.insert(generatedLabels).values({
         userId: ctx.user.id,
         title: input.title,
         description: input.description,
         imageBase64: imageData,
       });
+      // id нужен фронтенду, чтобы потом отправить ИМЕННО эту этикетку на правки
+      const labelId = Number(inserted.insertId);
 
       // Держим только 3 последние на пользователя — старые удаляем.
       const existing = await db
@@ -158,7 +195,115 @@ export const labelGeneratorRouter = createRouter({
       });
 
       const access = await getImageAccessState(ctx.user.id);
-      return { image: { imageBase64 }, costKopecks: charge.costKopecks, access };
+      return { image: { imageBase64 }, costKopecks: charge.costKopecks, access, labelId, revisionsLeft: LABEL_MAX_REVISIONS };
+    }),
+
+  /* ── Доработка готовой этикетки свободным текстом ──
+     Берём ПОСЛЕДНЮЮ версию картинки из нашей базы (не с клиента — ей нельзя доверять
+     и незачем гонять мегабайты туда-обратно), отправляем в /images/edits вместе с
+     инструкцией и заменяем сохранённую версию на новую. До LABEL_MAX_REVISIONS правок
+     на этикетку, каждая — 5 ₽. Порядок важен (см. комментарии ниже): сначала
+     резервируем номер правки, потом списываем деньги, потом обращаемся к ИИ —
+     и при любом сбое откатываем и то, и другое. */
+  revise: authedQuery
+    .input(
+      z.object({
+        labelId: z.number().int().positive(),
+        instruction: z.string().trim().min(3, "Напишите, что нужно изменить (хотя бы пару слов)").max(400, "Слишком длинно — не больше 400 символов"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const userId = ctx.user.id;
+      const owned = and(eq(generatedLabels.id, input.labelId), eq(generatedLabels.userId, userId));
+
+      const [label] = await db.select().from(generatedLabels).where(owned);
+      if (!label) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Эту этикетку не удалось найти — возможно, она уже вытеснена более новыми (мы храним три последние).",
+        });
+      }
+
+      // Подготавливаем исходную картинку ДО списания денег: если с ней что-то не так — человек ничего не теряет.
+      let sourceBuffer: Buffer;
+      try {
+        let raw = label.imageBase64;
+        // Совсем старые записи могли хранить ссылку вместо base64 — забираем картинку себе.
+        if (raw.startsWith("http")) raw = await ensureImageBase64({ imageUrl: raw });
+        raw = raw.replace(/^data:image\/[a-zA-Z+.-]+;base64,/, "");
+        sourceBuffer = Buffer.from(raw, "base64");
+        if (sourceBuffer.length < 100) throw new Error("empty image");
+      } catch (err) {
+        console.error("[labelGenerator.revise] не удалось прочитать исходную картинку:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Не удалось открыть сохранённую этикетку для правки. Деньги не списаны — попробуйте создать этикетку заново.",
+        });
+      }
+
+      // 1) Резервируем номер правки атомарным условным UPDATE — параллельные запросы не пройдут лимит.
+      const [reserve] = await db
+        .update(generatedLabels)
+        .set({ revisions: sql`${generatedLabels.revisions} + 1` })
+        .where(and(owned, lt(generatedLabels.revisions, LABEL_MAX_REVISIONS)));
+      if (reserve.affectedRows === 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Для этой этикетки все ${LABEL_MAX_REVISIONS} правки уже использованы. Скачайте её или создайте новую.`,
+        });
+      }
+      const releaseSlot = () =>
+        db
+          .update(generatedLabels)
+          .set({ revisions: sql`${generatedLabels.revisions} - 1` })
+          .where(and(owned, gt(generatedLabels.revisions, 0)));
+
+      // 2) Списываем 5 ₽ ДО обращения к ИИ (при нехватке средств — вернём номер правки).
+      let charge: Awaited<ReturnType<typeof chargeLabelRevision>>;
+      try {
+        charge = await chargeLabelRevision(userId);
+      } catch (err) {
+        await releaseSlot();
+        throw err;
+      }
+
+      // 3) Сама правка. Любой сбой → возврат денег и номера правки.
+      let newImageBase64: string;
+      try {
+        const mime = detectImageMime(sourceBuffer);
+        const prepared = await compressImageIfNeeded(sourceBuffer, mime);
+        const ext = prepared.mimeType === "image/png" ? "png" : prepared.mimeType === "image/webp" ? "webp" : "jpg";
+        const image = await editImage(buildRevisionPrompt(input.instruction), prepared.buffer, `label.${ext}`, prepared.mimeType);
+        newImageBase64 = await ensureImageBase64(image);
+      } catch (err) {
+        await refundAiRequest(userId, charge);
+        await releaseSlot();
+        await logAiFailure({ userId, requestType: REVISION_REQUEST_TYPE });
+        throw err;
+      }
+
+      await logAiUsage({ userId, requestType: REVISION_REQUEST_TYPE, tokensUsed: 0, charge });
+
+      // Сохраняем новую версию как текущую. Что именно просили — дописываем в описание,
+      // чтобы в личном кабинете было видно историю правок этой этикетки.
+      const [after] = await db.select({ revisions: generatedLabels.revisions }).from(generatedLabels).where(owned);
+      const revisionNo = after?.revisions ?? 1;
+      await db
+        .update(generatedLabels)
+        .set({
+          imageBase64: newImageBase64,
+          description: sql`CONCAT(COALESCE(${generatedLabels.description}, ''), ${`\nПравка ${revisionNo}: ${input.instruction}`})`,
+        })
+        .where(owned);
+
+      const access = await getImageAccessState(userId);
+      return {
+        image: { imageBase64: newImageBase64 },
+        revisionsLeft: Math.max(0, LABEL_MAX_REVISIONS - revisionNo),
+        costKopecks: charge.costKopecks,
+        access,
+      };
     }),
 
   /* Последние 3 сгенерированные этикетки — для личного кабинета */
