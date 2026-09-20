@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { Sparkles, Send, MessageCircleQuestion, LogIn, Wallet } from "lucide-react";
+import { Sparkles, Send, MessageCircleQuestion, Wallet } from "lucide-react";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import { AiHonestNote, AiActionNote, AiPreviewCta, ANSWER_LABEL, PREVIEW_LABEL } from "@/components/AiHints";
 
 type ChatMessage = { role: "user" | "assistant"; content: string; similarRecipes?: { id: number; slug: string; title: string }[] };
 
@@ -13,6 +14,112 @@ const SUGGESTIONS = [
   "Чем можно заменить этот ингредиент?",
   "Как сделать настойку слаще?",
 ];
+
+/* Гостевая версия — для посетителей без регистрации: один краткий ответ по рецепту
+   (сервер режет его по промпту, см. api/lib/aiPreview.ts) и приглашение зарегистрироваться. */
+function GuestRecipeAsk({ recipeId }: { recipeId: number }) {
+  const [question, setQuestion] = useState("");
+  const [asked, setAsked] = useState<string | null>(null);
+  const preview = trpc.recipeConsult.preview.useMutation();
+
+  function send(text: string) {
+    const q = text.trim();
+    if (!q || preview.isPending) return;
+    setAsked(q);
+    preview.mutate({ recipeId, question: q });
+  }
+
+  function askAnother() {
+    preview.reset();
+    setAsked(null);
+    setQuestion("");
+  }
+
+  return (
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <h3 className="text-lg font-bold flex items-center gap-2 mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+        <Sparkles size={20} style={{ color: "var(--accent)" }} />
+        Спросить винокура про этот рецепт
+      </h3>
+
+      {asked === null ? (
+        <>
+          <p className="text-base mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+            Что-то непонятно в рецепте? Нажмите на вопрос или напишите свой — например, можно ли заменить ингредиент,
+            сократить выдержку или настоять на другом спирте.
+          </p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => { setQuestion(s); send(s); }}
+                className="text-base px-4 py-2 rounded-full transition-all hover:opacity-70"
+                style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send(question)}
+              placeholder="Например: можно настоять на спирту вместо водки?"
+              maxLength={300}
+              className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)" }}
+            />
+            <button
+              onClick={() => send(question)}
+              disabled={!question.trim()}
+              aria-label="Спросить"
+              className="rounded-xl px-4 flex items-center justify-center text-white disabled:opacity-50"
+              style={{ background: "var(--accent)" }}
+            >
+              <Send size={18} />
+            </button>
+          </div>
+          <AiActionNote isLoggedIn={false} className="mt-2" />
+        </>
+      ) : (
+        <div className="space-y-3">
+          <div className="rounded-xl p-4 text-base" style={{ background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+            {asked}
+          </div>
+
+          {preview.isPending && <BottleThinkingIndicator />}
+
+          {preview.error && (
+            <div>
+              <p className="text-base mb-2" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>{preview.error.message}</p>
+              <button onClick={askAnother} className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                Попробовать ещё раз
+              </button>
+            </div>
+          )}
+
+          {preview.data && (
+            <>
+              <div className="rounded-xl p-4 text-base" style={{ background: "var(--bg-secondary)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+                <div className="flex items-center gap-1 mb-1 text-sm font-medium" style={{ color: "var(--accent)" }}>
+                  <MessageCircleQuestion size={14} /> {PREVIEW_LABEL}
+                </div>
+                {preview.data.answer}
+              </div>
+              <AiPreviewCta whatIsInside="подробный разбор: варианты замены, пропорции и влияние на срок выдержки" />
+              <AiHonestNote />
+              <button onClick={askAnother} className="text-sm underline" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Задать другой вопрос
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
   const { isLoggedIn } = useAuth();
@@ -84,25 +191,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
   }
 
   if (!isLoggedIn) {
-    return (
-      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
-        <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          Консультация ИИ по этому рецепту
-        </h3>
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Что-то не до конца понятно? Спросите — можно ли заменить ингредиент, сократить выдержку, настоять на другом спирте.
-          Доступно после входа в аккаунт.
-        </p>
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
-          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          <LogIn size={16} /> Войти, чтобы спросить
-        </Link>
-      </div>
-    );
+    return <GuestRecipeAsk recipeId={recipeId} />;
   }
 
   const limitReached = limitInfo ? !limitInfo.allowed : false;
@@ -114,7 +203,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           <Sparkles size={20} style={{ color: "var(--accent)" }} />
-          Консультация ИИ по рецепту
+          Спросить винокура про этот рецепт
         </h3>
         {limitInfo && (
           <div className="flex items-center gap-3">
@@ -125,9 +214,9 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
             )}
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                <>Бесплатных советов осталось: {limitInfo.freeRequestsLeft} из 5</>
               ) : (
-                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за совет</>
               )}
             </span>
           </div>
@@ -169,7 +258,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
             >
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
-                  <MessageCircleQuestion size={14} /> Ответ ИИ
+                  <MessageCircleQuestion size={14} /> {ANSWER_LABEL}
                 </div>
               )}
               {m.content}
@@ -201,7 +290,7 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
 
       {limitReached ? (
         <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
           <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
@@ -228,6 +317,16 @@ export default function RecipeAiConsult({ recipeId }: { recipeId: number }) {
           </button>
         </div>
       )}
+      {!limitReached && (
+        <AiActionNote
+          isLoggedIn
+          freeLeft={limitInfo?.freeRequestsLeft}
+          costRub={costRub}
+          balanceRub={balanceRub}
+          className="mt-2"
+        />
+      )}
+      {messages.length > 0 && <AiHonestNote className="mt-3" />}
     </div>
   );
 }

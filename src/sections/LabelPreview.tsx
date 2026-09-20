@@ -13,7 +13,7 @@ export default function LabelPreview() {
           >
             <img
               src="/label-preview.jpg"
-              alt="Этикетка, сгенерированная ИИ"
+              alt="Пример готовой этикетки"
               className="w-full h-full object-cover"
             />
           </div>
@@ -32,7 +32,7 @@ export default function LabelPreview() {
             </h2>
             <p className="text-base sm:text-lg mb-7" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
               Опишите стиль словами — от классики до киберпанка — и впишите текст: название, подпись,
-              крепость, дату. ИИ нарисует готовую картинку прямо с вашими надписями — останется скачать
+              крепость, дату. Мы нарисуем готовую картинку прямо с вашими надписями — останется скачать
               и распечатать самому или отправить файл в типографию.
             </p>
             <Link

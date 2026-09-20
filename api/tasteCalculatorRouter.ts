@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "./middleware";
+import { createRouter, authedQuery, publicQuery } from "./middleware";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
 import { findSimilarRecipesByText, formatRecipesForPrompt } from "./lib/recipeRetrieval";
+import { assertPreviewAllowed, PREVIEW_RULES, runPreview } from "./lib/aiPreview";
 
 /* Свободнотекстовый калькулятор вкуса — на сайте называется «Прогноз настойки»
    (вкладка /tools?tool=forecast). requestType в БД оставили старым,
@@ -54,7 +55,30 @@ function buildSystemPrompt(similarRecipesBlock: string): string {
 ${similarRecipesBlock}`;
 }
 
+/* Пробный (краткий) ответ для посетителей без регистрации — см. api/lib/aiPreview.ts */
+const PREVIEW_SYSTEM_PROMPT = `Ты — опытный и дружелюбный мастер домашних настоек сайта «Ай, настойка!». Человек описывает
+идею напитка (ингредиенты под рукой или желаемый вкус). Скажи, что, вероятно, получится: вкус, цвет, аромат.
+${PREVIEW_RULES}`;
+
 export const tasteCalculatorRouter = createRouter({
+  /* ── Пробный краткий ответ без регистрации (лимиты — в aiPreview.ts) ── */
+  preview: publicQuery
+    .input(z.object({ message: z.string().min(1).max(300) }))
+    .mutation(async ({ input, ctx }) => {
+      assertPreviewAllowed(ctx.req);
+
+      let similarForLinks: { id: number; slug: string; title: string }[] = [];
+      try {
+        const similar = await findSimilarRecipesByText(input.message);
+        similarForLinks = similar.map((r) => ({ id: r.id, slug: r.slug, title: r.title }));
+      } catch (err) {
+        console.error("[tasteCalculator.preview] similar recipes lookup failed:", err);
+      }
+
+      const answer = await runPreview(PREVIEW_SYSTEM_PROMPT, input.message);
+      return { answer, similarRecipes: similarForLinks };
+    }),
+
   /* ── Текущий доступ: сколько бесплатных осталось и хватает ли баланса ── */
   checkLimit: authedQuery.query(async ({ ctx }) => {
     return getAiAccessState(ctx.user.id);

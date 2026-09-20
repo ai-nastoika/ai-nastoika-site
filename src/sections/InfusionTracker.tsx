@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import { AiHonestNote, AiActionNote, ANSWER_LABEL } from "@/components/AiHints";
 import {
   Plus,
   Droplet,
@@ -376,7 +377,7 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-/* ─────────────────────────── ИИ-консультант по трекеру ─────────────────────────── */
+/* ─────────────────────────── «Подсказки по настаиванию» (консультант по трекеру) ─────────────────────────── */
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -444,7 +445,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           <Sparkles size={20} style={{ color: "var(--accent)" }} />
-          Спросить консультанта
+          Подсказки по настаиванию
         </h3>
         {limitInfo && (
           <div className="flex items-center gap-3">
@@ -455,9 +456,9 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
             )}
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
               {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                <>Бесплатных советов осталось: {limitInfo.freeRequestsLeft} из 5</>
               ) : (
-                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за совет</>
               )}
             </span>
           </div>
@@ -466,7 +467,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
 
       {messages.length === 0 && (
         <p className="text-sm mb-3" style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          Отвечает с учётом данных именно этой настойки — на каком дне, что уже сделано, что в заметках.
+          Подскажет с учётом именно этой настойки: на каком она дне, что уже сделано, что записано в заметках.
         </p>
       )}
 
@@ -480,7 +481,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
             }>
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
-                  <MessageCircleQuestion size={14} /> Ответ ИИ
+                  <MessageCircleQuestion size={14} /> {ANSWER_LABEL}
                 </div>
               )}
               {m.content}
@@ -495,7 +496,7 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
 
       {limitReached ? (
         <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)" }}>
-          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
           <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
@@ -515,6 +516,16 @@ function InfusionAiConsult({ infusionId }: { infusionId: number }) {
           </button>
         </div>
       )}
+      {!limitReached && (
+        <AiActionNote
+          isLoggedIn
+          freeLeft={limitInfo?.freeRequestsLeft}
+          costRub={costRub}
+          balanceRub={balanceRub}
+          className="mt-2"
+        />
+      )}
+      {messages.length > 0 && <AiHonestNote className="mt-3" />}
     </div>
   );
 }

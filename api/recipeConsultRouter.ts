@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "./middleware";
+import { createRouter, authedQuery, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { recipes, recipeIngredients, recipeSteps } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "
 import { callChatCompletion } from "./lib/aiClient";
 import { saveConversationTurn, getLatestConversation } from "./lib/aiConversations";
 import { findSimilarRecipesByProfile, formatRecipesForPrompt } from "./lib/recipeRetrieval";
+import { assertPreviewAllowed, PREVIEW_RULES, runPreview } from "./lib/aiPreview";
 
 /* Тарификация: 5 бесплатных запросов на аккаунт (разово), дальше — 2 ₽ за
    запрос с баланса. Вся логика списания — в api/lib/aiAccess.ts, общая
@@ -53,6 +54,25 @@ ${recipe.tastingDescription ? `\nОписание вкуса: ${recipe.tastingDe
 }
 
 export const recipeConsultRouter = createRouter({
+  /* ── Пробный краткий ответ по рецепту без регистрации (лимиты — в aiPreview.ts) ── */
+  preview: publicQuery
+    .input(z.object({ recipeId: z.number(), question: z.string().min(1).max(300) }))
+    .mutation(async ({ input, ctx }) => {
+      assertPreviewAllowed(ctx.req);
+
+      const db = getDb();
+      const recipe = await db.query.recipes.findFirst({ where: eq(recipes.id, input.recipeId) });
+      if (!recipe) throw new Error("Рецепт не найден");
+      const ingredients = await db.select().from(recipeIngredients).where(eq(recipeIngredients.recipeId, input.recipeId));
+      const steps = await db.select().from(recipeSteps).where(eq(recipeSteps.recipeId, input.recipeId));
+
+      // Тот же промпт с данными рецепта, что и в полной консультации, + правила краткого ответа
+      // (они идут последними и перекрывают "3-6 предложений" из базового промпта).
+      const system = `${buildSystemPrompt(recipe, ingredients, steps, "")}\n${PREVIEW_RULES}\n- Здесь «пропорции и сроки» означает — не расписывай их подробно; если вопрос про замену, назови саму замену коротко.`;
+      const answer = await runPreview(system, input.question);
+      return { answer };
+    }),
+
   /* ── Текущий доступ: сколько бесплатных осталось и хватает ли баланса ── */
   checkLimit: authedQuery.query(async ({ ctx }) => {
     return getAiAccessState(ctx.user.id);

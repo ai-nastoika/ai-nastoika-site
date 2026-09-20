@@ -4,6 +4,7 @@ import PageHero from "@/components/PageHero";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import { AiHonestNote, AiActionNote, ANSWER_LABEL } from "@/components/AiHints";
 import {
   Sparkles,
   History,
@@ -178,7 +179,7 @@ function ProcessOverviewDiagram() {
   );
 }
 
-/* ─── Рабочий ИИ-советник по этапу — тот же паттерн, что RecipeAiConsult ─── */
+/* ─── «Спросить винокура» по этапу — тот же паттерн, что RecipeAiConsult ─── */
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle: string }) {
@@ -253,14 +254,20 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
       <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
         <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
         <h3 className="text-lg font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-          ИИ-советник по разделу «{stageTitle}»
+          Спросить винокура: «{stageTitle}»
         </h3>
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Опишите свою ситуацию — оборудование, сырьё, что пошло не так — и получите конкретный совет. Доступно после входа в аккаунт.
+        <p className="text-base mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+          Расскажите про своё оборудование, сырьё и что пошло не так — и получите конкретный совет именно под вашу ситуацию.
+          Для этого нужна бесплатная регистрация: первые 5 советов в подарок.
         </p>
-        <Link to="/login" className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
-          <LogIn size={16} /> Войти, чтобы спросить
-        </Link>
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <Link to="/login?mode=register" className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-base font-medium text-white" style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}>
+            <LogIn size={18} /> Зарегистрироваться бесплатно
+          </Link>
+          <Link to="/login" className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+            Уже есть аккаунт? Войти
+          </Link>
+        </div>
       </div>
     );
   }
@@ -274,7 +281,7 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           <Sparkles size={20} style={{ color: "var(--accent)" }} />
-          Советник по разделу «{stageTitle}»
+          Спросить винокура: «{stageTitle}»
         </h3>
         {limitInfo && (
           <div className="flex items-center gap-3">
@@ -285,9 +292,9 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
             )}
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                <>Бесплатных советов осталось: {limitInfo.freeRequestsLeft} из 5</>
               ) : (
-                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за совет</>
               )}
             </span>
           </div>
@@ -314,7 +321,7 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
             >
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
-                  <MessageCircleQuestion size={14} /> Ответ ИИ
+                  <MessageCircleQuestion size={14} /> {ANSWER_LABEL}
                 </div>
               )}
               {m.content}
@@ -329,7 +336,7 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
 
       {limitReached ? (
         <div className="text-sm text-center py-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
           <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
@@ -356,6 +363,16 @@ function DistillerAiConsult({ stage, stageTitle }: { stage: StageId; stageTitle:
           </button>
         </div>
       )}
+      {!limitReached && (
+        <AiActionNote
+          isLoggedIn
+          freeLeft={limitInfo?.freeRequestsLeft}
+          costRub={costRub}
+          balanceRub={balanceRub}
+          className="mt-2"
+        />
+      )}
+      {messages.length > 0 && <AiHonestNote className="mt-3" />}
     </div>
   );
 }
@@ -492,22 +509,23 @@ export default function VinokurPage() {
             })}
           </div>
 
-          {/* ИИ-советник: сначала честный посыл про уникальность процесса, потом сам чат */}
+          {/* «Спросить винокура»: сначала честный посыл про уникальность процесса, потом сам чат */}
           <div className="mt-10 space-y-4">
             <div className="rounded-2xl p-6 flex gap-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <Sparkles size={24} style={{ color: "var(--accent)", flexShrink: 0 }} />
               <div>
                 <h3 className="text-base font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  Зачем здесь ИИ-советник
+                  Зачем здесь «Спросить винокура»
                 </h3>
                 <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
                   Схема получения дистиллята в общих чертах стандартна, но на практике каждый винокур выстраивает
                   свой собственный процесс — конкретные дрожжи, модель аппарата, самодельные насадки, свой способ
                   угольной очистки и десяток других нюансов. Уместить все эти тонкости в единый мануал невозможно,
                   да и бессмысленно — у каждого своя комбинация. Поэтому вместо ещё одной универсальной инструкции
-                  мы сделали ИИ-помощника с полной базой знаний по процессу, который разберёт именно вашу ситуацию
-                  и даст конкретный совет под неё. Но помните: это всё-таки ИИ, и доверять ему на 100% не стоит —
-                  относитесь к ответам как к мнению опытного собеседника, а не как к истине в последней инстанции.
+                  мы сделали помощника: компьютерную программу с полной базой знаний по процессу. Вы описываете свою
+                  ситуацию — она даёт конкретный совет именно под неё. Но помните: это всё-таки программа, и доверять
+                  ей на 100% не стоит — относитесь к ответам как к мнению опытного собеседника, а не как к истине в
+                  последней инстанции. Последнее слово всегда за вами.
                 </p>
               </div>
             </div>

@@ -27,7 +27,7 @@ const steps: { icon: typeof Wand2; title: string; text: string }[] = [
   {
     icon: ImagePlus,
     title: "Добавьте фото и текст",
-    text: "По желанию загрузите фото человека и впишите надписи — имя, дату, крепость, поздравление. Всё это ИИ впишет в композицию, а не приклеит поверх.",
+    text: "По желанию загрузите фото человека и впишите надписи — имя, дату, крепость, поздравление. Всё это будет вписано в рисунок этикетки, а не приклеено поверх.",
   },
   {
     icon: Download,
@@ -40,7 +40,7 @@ const points: { icon: typeof Wand2; title: string; text: string }[] = [
   {
     icon: ImagePlus,
     title: "Любое фото из личного альбома",
-    text: "Портрет именинника, кадр со свадьбы, семейное фото с дачи — ИИ аккуратно вписывает изображение человека в композицию этикетки и обрабатывает его под выбранный стиль, от акварели до строгой графики.",
+    text: "Портрет именинника, кадр со свадьбы, семейное фото с дачи — Фото аккуратно вписывается в композицию этикетки и оформляется под выбранный стиль, от акварели до строгой графики.",
   },
   {
     icon: Type,
@@ -50,7 +50,7 @@ const points: { icon: typeof Wand2; title: string; text: string }[] = [
   {
     icon: Sparkles,
     title: "Сюжет и декор под повод",
-    text: "День рождения, Новый год, юбилей, просто подарок другу — опишите событие, и ИИ сам придумает уместные элементы оформления: от растительных орнаментов до праздничной атрибутики.",
+    text: "День рождения, Новый год, юбилей, просто подарок другу — опишите событие — и программа сама подберёт уместные элементы оформления: от растительных орнаментов до праздничной атрибутики.",
   },
 ];
 
@@ -146,7 +146,7 @@ export default function LabelIntroPage() {
             Как это работает
           </h2>
           <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-            Три простых шага — от задумки до готового файла за пару минут.
+            Три простых шага — от задумки до готового файла.
           </p>
           <div className="grid sm:grid-cols-3 gap-6">
             {steps.map((s, i) => {
@@ -183,8 +183,8 @@ export default function LabelIntroPage() {
               Примеры этикеток
             </h2>
             <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-              Несколько удачных генераций для вдохновения — нажмите на любую, чтобы посмотреть крупнее
-              и увидеть, каким описанием она была получена.
+              Несколько готовых этикеток для вдохновения — нажмите на любую, чтобы посмотреть крупнее
+              и увидеть, как она была описана.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {examples.map((ex) => (
@@ -210,15 +210,15 @@ export default function LabelIntroPage() {
         </section>
       )}
 
-      {/* Три тезиса — что умеет ИИ */}
+      {/* Три тезиса — что можно сделать с этикеткой */}
       <section className="py-16 sm:py-20">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Что умеет ИИ-художник
+            Что можно сделать с этикеткой
           </h2>
           <p className="text-base text-center max-w-2xl mx-auto mb-12" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-            Каждый может сгенерировать этикетку по своему вкусу и желанию — приуроченную к любому
-            событию или с изображением любого близкого человека.
+            Каждый может заказать этикетку по своему вкусу — под любое событие или с портретом
+            любого близкого человека.
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {points.map((p) => {
@@ -248,8 +248,8 @@ export default function LabelIntroPage() {
             Готовы попробовать?
           </h2>
           <p className="text-base mb-8" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.7 }}>
-            Опишите желаемый стиль, загрузите фото при желании, впишите текст — и получите готовую
-            этикетку за пару минут.
+            Опишите желаемый стиль, при желании загрузите фото, впишите текст — и получите готовую
+            этикетку. Спишется 10 ₽ с баланса личного кабинета.
           </p>
           <Link
             to="/label/generate"
@@ -283,7 +283,7 @@ export default function LabelIntroPage() {
                 </p>
               )}
               <p className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                <span style={{ color: "var(--text-muted)" }}>Промпт: </span>{lightbox.prompt}
+                <span style={{ color: "var(--text-muted)" }}>Описание: </span>{lightbox.prompt}
               </p>
             </div>
           </div>

@@ -246,8 +246,8 @@ export default function ProfilePage() {
 
   const TX_LABELS: Record<string, { label: string; color: string }> = {
     topup: { label: "Пополнение баланса", color: "#16a34a" },
-    debit: { label: "Списание за ИИ-запрос", color: "#dc2626" },
-    refund: { label: "Возврат за неудавшийся запрос", color: "#16a34a" },
+    debit: { label: "Списание за совет или этикетку", color: "#dc2626" },
+    refund: { label: "Возврат за неудавшийся совет", color: "#16a34a" },
     topup_pending: { label: "Пополнение (ожидает оплаты)", color: "var(--text-muted)" },
   };
 
@@ -379,7 +379,7 @@ export default function ProfilePage() {
               { id: "recipes", label: "Рецепты", icon: BookOpen, value: savedRecipes.length },
               { id: "labels", label: "Этикетки", icon: Tag, value: myLabels?.length ?? 0 },
               { id: "places", label: "Места", icon: MapPin, value: savedPlaces.length },
-              { id: "history", label: "ИИ", icon: FlaskConical, value: userData.usedQueries },
+              { id: "history", label: "Советы", icon: FlaskConical, value: userData.usedQueries },
             ] as const).map((t) => {
               const active = tab === t.id;
               return (
@@ -676,7 +676,7 @@ export default function ProfilePage() {
             {myLabels && myLabels.length > 0 ? (
               <div>
                 <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  Сгенерированные ИИ ({myLabels.length}/3)
+                  Мои этикетки ({myLabels.length}/3)
                 </h3>
                 <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
                   {myLabels.map((genLabel) => {
@@ -782,7 +782,7 @@ export default function ProfilePage() {
         {/* AI + BALANCE */}
         {tab === "history" && (
           <div className="max-w-2xl mx-auto space-y-6">
-            <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>ИИ-запросы и баланс</h2>
+            <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>Советы и баланс</h2>
 
             {/* Текущее состояние */}
             <div className="rounded-xl p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -792,7 +792,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  {userData.freeRequestsLeft > 0 ? "Бесплатных запросов осталось" : `Цена запроса после бесплатных`}
+                  {userData.freeRequestsLeft > 0 ? "Бесплатных советов осталось" : `Цена совета после бесплатных`}
                 </span>
                 <span className="text-base font-medium" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
                   {userData.freeRequestsLeft > 0 ? `${userData.freeRequestsLeft} из 5` : `${userData.costRub} ₽`}
@@ -803,7 +803,7 @@ export default function ProfilePage() {
                   className="mt-4 rounded-lg px-4 py-3 text-base"
                   style={{ background: "#fef3c7", color: "#92400e", fontFamily: "var(--font-body)" }}
                 >
-                  Бесплатные запросы закончились, а баланса не хватает на новый ({userData.costRub} ₽). Пополните баланс ниже, чтобы продолжить пользоваться ИИ-консультантом.
+                  Бесплатные советы закончились, а на балансе не хватает на новый ({userData.costRub} ₽). Пополните баланс ниже, чтобы продолжить получать советы.
                 </div>
               )}
             </div>
@@ -900,26 +900,28 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* История диалогов с ИИ */}
+            {/* История советов */}
             <div>
-              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>История диалогов с ИИ</h3>
+              <h3 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>История советов</h3>
               {!aiConversations || aiConversations.length === 0 ? (
                 <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <MessageCircleQuestion size={40} style={{ color: "var(--text-muted)" }} className="mx-auto mb-3" />
-                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Диалогов с ИИ пока нет</div>
+                  <div className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Советов пока нет</div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {aiConversations.slice(0, visibleConversationsCount).map((conv) => {
                     const typeLabels: Record<string, string> = {
-                      recipe_consultation: "Консультация по рецепту",
-                      infusion_consult: "Консультант трекера",
-                      taste_calculator: "Прогноз настойки",
+                      recipe_consultation: "Спросить винокура — по рецепту",
+                      infusion_consult: "Подсказки по настаиванию",
+                      taste_calculator: "Что получится, если...",
                       taste_builder: "Калькулятор вкуса",
                       abv_ai_estimate: "Оценка крепости",
-                      label_image: "Генератор этикеток",
+                      label_image: "Этикетка на бутылку",
                     };
-                    const typeLabel = typeLabels[conv.requestType] ?? conv.requestType;
+                    const typeLabel =
+                      typeLabels[conv.requestType] ??
+                      (conv.requestType.startsWith("distiller_") ? "Спросить винокура — Винокур" : conv.requestType);
                     const isOpen = expandedConversationId === conv.id;
                     const messages = conv.messages as { role: "user" | "assistant"; content: string }[];
                     return (
@@ -1233,7 +1235,7 @@ export default function ProfilePage() {
                 {([
                   { key: "email", label: "Email-уведомления", desc: "Важные новости и обновления" },
                   { key: "newRecipes", label: "Новые рецепты", desc: "Когда появляется рецепт в избранной категории" },
-                  { key: "promos", label: "Акции и предложения", desc: "Скидки на расширенные запросы" },
+                  { key: "promos", label: "Акции и предложения", desc: "Скидки на платные советы" },
                 ] as const).map((n) => (
                   <div key={n.key} className="flex items-center justify-between">
                     <div>
@@ -1335,13 +1337,13 @@ export default function ProfilePage() {
                   Удалить аккаунт?
                 </h3>
                 <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
-                  Это необратимо: профиль, рецепты, комментарии, история ИИ-запросов и баланс будут удалены в течение 7 рабочих дней. Расскажите, почему уходите — это поможет нам стать лучше.
+                  Это необратимо: профиль, рецепты, комментарии, история советов и баланс будут удалены в течение 7 рабочих дней. Расскажите, почему уходите — это поможет нам стать лучше.
                 </p>
 
                 <div className="flex flex-wrap gap-2 mb-3">
                   {[
                     "Больше не пользуюсь сайтом",
-                    "Не устроило качество ИИ-ответов",
+                    "Не устроили советы программы",
                     "Беспокоюсь о приватности данных",
                     "Нашёл(-ла) альтернативу",
                     "Другое",

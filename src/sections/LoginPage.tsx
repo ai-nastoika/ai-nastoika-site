@@ -13,7 +13,7 @@ export default function LoginPage() {
   const resetToken = searchParams.get("token");
 
   const [mode, setMode] = useState<"login" | "register" | "verify-email" | "forgot-password" | "reset-password">(
-    () => (resetToken ? "reset-password" : "login")
+    () => (resetToken ? "reset-password" : searchParams.get("mode") === "register" ? "register" : "login")
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

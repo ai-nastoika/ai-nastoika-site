@@ -262,10 +262,10 @@ export default function LabelGeneratorPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-              Сгенерировать <span style={{ color: "var(--accent)" }}>этикетку</span> с ИИ
+              Этикетка <span style={{ color: "var(--accent)" }}>на бутылку</span>
             </h1>
             <p className="text-base mt-2" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-              Опишите пожелания одной формой — ИИ нарисует готовую печатную этикетку с вашим текстом.
+              Расскажите, какая нужна этикетка и что на ней написать, — мы нарисуем готовую картинку для печати с вашими надписями.
             </p>
           </div>
           <Link
@@ -308,7 +308,7 @@ export default function LabelGeneratorPage() {
                 fontFamily: "var(--font-body)",
               }}
             >
-              <Camera size={16} /> Своё фото + ИИ
+              <Camera size={16} /> Своё фото
             </button>
           </div>
 
@@ -318,7 +318,7 @@ export default function LabelGeneratorPage() {
                 Своё фото + описание
               </h3>
               <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                Загрузите фото своей бутылки (или любое референсное изображение) и опишите, что с ним сделать — ИИ отредактирует именно это фото, а не нарисует с нуля.
+                Загрузите фото своей бутылки (или любое подходящее изображение) и опишите, что с ним сделать — мы доработаем именно это фото, а не нарисуем новое с нуля.
               </p>
 
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelect} className="hidden" />
@@ -445,7 +445,7 @@ export default function LabelGeneratorPage() {
                   style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", minHeight: 90, fontFamily: "var(--font-body)" }}
                 />
                 <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                  Без лишних деталей — чем короче и яснее, тем меньше риск, что ИИ что-то испортит.
+                  Без лишних деталей: чем короче и яснее описание, тем аккуратнее получится результат.
                 </p>
               </div>
 
@@ -520,7 +520,7 @@ export default function LabelGeneratorPage() {
               Текст на этикетке
             </h3>
             <p className="text-xs mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              ИИ встроит эти надписи прямо в изображение при генерации.
+              Эти надписи будут вписаны прямо в рисунок этикетки.
             </p>
             <div className="space-y-4">
               <div>
@@ -584,7 +584,7 @@ export default function LabelGeneratorPage() {
               <div className="text-center py-4">
                 <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
                 <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-                  Генерация этикетки требует входа в аккаунт.
+                  Чтобы нарисовать этикетку, нужно войти в аккаунт — это бесплатно.
                 </p>
                 <Link
                   to="/login"
@@ -598,18 +598,18 @@ export default function LabelGeneratorPage() {
               <>
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <h3 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                    Сгенерировать
+                    Нарисовать этикетку
                   </h3>
                   {limitInfo && (
                     <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                      <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за генерацию
+                      <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за этикетку
                     </span>
                   )}
                 </div>
 
                 {limitReached ? (
                   <div className="text-sm mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    На балансе меньше {costRub} ₽ — генерация изображений без бесплатного лимита, дороже обычных запросов.{" "}
+                    На балансе меньше {costRub} ₽. Рисование этикетки платное с первого раза и стоит дороже обычного совета.{" "}
                     <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
                       Пополнить баланс
                     </Link>
@@ -622,7 +622,7 @@ export default function LabelGeneratorPage() {
                     style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                   >
                     {photoGenerating ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
-                    {photoGenerating ? "Обрабатываю фото..." : `Сгенерировать (${costRub} ₽)`}
+                    {photoGenerating ? "Обрабатываю фото..." : `Нарисовать этикетку (${costRub} ₽)`}
                   </button>
                 ) : (
                   <button
@@ -632,8 +632,14 @@ export default function LabelGeneratorPage() {
                     style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
                   >
                     <Sparkles size={22} />
-                    {generate.isPending ? "Генерирую..." : `Сгенерировать (${costRub} ₽)`}
+                    {generate.isPending ? "Рисую..." : `Нарисовать этикетку (${costRub} ₽)`}
                   </button>
+                )}
+                {!limitReached && (
+                  <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                    Спишется {costRub} ₽ с вашего баланса. Этикетка рисуется дольше обычного ответа — не закрывайте страницу.
+                    Если не получится, деньги вернутся.
+                  </p>
                 )}
                 {sourceMode === "scratch" && !labelTitle.trim() && !limitReached && (
                   <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Заполните название напитка выше.</p>
@@ -694,14 +700,14 @@ export default function LabelGeneratorPage() {
                 style={{ height: 320, background: "var(--bg-card)", border: "1px dashed var(--border)" }}
               >
                 <p className="text-sm text-center px-6" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Здесь появится готовая этикетка после генерации
+                  Здесь появится готовая этикетка
                 </p>
               </div>
             )}
 
             {generatedImage && (
               <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задана заранее{sourceMode === "photo" ? " при подготовке фото" : " в запросе к ИИ"}.
+                Показано и печатается целиком, без обрезки — пропорция «{activeOrientation.label.toLowerCase()}» задана заранее{sourceMode === "photo" ? " при подготовке фото" : " при подготовке описания"}.
               </p>
             )}
 

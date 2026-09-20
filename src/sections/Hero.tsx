@@ -34,7 +34,7 @@ export default function Hero() {
               style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.75 }}
             >
               Для тех, кто любит настойки — не только попробовать, но и сделать своими руками.
-              Рецепты, живые обсуждения, ИИ-инструменты и этикетки ручной работы.
+              Рецепты, живые обсуждения, умные подсказки и этикетки на любой повод.
             </p>
 
             <div className="flex flex-wrap gap-3">

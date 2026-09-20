@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "./middleware";
+import { createRouter, authedQuery, publicQuery } from "./middleware";
 import { chargeAiRequest, getAiAccessState, logAiUsage, refundAiRequest } from "./lib/aiAccess";
 import { callChatCompletion, type ChatMessage } from "./lib/aiClient";
 import { saveConversationTurn } from "./lib/aiConversations";
 import { findSimilarRecipesByText, formatRecipesForPrompt } from "./lib/recipeRetrieval";
+import { assertPreviewAllowed, PREVIEW_RULES, runPreview } from "./lib/aiPreview";
 
 /* Калькулятор вкуса — версия с кнопками (основа/ингредиенты/добавки вместо
    свободного текста). Старый свободнотекстовый сервис не удалён, а переехал
@@ -56,6 +57,19 @@ function buildSystemPrompt(similarRecipesBlock: string): string {
 ${similarRecipesBlock}`;
 }
 
+/* Пробный (краткий) ответ для посетителей без регистрации — см. api/lib/aiPreview.ts */
+const PREVIEW_SYSTEM_PROMPT = `Ты — опытный и дружелюбный мастер домашних настоек сайта «Ай, настойка!». Человек собрал
+набор для будущей настойки кнопками (основа, ингредиенты, добавки) — тебе он приходит готовым списком.
+Скажи, какой вкус, цвет и аромат, вероятно, получатся. Не начинай с пересказа набора — сразу к сути.
+${PREVIEW_RULES}`;
+
+const formulaInput = z.object({
+  base: z.string().min(1).max(40),
+  strength: z.number().min(10).max(96),
+  ingredients: z.array(z.string().min(1).max(40)).min(1).max(5),
+  additives: z.array(z.string().min(1).max(40)).max(3).default([]),
+});
+
 function buildFormulaText(input: { base: string; strength: number; ingredients: string[]; additives: string[] }): string {
   const lines = [`Основа: ${input.base}, ${input.strength}%.`, `Ингредиенты: ${input.ingredients.join(", ")}.`];
   if (input.additives.length > 0) lines.push(`Добавки: ${input.additives.join(", ")}.`);
@@ -68,16 +82,28 @@ export const tasteBuilderRouter = createRouter({
     return getAiAccessState(ctx.user.id);
   }),
 
+  /* ── Пробный краткий ответ без регистрации (лимиты — в aiPreview.ts) ── */
+  preview: publicQuery.input(formulaInput).mutation(async ({ input, ctx }) => {
+    assertPreviewAllowed(ctx.req);
+
+    const formulaText = buildFormulaText(input);
+
+    // Ссылки на похожие рецепты сайта — это обычный поиск по базе, без ИИ и без расходов
+    let similarForLinks: { id: number; slug: string; title: string }[] = [];
+    try {
+      const similar = await findSimilarRecipesByText(formulaText);
+      similarForLinks = similar.map((r) => ({ id: r.id, slug: r.slug, title: r.title }));
+    } catch (err) {
+      console.error("[tasteBuilder.preview] similar recipes lookup failed:", err);
+    }
+
+    const answer = await runPreview(PREVIEW_SYSTEM_PROMPT, formulaText);
+    return { answer, similarRecipes: similarForLinks };
+  }),
+
   /* ── Собрать набор кнопками → получить один ответ ИИ ── */
   generate: authedQuery
-    .input(
-      z.object({
-        base: z.string().min(1).max(40),
-        strength: z.number().min(10).max(96),
-        ingredients: z.array(z.string().min(1).max(40)).min(1).max(5),
-        additives: z.array(z.string().min(1).max(40)).max(3).default([]),
-      })
-    )
+    .input(formulaInput)
     .mutation(async ({ input, ctx }) => {
       // Списываем бесплатный запрос или 2 ₽ с баланса ДО обращения к ИИ.
       const charge = await chargeAiRequest(ctx.user.id);

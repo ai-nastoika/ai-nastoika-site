@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link, useSearchParams } from "react-router";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import PageHero from "@/components/PageHero";
+import { AiHonestNote, AiActionNote, AiPreviewCta, ANSWER_LABEL, PREVIEW_LABEL } from "@/components/AiHints";
 import {
   Wand2,
   Calculator,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 
 /* ============================================================
-   SUB-COMPONENT: Прогноз настойки (бывший «Калькулятор вкуса» — свободный
+   SUB-COMPONENT: «Что получится, если...» (бывший «Прогноз настойки», а до него «Калькулятор вкуса» — свободный
    текст). Основной калькулятор теперь кнопочный, см. TasteBuilder ниже —
    этот сервис оставлен вторым, для случаев, которые не покрыть кнопками.
    Требует логина — тарификация общая с recipeConsult/infusionConsult
@@ -29,11 +30,149 @@ import {
 type TasteChatMessage = { role: "user" | "assistant"; content: string; similarRecipes?: { id: number; slug: string; title: string }[] };
 
 const TASTE_SUGGESTIONS = [
-  "Есть вишня и мёд, что посоветуете?",
+  "Есть вишня и мёд — что получится?",
   "Хочу что-то освежающее и не приторное",
-  "Настаиваю на самогоне — с чем лучше сочетается?",
+  "Что получится, если настоять клюкву на самогоне?",
   "Как получить красивый янтарный цвет?",
 ];
+
+/* ============================================================
+   Гостевая версия «Что получится, если...» — для посетителей без регистрации.
+   Один короткий ответ (сервер режет его по промпту, см. api/lib/aiPreview.ts)
+   и приглашение зарегистрироваться ради полного. Никаких пустых экранов
+   «сначала войдите»: человек сразу видит, что получит.
+   ============================================================ */
+function SimilarRecipeLinks({ items }: { items: { id: number; slug: string; title: string }[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+      <span className="text-sm w-full mb-0.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+        Похожие рецепты на сайте:
+      </span>
+      {items.map((r) => (
+        <Link
+          key={r.id}
+          to={`/recipe/${r.slug}`}
+          className="text-sm px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+          style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+        >
+          {r.title}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function GuestForecast() {
+  const [message, setMessage] = useState("");
+  const [asked, setAsked] = useState<string | null>(null);
+  const preview = trpc.tasteCalculator.preview.useMutation();
+
+  function send(text: string) {
+    const m = text.trim();
+    if (!m || preview.isPending) return;
+    setAsked(m);
+    preview.mutate({ message: m });
+  }
+
+  function askAnother() {
+    preview.reset();
+    setAsked(null);
+    setMessage("");
+  }
+
+  return (
+    <div>
+      <label className="block text-base font-medium mb-3" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
+        Расскажите своими словами, что у вас есть или чего хочется
+      </label>
+
+      {asked === null ? (
+        <>
+          <p className="text-sm mb-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Нажмите на подходящую подсказку — или напишите своё:
+          </p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {TASTE_SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => { setMessage(s); send(s); }}
+                className="text-base px-4 py-2 rounded-full transition-all hover:opacity-70"
+                style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)", fontFamily: "var(--font-body)" }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send(message);
+                }
+              }}
+              placeholder="Например: вишня, ваниль, корица..."
+              rows={2}
+              maxLength={300}
+              className="flex-1 rounded-xl px-4 py-2.5 text-base outline-none resize-none"
+              style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}
+            />
+            <button
+              onClick={() => send(message)}
+              disabled={!message.trim()}
+              aria-label="Узнать, что получится"
+              className="rounded-xl px-4 py-2.5 flex items-center justify-center text-white disabled:opacity-50"
+              style={{ background: "var(--accent)" }}
+            >
+              <Wand2 size={18} />
+            </button>
+          </div>
+          <AiActionNote isLoggedIn={false} className="mt-2" />
+        </>
+      ) : (
+        <div className="space-y-3">
+          <div className="rounded-xl p-4 text-base" style={{ background: "var(--surface)", color: "var(--text-primary)", marginLeft: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+            {asked}
+          </div>
+
+          {preview.isPending && <BottleThinkingIndicator />}
+
+          {preview.error && (
+            <div>
+              <p className="text-base mb-2" style={{ color: "#dc2626", fontFamily: "var(--font-body)" }}>{preview.error.message}</p>
+              <button onClick={askAnother} className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
+                Попробовать ещё раз
+              </button>
+            </div>
+          )}
+
+          {preview.data && (
+            <>
+              <div
+                className="rounded-xl p-4 text-base"
+                style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", marginRight: "12%", fontFamily: "var(--font-body)", lineHeight: 1.8 }}
+              >
+                <div className="flex items-center gap-1 mb-1 text-sm font-medium" style={{ color: "var(--accent)" }}>
+                  <Sparkles size={14} /> {PREVIEW_LABEL}
+                </div>
+                {preview.data.answer}
+                <SimilarRecipeLinks items={preview.data.similarRecipes} />
+              </div>
+              <AiPreviewCta whatIsInside="с чего начать, какие пропорции взять и как понять, что настойка готова" />
+              <AiHonestNote />
+              <button onClick={askAnother} className="text-sm underline" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                Спросить о другом
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function InfusionForecast() {
   const { isLoggedIn } = useAuth();
@@ -115,28 +254,14 @@ function InfusionForecast() {
   }
 
   if (!isLoggedIn) {
-    return (
-      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Опишите идею или ингредиенты — ИИ подскажет, что может получиться, и посоветует, с чего начать. Доступно после входа в аккаунт.
-        </p>
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
-          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          <LogIn size={16} /> Войти, чтобы попробовать
-        </Link>
-      </div>
-    );
+    return <GuestForecast />;
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <label className="text-base font-medium" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
-          Опишите идею или перечислите ингредиенты
+          Расскажите своими словами, что у вас есть или чего хочется
         </label>
         <div className="flex items-center gap-3">
           {messages.length > 0 && (
@@ -151,9 +276,9 @@ function InfusionForecast() {
           {limitInfo && (
             <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
               {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                <>Бесплатных советов осталось: {limitInfo.freeRequestsLeft} из 5</>
               ) : (
-                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за совет</>
               )}
             </span>
           )}
@@ -190,7 +315,7 @@ function InfusionForecast() {
             >
               {m.role === "assistant" && (
                 <div className="flex items-center gap-1 mb-1 text-xs font-medium" style={{ color: "var(--accent)" }}>
-                  <Sparkles size={14} /> Ответ ИИ
+                  <Sparkles size={14} /> {ANSWER_LABEL}
                 </div>
               )}
               {m.content}
@@ -226,7 +351,7 @@ function InfusionForecast() {
 
       {limitReached ? (
         <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
           <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
@@ -260,6 +385,7 @@ function InfusionForecast() {
           <button
             onClick={() => handleSend()}
             disabled={!message.trim() || generate.isPending}
+            aria-label="Узнать, что получится"
             className="rounded-xl px-4 py-2.5 flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--accent)" }}
           >
@@ -267,11 +393,23 @@ function InfusionForecast() {
           </button>
         </div>
       )}
+      {!limitReached && (
+        <AiActionNote
+          isLoggedIn
+          freeLeft={limitInfo?.freeRequestsLeft}
+          costRub={costRub}
+          balanceRub={balanceRub}
+          className="mt-2"
+        />
+      )}
 
       {messages.length > 0 && (
-        <p className="text-xs mt-3" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Это ориентировочные советы от ИИ, а не проверенный рецепт — сверьте пропорции перед использованием.
-        </p>
+        <div className="mt-3 space-y-1">
+          <AiHonestNote />
+          <p className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
+            Это ориентир, а не проверенный рецепт: пропорции лучше сверить с рецептами на сайте.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -474,7 +612,7 @@ function AbvCalculator() {
           style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}
         >
           <label className="text-base font-medium" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Ингредиенты для настаивания <span style={{ fontWeight: 400 }}>(для ИИ-оценки ниже, на точный расчёт базы не влияет)</span>
+            Ингредиенты для настаивания <span style={{ fontWeight: 400 }}>(нужны для оценки ниже, на точный расчёт базы не влияют)</span>
           </label>
           <textarea
             value={infusionIngredients}
@@ -558,7 +696,7 @@ function AbvCalculator() {
         </div>
         <div className="flex items-start gap-2 text-sm" style={{ borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: 12, opacity: 0.9, fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <span>Это точный расчёт только базы — спирт, вода, сахар. Ягоды/фрукты, срок настаивания и способ отжима здесь не учтены. Их влияние — в оценке ИИ ниже.</span>
+          <span>Это точный расчёт только базы — спирт, вода, сахар. Ягоды/фрукты, срок настаивания и способ отжима здесь не учтены. Их влияние учтено в оценке ниже.</span>
         </div>
       </div>
 
@@ -566,7 +704,7 @@ function AbvCalculator() {
       <div className="mt-6 rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
         <h3 className="text-lg font-bold flex items-center gap-2 mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
           <Sparkles size={20} style={{ color: "var(--accent)" }} />
-          Оценка готового напитка (ИИ)
+          Какая крепость получится в итоге
         </h3>
         <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
           Учитывает ингредиенты выше, срок настаивания ({infusionDays} дней) и способ отжима — с оговоркой, что это оценка, а не точное измерение.
@@ -586,9 +724,9 @@ function AbvCalculator() {
               {limitInfo && (
                 <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
                   {limitInfo.freeRequestsLeft > 0 ? (
-                    <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
+                    <>Бесплатных советов осталось: {limitInfo.freeRequestsLeft} из 5</>
                   ) : (
-                    <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос</>
+                    <><Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за совет</>
                   )}
                 </span>
               )}
@@ -596,7 +734,7 @@ function AbvCalculator() {
 
             {limitReached ? (
               <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+                Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
                 <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
                   Пополнить баланс
                 </Link>
@@ -609,8 +747,17 @@ function AbvCalculator() {
                 style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
               >
                 <Wand2 size={20} />
-                {estimate.isPending ? "Оцениваю..." : "Оценить с ИИ"}
+                {estimate.isPending ? "Оцениваю..." : "Оценить крепость"}
               </button>
+            )}
+            {!limitReached && (
+              <AiActionNote
+                isLoggedIn
+                freeLeft={limitInfo?.freeRequestsLeft}
+                costRub={costRub}
+                balanceRub={balanceRub}
+                className="mt-2"
+              />
             )}
             {!infusionIngredients.trim() && !limitReached && (
               <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
@@ -639,6 +786,7 @@ function AbvCalculator() {
                 <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.8, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
                   {estimate.data.explanation}
                 </p>
+                <AiHonestNote className="mt-3" />
               </div>
             )}
           </>
@@ -715,6 +863,8 @@ function TasteBuilder() {
   const [result, setResult] = useState<{ answer: string; similarRecipes: { id: number; slug: string; title: string }[] } | null>(null);
   const [error, setError] = useState("");
   const [limitNotice, setLimitNotice] = useState<"ingredients" | "additives" | null>(null);
+  // true — показан краткий пробный ответ (посетитель без регистрации), а не полный
+  const [isPreview, setIsPreview] = useState(false);
   const [shakeItem, setShakeItem] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -725,12 +875,25 @@ function TasteBuilder() {
   const generate = trpc.tasteBuilder.generate.useMutation({
     onSuccess: (data) => {
       setResult({ answer: data.answer, similarRecipes: data.similarRecipes });
+      setIsPreview(false);
       setError("");
       refetchLimit();
     },
     onError: (err) => {
       setError(err.message || "Не удалось получить ответ");
       refetchLimit();
+    },
+  });
+
+  // Пробный краткий ответ без регистрации (лимиты — на сервере, api/lib/aiPreview.ts)
+  const preview = trpc.tasteBuilder.preview.useMutation({
+    onSuccess: (data) => {
+      setResult({ answer: data.answer, similarRecipes: data.similarRecipes });
+      setIsPreview(true);
+      setError("");
+    },
+    onError: (err) => {
+      setError(err.message || "Не удалось получить ответ");
     },
   });
 
@@ -792,36 +955,23 @@ function TasteBuilder() {
     setResult(null);
     setError("");
     generate.reset();
+    preview.reset();
+    setIsPreview(false);
   }
 
   const canSubmit = !!selectedBase && ingredients.length > 0;
+  const pending = generate.isPending || preview.isPending;
   const limitReached = limitInfo ? !limitInfo.allowed : false;
   const balanceRub = limitInfo ? limitInfo.balanceKopecks / 100 : 0;
   const costRub = limitInfo ? limitInfo.costKopecks / 100 : 2;
   const formulaEmpty = !selectedBase && ingredients.length === 0 && additives.length === 0;
 
   function handleSubmit() {
-    if (!selectedBase || ingredients.length === 0 || generate.isPending || limitReached) return;
+    if (!selectedBase || ingredients.length === 0 || pending || limitReached) return;
     setError("");
-    generate.mutate({ base: selectedBase.label, strength, ingredients, additives });
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-        <Sparkles size={32} style={{ color: "var(--accent)" }} className="mx-auto mb-3" />
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)", lineHeight: 1.6 }}>
-          Соберите настойку из кнопок — основа, ингредиенты, добавки — и узнайте, что вероятно получится. Доступно после входа в аккаунт.
-        </p>
-        <Link
-          to="/login"
-          className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
-          style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-        >
-          <LogIn size={16} /> Войти, чтобы попробовать
-        </Link>
-      </div>
-    );
+    const payload = { base: selectedBase.label, strength, ingredients, additives };
+    if (isLoggedIn) generate.mutate(payload);
+    else preview.mutate(payload);
   }
 
   return (
@@ -1012,7 +1162,7 @@ function TasteBuilder() {
 
       {limitReached ? (
         <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          Бесплатные запросы закончились, а баланса не хватает на {costRub} ₽ за запрос.{" "}
+          Бесплатные советы закончились, а на балансе не хватает {costRub} ₽ на новый.{" "}
           <Link to="/profile?tab=history" className="underline font-medium" style={{ color: "var(--accent)" }}>
             Пополнить баланс
           </Link>
@@ -1021,28 +1171,26 @@ function TasteBuilder() {
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit || generate.isPending}
+            disabled={!canSubmit || pending}
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3 font-medium text-white transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
             style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
           >
             <Wand2 size={20} />
-            {generate.isPending ? "Считаю..." : "Узнать вкус"}
+            {pending ? "Считаю..." : "Узнать вкус"}
           </button>
-          {limitInfo && (
-            <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              {limitInfo.freeRequestsLeft > 0 ? (
-                <>Осталось бесплатных: {limitInfo.freeRequestsLeft} из 5</>
-              ) : (
-                <>
-                  <Wallet size={12} /> Баланс: {balanceRub} ₽ · {costRub} ₽ за запрос
-                </>
-              )}
-            </span>
-          )}
         </div>
       )}
+      {!limitReached && (
+        <AiActionNote
+          isLoggedIn={isLoggedIn}
+          freeLeft={limitInfo?.freeRequestsLeft}
+          costRub={costRub}
+          balanceRub={balanceRub}
+          className="mt-2"
+        />
+      )}
 
-      {generate.isPending && (
+      {pending && (
         <div className="mt-4">
           <BottleThinkingIndicator label="Прикидываю вкус..." />
         </div>
@@ -1050,8 +1198,8 @@ function TasteBuilder() {
 
       {result && (
         <div className="mt-5 rounded-xl p-5" style={{ background: "var(--bg-primary)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-1 mb-2 text-xs font-medium" style={{ color: "var(--accent)" }}>
-            <Sparkles size={14} /> Ответ ИИ
+          <div className="flex items-center gap-1 mb-2 text-sm font-medium" style={{ color: "var(--accent)" }}>
+            <Sparkles size={14} /> {isPreview ? PREVIEW_LABEL : ANSWER_LABEL}
           </div>
           <p className="text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
             {result.answer}
@@ -1073,6 +1221,8 @@ function TasteBuilder() {
               ))}
             </div>
           )}
+          {isPreview && <AiPreviewCta whatIsInside="с чего начать, какие пропорции взять и как понять, что настойка готова" />}
+          <AiHonestNote className="mt-3" />
           <div className="flex items-center justify-between flex-wrap gap-3 mt-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               onClick={reset}
@@ -1082,7 +1232,7 @@ function TasteBuilder() {
               <RotateCcw size={14} /> Сформировать заново
             </button>
             <Link to="/tools?tool=forecast" className="text-sm underline" style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}>
-              Не удалось учесть все условия? Опишите рецепт в свободной форме →
+              Не хватило кнопок? Расскажите своими словами →
             </Link>
           </div>
         </div>
@@ -1113,7 +1263,7 @@ const tools = [
     num: "01",
     icon: Wand2,
     title: "Калькулятор вкуса",
-    desc: "Соберите настойку из кнопок — основа, ингредиенты, добавки — и узнайте, что вероятно получится по вкусу, цвету и аромату.",
+    desc: "Выберите кнопками основу, ингредиенты и добавки — и узнайте, какой вкус, цвет и аромат, скорее всего, получатся.",
     badge: "Главный инструмент",
     color: "var(--accent)",
     content: <TasteBuilder />,
@@ -1122,8 +1272,8 @@ const tools = [
     id: "forecast",
     num: "02",
     icon: Compass,
-    title: "Прогноз настойки",
-    desc: "Опишите идею или ингредиенты свободным текстом — для случаев, которые не покрыть кнопками калькулятора.",
+    title: "Что получится, если...",
+    desc: "Расскажите своими словами, что у вас есть или чего хочется, — и узнайте, что может получиться и с чего лучше начать. Для случаев, которые не покрыть кнопками калькулятора.",
     badge: null,
     color: "var(--accent)",
     content: <InfusionForecast />,
@@ -1158,7 +1308,7 @@ export default function ToolsPage() {
         icon={Sparkles}
         badgeText="Инструменты"
         title={<>Инструменты <span style={{ color: "var(--accent)" }}>проекта</span></>}
-        subtitle="Базовые инструменты бесплатны. ИИ-консультант доступен после регистрации — 5 бесплатных запросов на аккаунт, дальше 2 ₽ с баланса."
+        subtitle="Калькулятор вкуса и «Что получится, если...» можно попробовать без регистрации — вы увидите краткий ответ. После бесплатной регистрации — 5 полных советов в подарок, дальше 2 ₽ за совет."
       />
 
       {/* ===== Tab Navigation ===== */}
@@ -1181,7 +1331,7 @@ export default function ToolsPage() {
                 }}
               >
                 <tool.icon size={28} />
-                <span className="hidden sm:inline">{tool.title.split(" ").slice(0, 2).join(" ")}</span>
+                <span className="hidden sm:inline">{tool.title}</span>
                 <span className="sm:hidden">{tool.num}</span>
               </button>
             ))}
@@ -1247,8 +1397,8 @@ export default function ToolsPage() {
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
                   <p className="text-base" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    ИИ-консультант доступен после регистрации: 5 бесплатных запросов на аккаунт,
-                    дальше 2 ₽ за запрос с баланса личного кабинета.
+                    Краткий ответ можно получить без регистрации. Полные советы — после бесплатной регистрации:
+                    первые 5 в подарок, дальше 2 ₽ за совет с баланса личного кабинета.
                   </p>
                 </div>
               </div>
