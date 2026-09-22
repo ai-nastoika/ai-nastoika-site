@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
+import { compress } from "hono/compress";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { seedAdmin } from "./trpc";
@@ -178,6 +179,18 @@ const CSP = [
   "form-action 'self'",
   "frame-ancestors 'self'",
 ].join("; ");
+
+// ─── Сжатие ответов ───
+// Раньше ни приложение, ни Nginx перед ним ничего не сжимали: основной JS-бандл
+// уходил ~490 КБ вместо ~140 КБ. compress() сжимает только текстовые типы
+// (JS, CSS, HTML, JSON — в т.ч. ответы tRPC), картинки пропускает сам — они уже
+// сжаты. Vary: Accept-Encoding — чтобы любой кеш по пути не отдал сжатую версию
+// клиенту, который сжатие не понимает (middleware сам этот заголовок не ставит).
+app.use("*", async (c, next) => {
+  await next();
+  if (c.res.headers.get("Content-Encoding")) c.res.headers.append("Vary", "Accept-Encoding");
+});
+app.use("*", compress());
 
 app.use("*", async (c, next) => {
   c.header("X-Content-Type-Options", "nosniff"); // браузер не должен угадывать тип файла — против атак через подмену расширения
@@ -779,7 +792,16 @@ app.get("/assets/*", async (c) => {
       ".svg": "image/svg+xml",
       ".woff2": "font/woff2",
     };
-    return new Response(content, { headers: { "Content-Type": ct[ext] || "application/octet-stream" } });
+    // Файлы в /assets собирает Vite с хешем содержимого в имени (index-DQisF09Q.js):
+    // после каждого деплоя имя новое, значит старую версию хранить в браузере можно
+    // сколько угодно — устаревшей она не станет. Раньше заголовка не было вовсе, и
+    // браузер заново качал весь бандл при каждом заходе на сайт.
+    return new Response(content, {
+      headers: {
+        "Content-Type": ct[ext] || "application/octet-stream",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
   } catch {
     return c.notFound();
   }
@@ -814,7 +836,14 @@ app.get("*", async (c) => {
         ".ttf": "font/ttf",
         ...staticExts,
       };
-      return new Response(content, { headers: { "Content-Type": ct[ext] || "application/octet-stream" } });
+      // Картинки и шрифты в корне (логотип, фото главной) — без хеша в имени: если
+      // файл заменят, у посетителей он обновится в течение суток. sw.js, manifest.json,
+      // файлы подтверждения сайта (.html/.txt) — без хранения: браузер всегда
+      // сверяется с сервером, иначе обновления service worker и манифеста застревают.
+      const cacheControl = ext in staticExts ? "no-cache" : "public, max-age=86400";
+      return new Response(content, {
+        headers: { "Content-Type": ct[ext] || "application/octet-stream", "Cache-Control": cacheControl },
+      });
     } catch {
       return c.notFound();
     }
@@ -829,6 +858,11 @@ app.get("*", async (c) => {
   // счётчик ни при каких условиях не задерживал и не ломал отдачу страницы.
   // Сюда попадают только HTML-страницы — API и статика отсеяны маршрутами выше.
   // Реальный IP за Nginx-прокси Timeweb приходит в x-forwarded-for.
+  // Сама страница (index.html) хранится в браузере без срока годности: после деплоя
+  // в ней новые имена JS/CSS, и посетитель должен получить её сразу, а не через день.
+  // Заголовок, выставленный через c.header, попадает во все c.html(...) ниже.
+  c.header("Cache-Control", "no-cache");
+
   {
     const xff = c.req.header("x-forwarded-for");
     const ip = xff ? xff.split(",")[0].trim() : (c.req.header("x-real-ip") || null);
