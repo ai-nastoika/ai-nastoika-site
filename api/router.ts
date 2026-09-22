@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { listRecentConversations, finishConversation, resumeConversation } from "./lib/aiConversations";
 import { router, publicProcedure, authedProcedure, db, users, recipes, createToken, bcrypt } from "./trpc";
-import { eq, and, count, desc, sql } from "drizzle-orm";
+import { eq, and, count, desc, sql, getTableColumns } from "drizzle-orm";
 import { comments, commentLikes, feedback, transactions, users as usersFull, places } from "../db/schema";
 // ^ users из "./trpc" — устаревшая копия схемы без free_requests_left/balance_kopecks
 //   (см. api/trpc.ts). usersFull — актуальная таблица из db/schema.ts, с этими полями.
@@ -486,8 +486,25 @@ export const appRouter = router({
         return summary;
       }),
 
+    /* Комментарии пользователя — сразу с названием, картинкой и адресом рецепта/места.
+       Раньше личный кабинет ради этих подписей скачивал ВСЕ рецепты сайта (с текстами
+       и ингредиентами) и ВСЕ заведения и искал нужное у себя. Места — только одобренные:
+       так было и раньше (кабинет брал их из place.list), комментарий к неодобренному
+       или удалённому месту в списке не показывается. */
     myComments: authedProcedure.query(async ({ ctx }) => {
-      return db.select().from(comments).where(eq(comments.userId, ctx.userId));
+      return db
+        .select({
+          ...getTableColumns(comments),
+          recipeTitle: recipes.title,
+          recipeSlug: recipes.slug,
+          recipeHeroImage: recipes.heroImage,
+          placeName: places.name,
+          placeSlug: places.slug,
+        })
+        .from(comments)
+        .leftJoin(recipes, eq(comments.recipeId, recipes.id))
+        .leftJoin(places, and(eq(comments.placeId, places.id), eq(places.status, "approved")))
+        .where(eq(comments.userId, ctx.userId));
     }),
 
     /* ── ID комментариев, которые лайкнул текущий пользователь — чтобы

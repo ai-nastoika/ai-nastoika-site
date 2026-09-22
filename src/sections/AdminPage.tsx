@@ -198,20 +198,21 @@ function AdminPanel() {
   const [saveNotice, setSaveNotice] = useState("");
 
   /* Queries */
+  // Полные списки грузим только для открытой вкладки. Раньше ради цифр в названиях
+  // вкладок ("Пользователи (57)") при открытии админки скачивались списки ВСЕХ
+  // вкладок сразу — теперь цифры приходят одним лёгким запросом adminStats.tabCounts,
+  // а вкладки "Модерация заведений", "Пользователи" и т.п. грузят свои списки сами,
+  // когда их открыли (их TabsContent не монтируется, пока вкладка не выбрана).
   // recipe.list и place.list — публичные, доступны и editor'у без проблем.
-  const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery();
-  const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery();
-  // Всё остальное ниже — вкладки, недоступные editor'у (примеры этикеток,
-  // модерация заявок, пользователи, обращения, комментарии, статистика ИИ).
-  // Роутеры на бэкенде остались строго adminQuery, поэтому без enabled: isAdmin
-  // editor получил бы здесь 403 при каждом открытии страницы —
-  // см. api/lib/middleware.ts (editorQuery только у recipe/place).
-  const { data: labelExamplesCount } = trpc.labelExample.list.useQuery(undefined, { enabled: isAdmin });
+  const { data: apiRecipes, isLoading: rLoading } = trpc.recipe.list.useQuery(undefined, { enabled: tab === "recipes" });
+  const { data: apiPlaces, isLoading: pLoading } = trpc.place.list.useQuery(undefined, { enabled: tab === "places" });
+  // tabCounts доступен editor'у (отдаёт ему только рецепты и места). Всё остальное ниже —
+  // вкладки, недоступные editor'у; роутеры на бэкенде строго adminQuery, поэтому без
+  // enabled: isAdmin editor получил бы 403 при каждом открытии страницы.
+  const { data: tabCounts } = trpc.adminStats.tabCounts.useQuery();
+  // submission.listAll — заглушка на сервере (всегда []), запрос бесплатный; оставлен,
+  // чтобы цифра на вкладке "Модерация" считалась так же, как её содержимое.
   const { data: submissionsCount } = trpc.submission.listAll.useQuery(undefined, { enabled: isAdmin });
-  const { data: placeSubmissionsCount } = trpc.placeSubmission.listAll.useQuery(undefined, { enabled: isAdmin });
-  const { data: usersCount } = trpc.user.list.useQuery(undefined, { enabled: isAdmin });
-  const { data: feedbackCount } = trpc.feedback.list.useQuery(undefined, { enabled: isAdmin });
-  const { data: commentsCount } = trpc.comment.listAll.useQuery(undefined, { enabled: isAdmin });
   const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: visitStats } = trpc.adminStats.visitStats.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
@@ -285,8 +286,15 @@ function AdminPanel() {
   });
 
   /* Массовая ИИ-разметка этапов трекера для уже существующих рецептов без плана */
-  const { data: recipesWithoutTrackerStages } = trpc.recipe.listWithoutTrackerStages.useQuery();
-  const generateOneTrackerStages = trpc.recipe.generateTrackerStagesAI.useMutation();
+  const { data: recipesWithoutTrackerStages } = trpc.recipe.listWithoutTrackerStages.useQuery(undefined, {
+    enabled: tab === "recipes",
+  });
+  // skipGlobalInvalidate: разметка идёт в цикле по всем рецептам — без этого после
+  // каждого рецепта админка перезапрашивала бы все данные на экране (см. providers/trpc.tsx).
+  // Обновление делается один раз в конце runBulkTrackerStagesAI.
+  const generateOneTrackerStages = trpc.recipe.generateTrackerStagesAI.useMutation({
+    meta: { skipGlobalInvalidate: true },
+  });
   const [bulkTrackerProgress, setBulkTrackerProgress] = useState<{ done: number; total: number; failed: string[] } | null>(null);
 
   async function runBulkTrackerStagesAI() {
@@ -627,16 +635,16 @@ function AdminPanel() {
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap">
-            <TabsTrigger value="recipes">Рецепты ({recipes?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="places">Места ({places?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="recipes">Рецепты ({apiRecipes ? recipes.length : (tabCounts?.recipes ?? 0)})</TabsTrigger>
+            <TabsTrigger value="places">Места ({apiPlaces ? places.length : (tabCounts?.places ?? 0)})</TabsTrigger>
             {isAdmin && (
               <>
-                <TabsTrigger value="labelExamples">Примеры этикеток ({labelExamplesCount?.length ?? 0})</TabsTrigger>
+                <TabsTrigger value="labelExamples">Примеры этикеток ({tabCounts?.labelExamples ?? 0})</TabsTrigger>
                 <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
-                <TabsTrigger value="placeSubmissions">Заявки на заведения ({placeSubmissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
-                <TabsTrigger value="users">Пользователи ({usersCount?.length ?? 0})</TabsTrigger>
-                <TabsTrigger value="feedback">Обращения ({feedbackCount?.filter(f => f.status !== "replied" && f.status !== "archived").length ?? 0})</TabsTrigger>
-                <TabsTrigger value="comments">Комментарии ({commentsCount?.length ?? 0})</TabsTrigger>
+                <TabsTrigger value="placeSubmissions">Заявки на заведения ({tabCounts?.placeSubmissions ?? 0})</TabsTrigger>
+                <TabsTrigger value="users">Пользователи ({tabCounts?.users ?? 0})</TabsTrigger>
+                <TabsTrigger value="feedback">Обращения ({tabCounts?.feedback ?? 0})</TabsTrigger>
+                <TabsTrigger value="comments">Комментарии ({tabCounts?.comments ?? 0})</TabsTrigger>
               </>
             )}
           </TabsList>

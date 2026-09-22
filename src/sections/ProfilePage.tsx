@@ -62,9 +62,12 @@ export default function ProfilePage() {
   const { data: aiConversations } = trpc.aiConversation.listRecent.useQuery(undefined, {
     enabled: !!user && tab === "history",
   });
+  // Сами этикетки (картинки в base64 — мегабайты) грузим только на вкладке «Этикетки»;
+  // для цифры на вкладке — лёгкий счётчик.
   const { data: myLabels } = trpc.labelGenerator.myLabels.useQuery(undefined, {
-    enabled: !!user,
+    enabled: !!user && tab === "labels",
   });
+  const { data: myLabelsCount } = trpc.labelGenerator.myLabelsCount.useQuery(undefined, { enabled: !!user });
   const [expandedConversationId, setExpandedConversationId] = useState<number | null>(null);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [visibleConversationsCount, setVisibleConversationsCount] = useState(5);
@@ -206,8 +209,6 @@ export default function ProfilePage() {
 
   // Реальные данные
   const { data: myCommentsData } = trpc.comment.myComments.useQuery(undefined, { enabled: !!user });
-  const { data: recipesData } = trpc.recipe.list.useQuery();
-  const { data: placesData } = trpc.place.list.useQuery();
   const { data: trackerStats } = trpc.infusion.stats.useQuery(undefined, { enabled: !!user });
   const { data: activeInfusionsData } = trpc.infusion.list.useQuery({ status: "active" }, { enabled: !!user });
   const activeInfusions = activeInfusionsData || [];
@@ -218,11 +219,14 @@ export default function ProfilePage() {
   // это одна и та же сущность в базе, оценку нельзя оставить без текста,
   // поэтому раньше "Мои отзывы" и "Мои комментарии" почти всегда дублировали
   // друг друга. Показываем одним списком, оценка — если она есть.
+  // Название, картинка и адрес рецепта/места приходят вместе с комментарием
+  // (comment.myComments). Раньше ради них кабинет скачивал все рецепты и все
+  // заведения сайта целиком.
   const myActivity = (myCommentsData || [])
     .map((c) => ({
       comment: c,
-      recipe: c.recipeId ? (recipesData || []).find((rec) => rec.id === c.recipeId) : undefined,
-      place: c.placeId ? (placesData || []).find((p) => p.id === c.placeId) : undefined,
+      recipe: c.recipeId && c.recipeTitle && c.recipeSlug ? { title: c.recipeTitle, slug: c.recipeSlug, heroImage: c.recipeHeroImage } : undefined,
+      place: c.placeId && c.placeName && c.placeSlug ? { name: c.placeName, slug: c.placeSlug } : undefined,
     }))
     .filter((item) => item.recipe || item.place)
     .sort((a, b) => new Date(b.comment.createdAt).getTime() - new Date(a.comment.createdAt).getTime());
@@ -378,7 +382,7 @@ export default function ProfilePage() {
               { id: "overview", label: "Обзор", icon: User, value: null },
               { id: "tracker", label: "Трекер созревания", icon: Timer, value: trackerStats?.active ?? 0 },
               { id: "recipes", label: "Рецепты", icon: BookOpen, value: savedRecipes.length },
-              { id: "labels", label: "Этикетки", icon: Tag, value: myLabels?.length ?? 0 },
+              { id: "labels", label: "Этикетки", icon: Tag, value: myLabelsCount ?? 0 },
               { id: "places", label: "Места", icon: MapPin, value: savedPlaces.length },
               { id: "history", label: "Советы", icon: FlaskConical, value: userData.usedQueries },
             ] as const).map((t) => {

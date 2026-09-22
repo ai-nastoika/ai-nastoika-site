@@ -1,6 +1,17 @@
-import { createRouter, adminQuery } from "./middleware";
+import { createRouter, adminQuery, editorQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { feedback, userRecipeSubmissions, placeSubmissions, aiUsage, siteVisits } from "@db/schema";
+import {
+  feedback,
+  userRecipeSubmissions,
+  placeSubmissions,
+  aiUsage,
+  siteVisits,
+  recipes,
+  places,
+  labelExamples,
+  users,
+  comments,
+} from "@db/schema";
 import { eq, count, and, ne, desc, gte, sql, inArray } from "drizzle-orm";
 
 // Все requestType, которые считаются "генерацией изображения" — раньше тут
@@ -12,6 +23,51 @@ import { eq, count, and, ne, desc, gte, sql, inArray } from "drizzle-orm";
 const IMAGE_REQUEST_TYPES = ["label_image", "recipe_parser_image", "label_photo_edit", "label_revision"];
 
 export const adminStatsRouter = createRouter({
+  /* ── Цифры в названиях вкладок админки ("Пользователи (57)") ──
+     Раньше ради этих цифр админка при открытии скачивала ПОЛНЫЕ списки всех восьми
+     вкладок сразу (всех пользователей, все комментарии, все заявки...), хотя видна
+     одна вкладка. Теперь цифры приходят отдельными COUNT-запросами, а полный список
+     вкладка грузит сама, только когда её открыли. Условия подсчёта — те же, что
+     были в фильтрах на клиенте (см. TabsTrigger в AdminPage.tsx), иначе цифры
+     разойдутся с содержимым вкладок.
+     editorQuery: редактору видны вкладки "Рецепты" и "Места" — ему отдаём только эти
+     две цифры, остальные (только для админа) — null. */
+  tabCounts: editorQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const num = (rows: { value: number }[]) => Number(rows[0]?.value ?? 0);
+
+    const [recipeRows, placeRows] = await Promise.all([
+      db.select({ value: count() }).from(recipes),
+      // Во вкладке "Места" — список place.list, а он отдаёт только одобренные
+      db.select({ value: count() }).from(places).where(eq(places.status, "approved")),
+    ]);
+    const base = { recipes: num(recipeRows), places: num(placeRows) };
+
+    if (ctx.user.role !== "admin") {
+      return { ...base, labelExamples: null, placeSubmissions: null, users: null, feedback: null, comments: null };
+    }
+
+    const [exampleRows, placeSubRows, userRows, feedbackRows, commentRows] = await Promise.all([
+      db.select({ value: count() }).from(labelExamples),
+      db.select({ value: count() }).from(placeSubmissions).where(eq(placeSubmissions.status, "pending")),
+      db.select({ value: count() }).from(users),
+      db
+        .select({ value: count() })
+        .from(feedback)
+        .where(and(ne(feedback.status, "replied"), ne(feedback.status, "archived"))),
+      db.select({ value: count() }).from(comments),
+    ]);
+
+    return {
+      ...base,
+      labelExamples: num(exampleRows),
+      placeSubmissions: num(placeSubRows),
+      users: num(userRows),
+      feedback: num(feedbackRows),
+      comments: num(commentRows),
+    };
+  }),
+
   /* ── Сводный счётчик для бейджа на кнопке "Админка" в шапке ──
      Новые обращения (не архивные и не отвеченные) + рецепты и заведения на модерации. */
   pendingCount: adminQuery.query(async () => {

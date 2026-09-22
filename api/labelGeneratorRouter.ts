@@ -15,7 +15,7 @@ import { compressImageIfNeeded } from "./lib/imageCompress";
 import { saveConversationTurn } from "./lib/aiConversations";
 import { getDb } from "./queries/connection";
 import { generatedLabels } from "@db/schema";
-import { and, eq, desc, gt, lt, isNotNull, sql } from "drizzle-orm";
+import { and, eq, desc, gt, lt, isNotNull, sql, count } from "drizzle-orm";
 
 const REQUEST_TYPE = "label_image"; // 11 симв., укладывается в varchar(20)
 const REVISION_REQUEST_TYPE = "label_revision"; // 14 симв., укладывается в varchar(20)
@@ -347,6 +347,15 @@ export const labelGeneratorRouter = createRouter({
 
       return { image: { imageBase64: label.prevImageBase64 }, hasPrevious: true };
     }),
+
+  /* Сколько этикеток сохранено — для цифры на вкладке личного кабинета. Раньше ради
+     неё кабинет при каждом открытии скачивал все три этикетки целиком (мегабайты
+     картинок в base64), даже если вкладку «Этикетки» не открывали. */
+  myLabelsCount: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const [row] = await db.select({ value: count() }).from(generatedLabels).where(eq(generatedLabels.userId, ctx.user.id));
+    return Math.min(3, Number(row?.value ?? 0));
+  }),
 
   /* Последние 3 сгенерированные этикетки — для личного кабинета и для «Доработать».
      Колонки перечислены явно: предыдущая версия (мегабайты base64) клиенту не нужна —
