@@ -214,7 +214,6 @@ function AdminPanel() {
   const { data: commentsCount } = trpc.comment.listAll.useQuery(undefined, { enabled: isAdmin });
   const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
-  const { data: labelStats } = trpc.adminStats.labelStats.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: visitStats } = trpc.adminStats.visitStats.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
 
   /* Merge: API first, then local, then fallback */
@@ -515,80 +514,6 @@ function AdminPanel() {
           )
         )}
 
-        {/* ── Генерации этикеток по дням (создание с нуля/по фото + доработка) ──
-            В отличие от индикатора выше (только последний час), здесь — за любой день
-            за последние 30, с датой на каждой строке, отдельно созданные и доработанные. */}
-        {labelStats && (
-          <div className="mb-6 rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 size={18} style={{ color: "var(--accent)" }} />
-              <h3 className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                Генерации этикеток по дням
-              </h3>
-              <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                создание с нуля, по фото и доработка — вместе
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Всего за 30 дней</div>
-                <div className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  {labelStats.daily.reduce((a, d) => a + d.generated + d.revised, 0)}
-                </div>
-              </div>
-              <div className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Не удалось за 30 дней</div>
-                <div className="text-2xl font-bold" style={{ color: labelStats.daily.reduce((a, d) => a + d.failed, 0) > 0 ? "#dc2626" : "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  {labelStats.daily.reduce((a, d) => a + d.failed, 0)}
-                </div>
-              </div>
-              <div className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>Выручка за 30 дней</div>
-                <div className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-                  {(labelStats.daily.reduce((a, d) => a + d.revenueKopecks, 0) / 100).toFixed(0)} ₽
-                </div>
-              </div>
-            </div>
-
-            {labelStats.daily.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                За последние 30 дней генераций не было.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ fontFamily: "var(--font-body)" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      <th className="text-left py-1.5 pr-3 font-medium" style={{ color: "var(--text-muted)" }}>Дата</th>
-                      <th className="text-right py-1.5 px-3 font-medium" style={{ color: "var(--text-muted)" }}>Создано</th>
-                      <th className="text-right py-1.5 px-3 font-medium" style={{ color: "var(--text-muted)" }}>Доработано</th>
-                      <th className="text-right py-1.5 px-3 font-medium" style={{ color: "var(--text-muted)" }}>Не удалось</th>
-                      <th className="text-right py-1.5 pl-3 font-medium" style={{ color: "var(--text-muted)" }}>Выручка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {labelStats.daily.map((d) => (
-                      <tr key={d.day} style={{ borderBottom: "1px solid var(--border)" }}>
-                        <td className="py-1.5 pr-3" style={{ color: "var(--text-primary)" }}>
-                          {new Date(d.day + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
-                        </td>
-                        <td className="text-right py-1.5 px-3" style={{ color: "var(--text-primary)" }}>{d.generated}</td>
-                        <td className="text-right py-1.5 px-3" style={{ color: "var(--text-primary)" }}>{d.revised}</td>
-                        <td className="text-right py-1.5 px-3" style={{ color: d.failed > 0 ? "#dc2626" : "var(--text-muted)" }}>{d.failed || "—"}</td>
-                        <td className="text-right py-1.5 pl-3" style={{ color: "var(--text-primary)" }}>{(d.revenueKopecks / 100).toFixed(0)} ₽</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="text-xs mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-              Показаны только дни, когда были обращения. За всё время: {labelStats.totalCount} обращений, из них не удалось {labelStats.totalFailed}, выручка {(labelStats.totalRevenueKopecks / 100).toFixed(0)} ₽.
-            </p>
-          </div>
-        )}
-
         {/* ── Счётчик посещений (собственный, серверный) ── */}
         {visitStats && (
           <div className="mb-6 rounded-xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -624,7 +549,10 @@ function AdminPanel() {
                 При малом числе дней (сайт только начал считать) один-два столбика
                 растягивались на всю ширину и превращались в сплошную полосу без
                 видимых цифр — непонятно, что это вообще такое. Ниже 3 дней данных
-                показываем просто список по дням текстом, это честнее графика. */}
+                показываем просто список по дням текстом, это честнее графика.
+                Дата подписана под КАЖДЫМ столбиком (раньше — только у первого и
+                последнего, остальные приходилось искать по всплывающей подсказке
+                при наведении, что на телефоне вообще не работает). */}
             {visitStats.daily.length > 0 && (
               visitStats.daily.length < 3 ? (
                 <div className="rounded-lg p-3" style={{ background: "var(--surface)" }}>
@@ -642,6 +570,9 @@ function AdminPanel() {
                 </div>
               ) : (
                 <div>
+                  <p className="text-xs mb-1.5 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                    уникальные посетители по дням
+                  </p>
                   <div className="flex items-end justify-center gap-1 h-24" style={{ borderBottom: "1px solid var(--border)" }}>
                     {(() => {
                       const maxV = Math.max(1, ...visitStats.daily.map((d) => d.visits));
@@ -662,10 +593,31 @@ function AdminPanel() {
                       ));
                     })()}
                   </div>
-                  <div className="flex justify-between text-xs mt-1.5" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    <span>{visitStats.daily[0]?.day}</span>
-                    <span>уникальные посетители по дням</span>
-                    <span>{visitStats.daily[visitStats.daily.length - 1]?.day}</span>
+                  {/* Дата под каждым столбиком — короткий формат (ДД.ММ), развёрнутый на 90°,
+                      чтобы даже 30 дат за месяц помещались без наложения текста друг на друга. */}
+                  <div className="flex justify-center gap-1 mt-1" style={{ height: 34 }}>
+                    {visitStats.daily.map((d) => {
+                      const [, m, day] = d.day.split("-");
+                      return (
+                        <div
+                          key={d.day}
+                          className="flex justify-center"
+                          style={{ flex: visitStats.daily.length <= 10 ? "0 1 48px" : "1 1 0", maxWidth: visitStats.daily.length <= 10 ? 48 : undefined }}
+                        >
+                          <span
+                            className="text-xs whitespace-nowrap"
+                            style={{
+                              color: "var(--text-muted)",
+                              fontFamily: "var(--font-body)",
+                              writingMode: "vertical-rl",
+                              transform: "rotate(180deg)",
+                            }}
+                          >
+                            {day}.{m}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )
