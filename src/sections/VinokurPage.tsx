@@ -22,6 +22,8 @@ import {
   MessageCircleQuestion,
   LogIn,
   Wallet,
+  ArrowRight,
+  Wine,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -143,42 +145,79 @@ const stages: {
   },
 ];
 
-/* ─── Общая схема процесса ─── */
+/* ─── Общая схема процесса ───
+   Раньше — SVG-прямоугольники с текстом (три этапа + "Дистиллят" четвёртым в той же
+   линейке блоков). Два недостатка: строгие подписанные прямоугольники со стрелками
+   выглядят как школьная схема из учебника, не в духе остального сайта, а дистиллят —
+   не этап процесса наравне с остальными, а его РЕЗУЛЬТАТ, и стоять в одном ряду с
+   этапами ему не место.
+   Теперь: три этапа — пиктограммы (те же иконки, что и на табах ниже: Wheat/Flame/
+   Droplet — единообразие, а не новый визуальный язык), соединённые лёгкой стрелкой.
+   Дистиллят — отдельная выделенная карточка после отдельной стрелки-указателя "на
+   выходе", крупнее и цветнее (заливка var(--accent) вместо обводки), чтобы читалось
+   как "вот что получится в итоге", а не "четвёртый шаг". */
 function ProcessOverviewDiagram() {
   const steps = [
-    { label: "Брага", sub: "ферментация" },
-    { label: "Первый перегон", sub: "спирт-сырец" },
-    { label: "Второй перегон", sub: "разделение фракций" },
-    { label: "Дистиллят", sub: "готовый продукт" },
+    { icon: Wheat, label: "Брага", sub: "ферментация" },
+    { icon: Flame, label: "Первый перегон", sub: "спирт-сырец" },
+    { icon: Droplet, label: "Второй перегон", sub: "разделение фракций" },
   ];
   return (
-    <svg viewBox="0 0 900 160" className="w-full h-auto" style={{ maxWidth: "100%" }}>
-      {steps.map((s, i) => {
-        const x = 20 + i * 220;
-        return (
-          <g key={s.label}>
-            <rect x={x} y={40} width={180} height={80} rx={14} fill="var(--bg-card)" stroke="var(--border)" strokeWidth={1.5} />
-            <text x={x + 90} y={78} textAnchor="middle" fontSize="16" fontWeight="600" fill="var(--text-primary)">
-              {s.label}
-            </text>
-            <text x={x + 90} y={100} textAnchor="middle" fontSize="12" fill="var(--text-muted)">
-              {s.sub}
-            </text>
+    <div className="flex flex-col items-center gap-6 sm:gap-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 sm:gap-2">
+        {steps.map((s, i) => (
+          <div key={s.label} className="flex items-center gap-3 sm:gap-2">
+            <div className="flex flex-col items-center gap-2 w-28">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+              >
+                <s.icon size={28} style={{ color: "var(--accent)" }} />
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                  {s.label}
+                </div>
+                <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                  {s.sub}
+                </div>
+              </div>
+            </div>
             {i < steps.length - 1 && (
-              <path d={`M ${x + 185} 80 L ${x + 213} 80`} stroke="var(--accent)" strokeWidth={2} markerEnd="url(#arrowhead)" />
+              <ArrowRight size={20} className="shrink-0 rotate-90 sm:rotate-0" style={{ color: "var(--border)" }} />
             )}
-          </g>
-        );
-      })}
-      <defs>
-        <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)" />
-        </marker>
-      </defs>
-    </svg>
+          </div>
+        ))}
+      </div>
+
+      {/* Отдельная стрелка-указатель к результату — визуально отличается от стрелок между
+          этапами (подписана, ведёт вниз), чтобы не читаться как продолжение той же линейки. */}
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+          на выходе
+        </span>
+        <ArrowRight size={18} className="rotate-90" style={{ color: "var(--text-muted)" }} />
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center"
+          style={{ background: "var(--accent)" }}
+        >
+          <Wine size={34} color="#fff" />
+        </div>
+        <div className="text-center">
+          <div className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+            Дистиллят
+          </div>
+          <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            готовый продукт — не этап, а результат всех трёх
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
-
 /* ─── «Спросить винокура» по этапу — тот же паттерн, что RecipeAiConsult ─── */
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
