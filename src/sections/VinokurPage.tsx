@@ -166,10 +166,17 @@ function ProcessOverviewDiagram() {
     // что подпись под ним — просто "готовый продукт", без объяснений.
     { icon: Wine, label: "Дистиллят", sub: "готовый продукт", isResult: true },
   ];
+  // Раньше "растяжение" (flex-1) висело на самом блоке "иконка+подпись" — лишняя
+  // ширина копилась ВНУТРИ каждого блока (после подписи, перед стрелкой), а не между
+  // шагами, из-за чего раскладка съезжала влево и оставляла явно неровный хвост
+  // пустого места справа. Правильный для такой раскладки паттерн: сами шаги —
+  // блоки естественной ширины (shrink-0), а тянется ПРОМЕЖУТОК со стрелкой между
+  // ними (flex-1) — тогда лишняя ширина честно распределяется поровну между всеми
+  // стрелками, и раскладка остаётся симметричной на любой ширине экрана.
   return (
-    <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between w-full gap-8 sm:gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center w-full gap-6 sm:gap-0">
       {steps.map((s, i) => (
-        <div key={s.label} className="flex flex-col sm:flex-row items-center w-full sm:w-auto sm:flex-1">
+        <div key={s.label} className="contents">
           <div className="flex flex-col items-center gap-3 shrink-0">
             <div
               className="rounded-full flex items-center justify-center shrink-0"
@@ -192,11 +199,14 @@ function ProcessOverviewDiagram() {
             </div>
           </div>
           {i < steps.length - 1 && (
-            <ArrowRight
-              size={22}
-              className="shrink-0 my-2 sm:my-0 sm:mx-2 rotate-90 sm:rotate-0"
-              style={{ color: "var(--border)" }}
-            />
+            <div className="flex sm:hidden justify-center">
+              <ArrowRight size={22} className="rotate-90" style={{ color: "var(--border)" }} />
+            </div>
+          )}
+          {i < steps.length - 1 && (
+            <div className="hidden sm:flex flex-1 items-center justify-center min-w-6">
+              <ArrowRight size={22} style={{ color: "var(--border)" }} />
+            </div>
           )}
         </div>
       ))}
