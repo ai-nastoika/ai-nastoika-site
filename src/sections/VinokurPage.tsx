@@ -157,64 +157,49 @@ const stages: {
    выходе", крупнее и цветнее (заливка var(--accent) вместо обводки), чтобы читалось
    как "вот что получится в итоге", а не "четвёртый шаг". */
 function ProcessOverviewDiagram() {
-  const steps = [
+  const steps: { icon: typeof Wheat; label: string; sub: string; isResult?: boolean }[] = [
     { icon: Wheat, label: "Брага", sub: "ферментация" },
     { icon: Flame, label: "Первый перегон", sub: "спирт-сырец" },
     { icon: Droplet, label: "Второй перегон", sub: "разделение фракций" },
+    // Дистиллят — не этап, а результат, но в линейке стоит четвёртым: отличает
+    // его не позиция, а цвет (заливка var(--accent) вместо обводки, ниже) и то,
+    // что подпись под ним — просто "готовый продукт", без объяснений.
+    { icon: Wine, label: "Дистиллят", sub: "готовый продукт", isResult: true },
   ];
   return (
-    <div className="flex flex-col items-center gap-6 sm:gap-3">
-      <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 sm:gap-2">
-        {steps.map((s, i) => (
-          <div key={s.label} className="flex items-center gap-3 sm:gap-2">
-            <div className="flex flex-col items-center gap-2 w-28">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-              >
-                <s.icon size={28} style={{ color: "var(--accent)" }} />
+    <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between w-full gap-8 sm:gap-2">
+      {steps.map((s, i) => (
+        <div key={s.label} className="flex flex-col sm:flex-row items-center w-full sm:w-auto sm:flex-1">
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <div
+              className="rounded-full flex items-center justify-center shrink-0"
+              style={{
+                width: "clamp(88px, 12vw, 128px)",
+                height: "clamp(88px, 12vw, 128px)",
+                background: s.isResult ? "var(--accent)" : "var(--surface)",
+                border: s.isResult ? "none" : "1px solid var(--border)",
+              }}
+            >
+              <s.icon size="42%" style={{ color: s.isResult ? "#fff" : "var(--accent)" }} />
+            </div>
+            <div className="text-center">
+              <div className="text-base font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                {s.label}
               </div>
-              <div className="text-center">
-                <div className="text-sm font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
-                  {s.label}
-                </div>
-                <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  {s.sub}
-                </div>
+              <div className="text-sm" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                {s.sub}
               </div>
             </div>
-            {i < steps.length - 1 && (
-              <ArrowRight size={20} className="shrink-0 rotate-90 sm:rotate-0" style={{ color: "var(--border)" }} />
-            )}
           </div>
-        ))}
-      </div>
-
-      {/* Отдельная стрелка-указатель к результату — визуально отличается от стрелок между
-          этапами (подписана, ведёт вниз), чтобы не читаться как продолжение той же линейки. */}
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-          на выходе
-        </span>
-        <ArrowRight size={18} className="rotate-90" style={{ color: "var(--text-muted)" }} />
-      </div>
-
-      <div className="flex flex-col items-center gap-2">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center"
-          style={{ background: "var(--accent)" }}
-        >
-          <Wine size={34} color="#fff" />
+          {i < steps.length - 1 && (
+            <ArrowRight
+              size={22}
+              className="shrink-0 my-2 sm:my-0 sm:mx-2 rotate-90 sm:rotate-0"
+              style={{ color: "var(--border)" }}
+            />
+          )}
         </div>
-        <div className="text-center">
-          <div className="text-base font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
-            Дистиллят
-          </div>
-          <div className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            готовый продукт — не этап, а результат всех трёх
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
@@ -480,7 +465,7 @@ export default function VinokurPage() {
           <p className="text-base text-center mb-8 max-w-2xl mx-auto" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>
             Три больших этапа — от сырья до готового дистиллята. Каждый разобран подробно ниже.
           </p>
-          <div className="rounded-2xl p-6 overflow-x-auto" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="rounded-2xl p-6 sm:p-10" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <ProcessOverviewDiagram />
           </div>
         </div>
