@@ -307,7 +307,7 @@ export default function RecipesPage() {
             {filtered.slice(0, limit).map((recipe) => (
               <div key={recipe.id} className="group rounded-2xl overflow-hidden transition-all hover:shadow-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="relative overflow-hidden">
-                  <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <img loading="lazy" src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
                   <button onClick={() => toggleLike(recipe.id)} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
                     <Heart size={28} fill={likedIds.includes(recipe.id) ? "var(--accent)" : "none"} color={likedIds.includes(recipe.id) ? "var(--accent)" : "#fff"} />
                   </button>

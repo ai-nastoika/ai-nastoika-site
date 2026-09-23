@@ -16,6 +16,7 @@ export default function VinokurPreview() {
             style={{ border: "1px solid var(--border)", height: 340 }}
           >
             <img
+              loading="lazy"
               src="/recipe-label.jpg"
               alt="Винокур — база знаний по домашней перегонке"
               className="w-full h-full object-cover"

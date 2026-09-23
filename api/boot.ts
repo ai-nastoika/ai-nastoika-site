@@ -11,7 +11,7 @@ import { startTrackerReminderCron } from "./lib/trackerReminders";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { editImage, buildPhotoEditPrompt, ensureImageBase64 } from "./lib/imageClient";
-import { compressImageIfNeeded, cropToOrientation } from "./lib/imageCompress";
+import { compressImageIfNeeded, cropToOrientation, resizeUploadIfNeeded } from "./lib/imageCompress";
 import { recordVisit } from "./lib/visitCounter";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure, LABEL_MAX_REVISIONS } from "./lib/aiAccess";
 import { jwtVerify } from "jose";
@@ -268,9 +268,11 @@ app.post("/api/upload-image", async (c) => {
     const fileName = `recipe-${hash}${ext}`;
     const filePath = path.join(uploadsDir, fileName);
 
-    // Сохраняем файл
+    // Уменьшаем фото до разумного размера (шапка рецепта показывается максимум ~1200px
+    // шириной) — раньше фото с телефона 3-5 МБ сохранялось как есть.
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
+    fs.writeFileSync(filePath, resized);
 
     // Возвращаем путь для heroImage
     const publicPath = `/uploads/recipes/${fileName}`;
@@ -314,8 +316,12 @@ app.post("/api/upload-place-menu", async (c) => {
     const fileName = `menu-${hash}${ext}`;
     const filePath = path.join(menusDir, fileName);
 
+    // PDF — как есть (страницы меню, разрешение не по пикселям браузера); фото меню —
+    // уменьшаем: это скан/фото странички, а не что-то, что печатают в оригинальном размере.
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const outBuffer =
+      file.type === "application/pdf" ? Buffer.from(arrayBuffer) : await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1800);
+    fs.writeFileSync(filePath, outBuffer);
 
     const publicPath = `/uploads/menus/${fileName}`;
     return c.json({ success: true, path: publicPath, originalName: file.name });
@@ -355,7 +361,8 @@ app.post("/api/upload-label-example", async (c) => {
     const filePath = path.join(labelExamplesDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
+    fs.writeFileSync(filePath, resized);
 
     const publicPath = `/uploads/label-examples/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -395,7 +402,8 @@ app.post("/api/upload-place-image", async (c) => {
     const filePath = path.join(placesDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
+    fs.writeFileSync(filePath, resized);
 
     const publicPath = `/uploads/places/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -482,7 +490,8 @@ app.post("/api/upload-tracker-image", async (c) => {
     const filePath = path.join(trackerDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1400);
+    fs.writeFileSync(filePath, resized);
 
     const publicPath = `/uploads/trackers/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -521,8 +530,10 @@ app.post("/api/upload-avatar", async (c) => {
     const fileName = `avatar-${hash}${ext}`;
     const filePath = path.join(avatarsDir, fileName);
 
+    // Аватар показывается максимум ~80px — 400px с запасом на Retina более чем достаточно.
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 400);
+    fs.writeFileSync(filePath, resized);
 
     const publicPath = `/uploads/avatars/${fileName}`;
     return c.json({ success: true, path: publicPath });

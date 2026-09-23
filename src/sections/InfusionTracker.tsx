@@ -310,7 +310,7 @@ function CreateInfusionForm({ onDone }: { onDone: () => void }) {
         <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>Фото тары <span style={{ color: "var(--text-muted)" }}>(необязательно — чтобы сразу узнавать банку на полке)</span></label>
         <div className="flex items-center gap-3">
           {coverImage ? (
-            <img src={coverImage} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
+            <img loading="lazy" src={coverImage} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: "1px solid var(--border)" }} />
           ) : (
             <div className="w-16 h-16 rounded-lg flex items-center justify-center" style={{ background: "var(--surface)", border: "1px dashed var(--border)" }}>
               <Camera size={20} style={{ color: "var(--text-muted)" }} />

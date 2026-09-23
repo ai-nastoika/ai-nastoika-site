@@ -448,7 +448,7 @@ export default function BarMap() {
       const balloonContent = `
         <div style="width:230px;max-width:100%;font-family:sans-serif;">
           <div style="display:flex;gap:10px;align-items:center;">
-            ${venue.image ? `<img src="${venue.image}" alt="" width="56" height="56" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
+            ${venue.image ? `<img src="${venue.image}" alt="" width="56" height="56" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
             <div style="min-width:0;flex:1;">
               <div style="font-weight:700;font-size:14px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escapeHtml(venue.name)}</div>
               ${balloonAddress ? `<div style="font-size:12px;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(balloonAddress)}</div>` : ""}
@@ -464,7 +464,7 @@ export default function BarMap() {
       const hintContent = `
         <div style="width:220px;font-family:sans-serif;padding:2px;">
           <div style="display:flex;gap:8px;">
-            ${venue.image ? `<img src="${venue.image}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
+            ${venue.image ? `<img src="${venue.image}" alt="" loading="lazy" style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;" />` : ""}
             <div style="min-width:0;flex:1;">
               <div style="font-weight:700;font-size:13px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(venue.name)}</div>
               <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(venue.city ?? "")}</div>
@@ -794,7 +794,7 @@ export default function BarMap() {
             {filteredVenues.slice(0, gridLimit).map((venue) => (
               <Link to={`/place/${venue.slug}`} key={venue.id} className="group rounded-2xl overflow-hidden transition-all hover:shadow-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
                 <div className="relative overflow-hidden">
-                  <img src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <img loading="lazy" src={venue.image ?? "/bar-1.jpg"} alt={venue.name} className="w-full h-52 object-cover transition-transform duration-500 group-hover:scale-105" />
                   <div className="absolute top-3 right-3 rounded-full px-3 py-1 text-base font-medium" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: "var(--font-body)" }}>{venue.price}</div>
                 </div>
 
@@ -901,7 +901,7 @@ function RecommendGroup({
               className="group flex gap-3 rounded-xl p-3 transition-all hover:shadow-md"
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             >
-              <img src={venue.image || "/bar-1.jpg"} alt={venue.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              <img loading="lazy" src={venue.image || "/bar-1.jpg"} alt={venue.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                   {venue.name}

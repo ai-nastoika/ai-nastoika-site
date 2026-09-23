@@ -64,7 +64,7 @@ export default function Recipes() {
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
             >
               <div className="relative overflow-hidden">
-                <img src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform group-hover:scale-105" />
+                <img loading="lazy" src={recipe.heroImage ?? "/recipe-cherry.jpg"} alt={recipe.title} className="w-full h-52 object-cover transition-transform group-hover:scale-105" />
               </div>
 
               <div className="p-5">

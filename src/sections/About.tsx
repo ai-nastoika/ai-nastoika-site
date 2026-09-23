@@ -12,6 +12,7 @@ export default function About() {
               style={{ border: "1px solid var(--border)" }}
             >
               <img
+                loading="lazy"
                 src="/tasting-flight.png"
                 alt="Дегустационный сет настоек с декантером и ингредиентами"
                 className="w-full h-auto object-cover"

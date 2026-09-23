@@ -12,6 +12,7 @@ export default function LabelPreview() {
             style={{ border: "1px solid var(--border)", height: 340 }}
           >
             <img
+              loading="lazy"
               src="/label-preview.jpg"
               alt="Пример готовой этикетки"
               className="w-full h-full object-cover"

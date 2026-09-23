@@ -111,25 +111,25 @@ export default function AboutPage() {
                 className="rounded-2xl overflow-hidden h-48"
                 style={{ border: "1px solid var(--border)" }}
               >
-                <img src="/recipe-cherry.jpg" alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" src="/recipe-cherry.jpg" alt="" className="w-full h-full object-cover" />
               </div>
               <div
                 className="rounded-2xl overflow-hidden h-48 mt-8"
                 style={{ border: "1px solid var(--border)" }}
               >
-                <img src="/recipe-label.jpg" alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" src="/recipe-label.jpg" alt="" className="w-full h-full object-cover" />
               </div>
               <div
                 className="rounded-2xl overflow-hidden h-48 -mt-8"
                 style={{ border: "1px solid var(--border)" }}
               >
-                <img src="/recipe-herbal.jpg" alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" src="/recipe-herbal.jpg" alt="" className="w-full h-full object-cover" />
               </div>
               <div
                 className="rounded-2xl overflow-hidden h-48"
                 style={{ border: "1px solid var(--border)" }}
               >
-                <img src="/recipe-lemon.jpg" alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" src="/recipe-lemon.jpg" alt="" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>

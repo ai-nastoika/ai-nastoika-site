@@ -1013,7 +1013,7 @@ function RecipeForm({
             </Button>
           </div>
           {f.heroImage && (
-            <img src={f.heroImage} alt="Превью" className="mt-2 h-20 rounded object-cover" />
+            <img loading="lazy" src={f.heroImage} alt="Превью" className="mt-2 h-20 rounded object-cover" />
           )}
         </div>
       </div>
@@ -2149,7 +2149,7 @@ function LabelExamplesAdmin() {
               {examples.map((ex) => (
                 <div key={ex.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                   <div className="h-56" style={{ background: "var(--surface)" }}>
-                    <img src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
+                    <img loading="lazy" src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
                   </div>
                   <div className="p-3">
                     {ex.title && <p className="text-sm font-medium mb-1">{ex.title}</p>}

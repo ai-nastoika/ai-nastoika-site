@@ -484,7 +484,7 @@ export default function ProfilePage() {
                       className="flex items-center gap-4 rounded-xl p-4"
                       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                     >
-                      <img src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <img loading="lazy" src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{r.title}</div>
                         <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{r.categoryLabel}</div>
@@ -524,7 +524,7 @@ export default function ProfilePage() {
                       className="flex items-center gap-4 rounded-xl p-4"
                       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                     >
-                      <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                      <img loading="lazy" src={p.image || "/bar-1.jpg"} alt={p.name} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{p.name}</div>
                         <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{p.city || "—"}</div>
@@ -564,7 +564,7 @@ export default function ProfilePage() {
                     const rating = comment.rating === "green" || comment.rating === "yellow" || comment.rating === "red" ? comment.rating : null;
                     return (
                       <div key={comment.id} className="flex items-center gap-4 rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                        <img src={displayImage ?? "/recipe-cherry.jpg"} alt={displayTitle} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                        <img loading="lazy" src={displayImage ?? "/recipe-cherry.jpg"} alt={displayTitle} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="text-base font-medium truncate" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{displayTitle}</div>
                           <div className="text-sm truncate" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{comment.text}</div>
@@ -647,7 +647,7 @@ export default function ProfilePage() {
                       className="rounded-xl overflow-hidden transition-all hover:shadow-lg"
                       style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                     >
-                      <img src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-full h-32 object-cover" />
+                      <img loading="lazy" src={r.heroImage || "/recipe-cherry.jpg"} alt={r.title} className="w-full h-32 object-cover" />
                       <div className="p-4">
                         <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                           {r.title}
@@ -695,7 +695,7 @@ export default function ProfilePage() {
                           className="block w-full cursor-zoom-in"
                           title="Нажмите, чтобы увеличить"
                         >
-                          <img src={src} alt={genLabel.title} className="w-full" style={{ aspectRatio: "3/4", objectFit: "contain", background: "#fff" }} />
+                          <img loading="lazy" src={src} alt={genLabel.title} className="w-full" style={{ aspectRatio: "3/4", objectFit: "contain", background: "#fff" }} />
                         </button>
                         <div className="p-4">
                           <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
@@ -786,7 +786,7 @@ export default function ProfilePage() {
                   className="rounded-xl overflow-hidden transition-all hover:shadow-lg"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
                 >
-                  <img src={p.image || "/bar-1.jpg"} alt={p.name} className="w-full h-32 object-cover" />
+                  <img loading="lazy" src={p.image || "/bar-1.jpg"} alt={p.name} className="w-full h-32 object-cover" />
                   <div className="p-4">
                     <div className="font-medium text-sm mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
                       {p.name}

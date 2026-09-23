@@ -517,7 +517,7 @@ export default function PlaceParserPage() {
             <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
               {duplicateMatches.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ border: "1px solid var(--border)" }}>
-                  <img src={m.image || "/bar-1.jpg"} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                  <img loading="lazy" src={m.image || "/bar-1.jpg"} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</div>
                     <div className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{m.city} {m.address}</div>

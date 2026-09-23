@@ -48,6 +48,7 @@ export default function Header() {
               src="/logo-full.png"
               alt="Ай, настойка!"
               className="h-14 md:h-[72px] w-auto"
+              fetchPriority="high"
             />
           </Link>
 
