@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, type ReactNode } from "react";
 import { trpc } from "@/providers/trpc";
+import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,9 +211,7 @@ function AdminPanel() {
   // вкладки, недоступные editor'у; роутеры на бэкенде строго adminQuery, поэтому без
   // enabled: isAdmin editor получил бы 403 при каждом открытии страницы.
   const { data: tabCounts } = trpc.adminStats.tabCounts.useQuery();
-  // submission.listAll — заглушка на сервере (всегда []), запрос бесплатный; оставлен,
-  // чтобы цифра на вкладке "Модерация" считалась так же, как её содержимое.
-  const { data: submissionsCount } = trpc.submission.listAll.useQuery(undefined, { enabled: isAdmin });
+
   const { data: aiHealth } = trpc.adminStats.aiHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: imageHealth } = trpc.adminStats.imageHealth.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
   const { data: visitStats } = trpc.adminStats.visitStats.useQuery(undefined, { refetchInterval: 60_000, enabled: isAdmin });
@@ -640,7 +639,7 @@ function AdminPanel() {
             {isAdmin && (
               <>
                 <TabsTrigger value="labelExamples">Примеры этикеток ({tabCounts?.labelExamples ?? 0})</TabsTrigger>
-                <TabsTrigger value="moderation">Модерация ({submissionsCount?.filter(s => s.status === "pending").length ?? 0})</TabsTrigger>
+                <TabsTrigger value="moderation">Модерация ({tabCounts?.recipeSubmissions ?? 0})</TabsTrigger>
                 <TabsTrigger value="placeSubmissions">Заявки на заведения ({tabCounts?.placeSubmissions ?? 0})</TabsTrigger>
                 <TabsTrigger value="users">Пользователи ({tabCounts?.users ?? 0})</TabsTrigger>
                 <TabsTrigger value="feedback">Обращения ({tabCounts?.feedback ?? 0})</TabsTrigger>
@@ -1564,7 +1563,23 @@ function FeedbackTab() {
   );
 }
 
+/* Собирает исходный текст заявки в один блок для реального ИИ-парсера рецептов
+   (/tools/parse-recipe, api/recipeParser.ts) — тот принимает произвольный текст
+   рецепта и распознаёт его. Раньше "Одобрить и опубликовать" пыталось напрямую
+   вставить в recipes ТОЛЬКО заголовок и ссылку — без единого ингредиента или шага,
+   потому что честная форма на сайте (см. AddRecipeForm.tsx) намеренно ничего не
+   "обрабатывает ИИ" сама, а просто присылает текст как есть на модерацию. */
+function buildParserPrefillText(s: { rawTitle: string; rawDescription: string | null; rawIngredients: string | null; rawSteps: string | null; rawNotes: string | null }): string {
+  const parts = [s.rawTitle];
+  if (s.rawDescription) parts.push(s.rawDescription);
+  if (s.rawIngredients) parts.push("Ингредиенты:\n" + s.rawIngredients);
+  if (s.rawSteps) parts.push("Способ приготовления:\n" + s.rawSteps);
+  if (s.rawNotes) parts.push("Заметки автора: " + s.rawNotes);
+  return parts.join("\n\n");
+}
+
 function ModerationTab() {
+  const navigate = useNavigate();
   const utils = trpc.useUtils();
   const [filter, setFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -1595,39 +1610,45 @@ function ModerationTab() {
     rejected: { label: "Отклонён", bg: "#fee2e2", color: "#991b1b", icon: <X size={14} /> },
   };
 
-  function handleApprove(s: NonNullable<typeof submissions>[0]) {
+  // Заявка уже когда-то была обработана (старые записи с прежних времён, когда форма
+  // сама вызывала ИИ) — публикуем сразу теми же полями, как и раньше.
+  function handleApproveProcessed(s: NonNullable<typeof submissions>[0]) {
     if (!confirm(`Одобрить и опубликовать рецепт «${s.title || s.rawTitle}»?`)) return;
-    /* Approve submission */
     approve.mutate({ id: s.id });
-    /* Publish to recipes table */
-    if (s.title && s.slug) {
-      publishRecipe.mutate({
-        slug: s.slug,
-        title: s.title,
-        subtitle: s.subtitle ?? undefined,
-        category: s.category || "sweet",
-        categoryLabel: s.categoryLabel ?? undefined,
-        abv: s.abv ?? undefined,
-        time: s.time ?? undefined,
-        difficulty: s.difficulty ?? undefined,
-        year: s.year ?? undefined,
-        origin: s.origin ?? undefined,
-        historyTitle: s.historyTitle ?? undefined,
-        historyText: s.historyText ?? undefined,
-        tastingColor: s.tastingColor ?? undefined,
-        tastingDescription: s.tastingDescription ?? undefined,
-        tastingTemp: s.tastingTemp ?? undefined,
-        tastingGlass: s.tastingGlass ?? undefined,
-        authorName: s.authorName ?? undefined,
-        authorDate: s.authorDate ?? undefined,
-        sweet: s.sweet ?? undefined,
-        sour: s.sour ?? undefined,
-        bitter: s.bitter ?? undefined,
-        spicy: s.spicy ?? undefined,
-        fruity: s.fruity ?? undefined,
-        herbal: s.herbal ?? undefined,
-      });
-    }
+    publishRecipe.mutate({
+      slug: s.slug!,
+      title: s.title!,
+      subtitle: s.subtitle ?? undefined,
+      category: s.category || "sweet",
+      categoryLabel: s.categoryLabel ?? undefined,
+      abv: s.abv ?? undefined,
+      time: s.time ?? undefined,
+      difficulty: s.difficulty ?? undefined,
+      year: s.year ?? undefined,
+      origin: s.origin ?? undefined,
+      historyTitle: s.historyTitle ?? undefined,
+      historyText: s.historyText ?? undefined,
+      tastingColor: s.tastingColor ?? undefined,
+      tastingDescription: s.tastingDescription ?? undefined,
+      tastingTemp: s.tastingTemp ?? undefined,
+      tastingGlass: s.tastingGlass ?? undefined,
+      authorName: s.authorName ?? undefined,
+      authorDate: s.authorDate ?? undefined,
+      sweet: s.sweet ?? undefined,
+      sour: s.sour ?? undefined,
+      bitter: s.bitter ?? undefined,
+      spicy: s.spicy ?? undefined,
+      fruity: s.fruity ?? undefined,
+      herbal: s.herbal ?? undefined,
+    });
+  }
+
+  // Обычный случай: заявка содержит только то, что прислал пользователь (заголовок,
+  // ссылка или текст рецепта) — передаём её настоящему ИИ-парсеру, который умеет
+  // распознавать ингредиенты и шаги, а не публикуем текст как есть. После публикации
+  // оттуда парсер сам отметит эту заявку одобренной (см. RecipeParserPage.tsx).
+  function handleSendToParser(s: NonNullable<typeof submissions>[0]) {
+    navigate("/tools/parse-recipe", { state: { prefillText: buildParserPrefillText(s), submissionId: s.id } });
   }
 
   function handleReject(id: number) {
@@ -1797,15 +1818,26 @@ function ModerationTab() {
                       {/* Actions */}
                       {s.status === "pending" && (
                         <div className="flex flex-wrap gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(s)}
-                            disabled={approve.isPending}
-                            style={{ background: "#386641", color: "#fff" }}
-                          >
-                            <Check size={16} className="mr-1" />
-                            {approve.isPending ? "Публикуем..." : "Одобрить и опубликовать"}
-                          </Button>
+                          {s.title && s.slug ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveProcessed(s)}
+                              disabled={approve.isPending}
+                              style={{ background: "#386641", color: "#fff" }}
+                            >
+                              <Check size={16} className="mr-1" />
+                              {approve.isPending ? "Публикуем..." : "Одобрить и опубликовать"}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSendToParser(s)}
+                              style={{ background: "#386641", color: "#fff" }}
+                            >
+                              <Sparkles size={16} className="mr-1" />
+                              Обработать через ИИ-парсер →
+                            </Button>
+                          )}
                           {rejectId === s.id ? (
                             <div className="flex items-center gap-2 flex-1">
                               <Input

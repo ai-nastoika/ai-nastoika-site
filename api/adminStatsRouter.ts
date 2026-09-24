@@ -44,12 +44,14 @@ export const adminStatsRouter = createRouter({
     const base = { recipes: num(recipeRows), places: num(placeRows) };
 
     if (ctx.user.role !== "admin") {
-      return { ...base, labelExamples: null, placeSubmissions: null, users: null, feedback: null, comments: null };
+      return { ...base, labelExamples: null, placeSubmissions: null, recipeSubmissions: null, users: null, feedback: null, comments: null };
     }
 
-    const [exampleRows, placeSubRows, userRows, feedbackRows, commentRows] = await Promise.all([
+    const [exampleRows, placeSubRows, recipeSubRows, userRows, feedbackRows, commentRows] = await Promise.all([
       db.select({ value: count() }).from(labelExamples),
       db.select({ value: count() }).from(placeSubmissions).where(eq(placeSubmissions.status, "pending")),
+      // Заявки на рецепты — вкладка "Модерация" (см. submissionRouter.ts)
+      db.select({ value: count() }).from(userRecipeSubmissions).where(eq(userRecipeSubmissions.status, "pending")),
       db.select({ value: count() }).from(users),
       db
         .select({ value: count() })
@@ -62,6 +64,7 @@ export const adminStatsRouter = createRouter({
       ...base,
       labelExamples: num(exampleRows),
       placeSubmissions: num(placeSubRows),
+      recipeSubmissions: num(recipeSubRows),
       users: num(userRows),
       feedback: num(feedbackRows),
       comments: num(commentRows),

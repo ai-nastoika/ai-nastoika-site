@@ -32,6 +32,7 @@ import { donationRouter } from "./donationRouter";
 import { recipeParserRouter } from "./recipeParser";
 import { distillerConsultRouter } from "./distillerConsultRouter";
 import { placeParserRouter } from "./placeParser";
+import { submissionRouter } from "./submissionRouter";
 
 // ─── Email уведомление админу ───
 async function notifyAdmin(subject: string, html: string) {
@@ -773,16 +774,12 @@ export const appRouter = router({
   labelTemplate: labelTemplateRouter,
   savedLabels: savedLabelsRouter,
 
-  submission: router({
-    create: publicProcedure.input(z.any()).mutation(() => ({ id: Date.now() })),
-    saveProcessed: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-    submit: publicProcedure.input(z.object({ id: z.number() })).mutation(() => ({ success: true })),
-    byId: publicProcedure.input(z.object({ id: z.number() })).query(() => null),
-    listPending: publicProcedure.query(() => []),
-    listAll: publicProcedure.query(() => []),
-    approve: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-    reject: publicProcedure.input(z.any()).mutation(() => ({ success: true })),
-  }),
+  // Заявки на добавление рецептов от пользователей (форма "Добавить свой рецепт"
+  // на /recipes) + их модерация в админке. Раньше здесь была заглушка, которая
+  // всегда возвращала пустой список, — вкладка "Модерация" в админке существовала,
+  // но ничего не показывала, а отправленные пользователями рецепты нигде не
+  // сохранялись видимым образом (хотя таблица в базе честно писалась).
+  submission: submissionRouter,
 });
 
 export type AppRouter = typeof appRouter;

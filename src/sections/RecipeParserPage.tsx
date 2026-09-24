@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -67,9 +67,15 @@ function slugify(title: string): string {
 export default function RecipeParserPage() {
   const navigate = useNavigate();
   const { isLoggedIn, isLoading, isEditor } = useAuth();
+  const location = useLocation();
+  // Открыта из модерации заявок (AdminPage → ModerationTab → "Обработать через ИИ-парсер"):
+  // подставляем присланный пользователем текст и запоминаем, какую заявку потом
+  // отметить одобренной. Через location.state, а не query-параметры — текст заявки
+  // может быть длинным, а история пары шагов ("отправили → вернулись назад") не нужна.
+  const prefill = location.state as { prefillText?: string; submissionId?: number } | null;
   const [tab, setTab] = useState("source");
   const [sourceMode, setSourceMode] = useState<"text" | "screenshot">("text");
-  const [recipeText, setRecipeText] = useState("");
+  const [recipeText, setRecipeText] = useState(prefill?.prefillText ?? "");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
   const [generateImageEnabled, setGenerateImageEnabled] = useState(false);
@@ -83,9 +89,15 @@ export default function RecipeParserPage() {
   const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
+  // Если пришли сюда из модерации — после публикации отмечаем исходную заявку
+  // одобренной. Заявке это не мешает: recipes и user_recipe_submissions никак
+  // не связаны в базе, approve здесь — просто пометка "разобрано", чтобы заявка
+  // ушла из фильтра "На проверке" в админке.
+  const approveSubmission = trpc.submission.approve.useMutation();
   const upsertRecipe = trpc.recipe.upsert.useMutation({
     onSuccess: () => {
       utils.recipe.list.invalidate();
+      if (prefill?.submissionId) approveSubmission.mutate({ id: prefill.submissionId });
       setSaving(false);
       navigate("/recipes");
     },
