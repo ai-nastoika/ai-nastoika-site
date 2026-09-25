@@ -12,6 +12,13 @@ import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { editImage, buildPhotoEditPrompt, ensureImageBase64 } from "./lib/imageClient";
 import { compressImageIfNeeded, cropToOrientation, resizeUploadIfNeeded } from "./lib/imageCompress";
+
+// Расширение файла по РЕЗУЛЬТАТУ сжатия (resizeUploadIfNeeded может превратить PNG
+// в JPEG, если реальной прозрачности не было, — см. imageCompress.ts), а не по тому,
+// что прислал браузер. Иначе Content-Type при отдаче файла разъедется с байтами.
+function extForMime(mimeType: string): string {
+  return mimeType === "image/png" ? ".png" : mimeType === "image/webp" ? ".webp" : ".jpg";
+}
 import { recordVisit } from "./lib/visitCounter";
 import { chargeImageRequest, refundAiRequest, logAiUsage, logAiFailure, LABEL_MAX_REVISIONS } from "./lib/aiAccess";
 import { jwtVerify } from "jose";
@@ -263,16 +270,15 @@ app.post("/api/upload-image", async (c) => {
     }
 
     // Генерируем уникальное имя
-    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `recipe-${hash}${ext}`;
-    const filePath = path.join(uploadsDir, fileName);
 
     // Уменьшаем фото до разумного размера (шапка рецепта показывается максимум ~1200px
     // шириной) — раньше фото с телефона 3-5 МБ сохранялось как есть.
     const arrayBuffer = await file.arrayBuffer();
     const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
-    fs.writeFileSync(filePath, resized);
+    const fileName = `recipe-${hash}${extForMime(resized.mimeType)}`;
+    const filePath = path.join(uploadsDir, fileName);
+    fs.writeFileSync(filePath, resized.buffer);
 
     // Возвращаем путь для heroImage
     const publicPath = `/uploads/recipes/${fileName}`;
@@ -308,19 +314,18 @@ app.post("/api/upload-place-menu", async (c) => {
       return c.json({ error: "Файл слишком большой (макс. 15MB)" }, 400);
     }
 
-    const ext = file.type === "application/pdf" ? ".pdf"
-      : file.type === "image/png" ? ".png"
-      : file.type === "image/webp" ? ".webp"
-      : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `menu-${hash}${ext}`;
-    const filePath = path.join(menusDir, fileName);
 
     // PDF — как есть (страницы меню, разрешение не по пикселям браузера); фото меню —
     // уменьшаем: это скан/фото странички, а не что-то, что печатают в оригинальном размере.
+    // Расширение файла берём по РЕЗУЛЬТАТУ (для фото — после возможной PNG→JPEG конвертации).
     const arrayBuffer = await file.arrayBuffer();
-    const outBuffer =
-      file.type === "application/pdf" ? Buffer.from(arrayBuffer) : await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1800);
+    const isPdf = file.type === "application/pdf";
+    const resized = isPdf ? null : await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1800);
+    const outBuffer = isPdf ? Buffer.from(arrayBuffer) : resized!.buffer;
+    const outExt = isPdf ? ".pdf" : extForMime(resized!.mimeType);
+    const fileName = `menu-${hash}${outExt}`;
+    const filePath = path.join(menusDir, fileName);
     fs.writeFileSync(filePath, outBuffer);
 
     const publicPath = `/uploads/menus/${fileName}`;
@@ -355,14 +360,13 @@ app.post("/api/upload-label-example", async (c) => {
       return c.json({ error: "Файл слишком большой (макс. 10MB)" }, 400);
     }
 
-    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `example-${hash}${ext}`;
-    const filePath = path.join(labelExamplesDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
     const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
-    fs.writeFileSync(filePath, resized);
+    const fileName = `example-${hash}${extForMime(resized.mimeType)}`;
+    const filePath = path.join(labelExamplesDir, fileName);
+    fs.writeFileSync(filePath, resized.buffer);
 
     const publicPath = `/uploads/label-examples/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -396,14 +400,13 @@ app.post("/api/upload-place-image", async (c) => {
       return c.json({ error: "File too large (max 5MB)" }, 400);
     }
 
-    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `place-${hash}${ext}`;
-    const filePath = path.join(placesDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
     const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1600);
-    fs.writeFileSync(filePath, resized);
+    const fileName = `place-${hash}${extForMime(resized.mimeType)}`;
+    const filePath = path.join(placesDir, fileName);
+    fs.writeFileSync(filePath, resized.buffer);
 
     const publicPath = `/uploads/places/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -484,14 +487,13 @@ app.post("/api/upload-tracker-image", async (c) => {
       return c.json({ error: "File too large (max 5MB)" }, 400);
     }
 
-    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `tracker-${hash}${ext}`;
-    const filePath = path.join(trackerDir, fileName);
 
     const arrayBuffer = await file.arrayBuffer();
     const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 1400);
-    fs.writeFileSync(filePath, resized);
+    const fileName = `tracker-${hash}${extForMime(resized.mimeType)}`;
+    const filePath = path.join(trackerDir, fileName);
+    fs.writeFileSync(filePath, resized.buffer);
 
     const publicPath = `/uploads/trackers/${fileName}`;
     return c.json({ success: true, path: publicPath });
@@ -525,15 +527,14 @@ app.post("/api/upload-avatar", async (c) => {
       return c.json({ error: "File too large (max 5MB)" }, 400);
     }
 
-    const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
     const hash = crypto.randomBytes(8).toString("hex");
-    const fileName = `avatar-${hash}${ext}`;
-    const filePath = path.join(avatarsDir, fileName);
 
     // Аватар показывается максимум ~80px — 400px с запасом на Retina более чем достаточно.
     const arrayBuffer = await file.arrayBuffer();
     const resized = await resizeUploadIfNeeded(Buffer.from(arrayBuffer), file.type, 400);
-    fs.writeFileSync(filePath, resized);
+    const fileName = `avatar-${hash}${extForMime(resized.mimeType)}`;
+    const filePath = path.join(avatarsDir, fileName);
+    fs.writeFileSync(filePath, resized.buffer);
 
     const publicPath = `/uploads/avatars/${fileName}`;
     return c.json({ success: true, path: publicPath });

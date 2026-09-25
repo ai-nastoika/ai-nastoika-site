@@ -6,6 +6,7 @@ import { logAiUsage, logAiFailure } from "./lib/aiAccess";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { resizeUploadIfNeeded } from "./lib/imageCompress";
 
 /* Раньше здесь был отдельный клиент на Moonshot (Kimi, api.moonshot.cn) —
    ОКАЗАЛОСЬ МЁРТВЫМ КОДОМ: не был подключён в api/router.ts вообще, там
@@ -133,10 +134,16 @@ const SYSTEM_PROMPT = `Ты — эксперт по домашним насто�
 - Всегда начинай с этапа pour на dayOffset=0 и заканчивай этапом taste на последнем дне.
 - Не выдумывай сроки, которых нет в тексте. Обычно 4-7 этапов достаточно.`;
 
-function saveGeneratedImage(base64: string): string {
+async function saveGeneratedImage(base64: string): Promise<string> {
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-  const fileName = `recipe-ai-${crypto.randomBytes(8).toString("hex")}.png`;
-  fs.writeFileSync(path.join(uploadsDir, fileName), Buffer.from(base64, "base64"));
+  // Сервис генерации всегда отдаёт PNG, хотя это обычная фотография без прозрачности —
+  // resizeUploadIfNeeded распознаёт это и конвертирует в JPEG (в разы легче при том же
+  // виде), плюс подгоняет под реальный размер показа на странице рецепта. Раньше эта
+  // функция писала PNG на диск как есть — по 2-4 МБ на картинку, без единого изменения.
+  const { buffer, mimeType } = await resizeUploadIfNeeded(Buffer.from(base64, "base64"), "image/png", 1600);
+  const ext = mimeType === "image/png" ? ".png" : mimeType === "image/webp" ? ".webp" : ".jpg";
+  const fileName = `recipe-ai-${crypto.randomBytes(8).toString("hex")}${ext}`;
+  fs.writeFileSync(path.join(uploadsDir, fileName), buffer);
   return `/uploads/recipes/${fileName}`;
 }
 
@@ -240,7 +247,7 @@ export const recipeParserRouter = createRouter({
       if (input.generateImage && imagePrompt) {
         try {
           const image = await generateImage(imagePrompt, "1536x1024");
-          heroImage = saveGeneratedImage(await ensureImageBase64(image));
+          heroImage = await saveGeneratedImage(await ensureImageBase64(image));
           await logAiUsage({
             userId: ctx.user.id,
             requestType: REQUEST_TYPE_IMAGE,
@@ -262,7 +269,7 @@ export const recipeParserRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       try {
         const image = await generateImage(input.prompt, "1536x1024");
-        const heroImage = saveGeneratedImage(await ensureImageBase64(image));
+        const heroImage = await saveGeneratedImage(await ensureImageBase64(image));
         if (!heroImage) throw new Error("ИИ не вернул изображение — попробуйте ещё раз");
         await logAiUsage({
           userId: ctx.user.id,

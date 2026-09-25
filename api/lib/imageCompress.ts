@@ -48,27 +48,62 @@ const ORIENTATION_TARGETS: Record<"vertical" | "square" | "horizontal", { width:
   horizontal: { width: 1500, height: 1000 },
 };
 
+/* PNG — формат без потерь: отлично подходит для иконок с прозрачностью, но для
+   обычной фотографии (нет ни одного прозрачного пикселя) он в разы тяжелее JPEG
+   при абсолютно одинаковой картинке — лишние мегабайты уходят на то, что PNG
+   бережно хранит альфа-канал, которым никто не пользуется.
+   metadata().hasAlpha сам по себе не говорит правду: многие генераторы картинок
+   (в т.ч. наш ИИ-парсер рецептов) отдают PNG с альфа-каналом, где КАЖДЫЙ пиксель
+   всё равно непрозрачен (alpha=255 везде) — просто такой формат вывода у API.
+   Поэтому здесь проверяем не наличие альфа-канала, а реально ли он что-то скрывает:
+   stats() по каждому каналу даёт min/max, и если минимум альфы по всей картинке
+   равен 255 — прозрачности физически нет, картинку можно смело перекодировать
+   в JPEG с большой выгодой по весу. */
+async function pngHasRealTransparency(buffer: Buffer): Promise<boolean> {
+  const meta = await sharp(buffer).metadata();
+  if (!meta.hasAlpha) return false;
+  const { channels } = await sharp(buffer).stats();
+  const alpha = channels[channels.length - 1];
+  return alpha.min < 255;
+}
+
 /* Сжатие обычных загрузок из админки/кабинета (фото рецепта, заведения, трекера,
    аватар, пример этикетки) — в отличие от compressImageIfNeeded() выше (готовит фото
-   для отправки в ИИ, всегда на выходе JPEG), здесь формат СОХРАНЯЕТСЯ: PNG остаётся
-   PNG (не теряет прозрачность), WebP остаётся WebP, JPEG просто перекодируется бережнее.
+   для отправки в ИИ, всегда на выходе JPEG), здесь формат по умолчанию СОХРАНЯЕТСЯ:
+   WebP остаётся WebP, JPEG просто перекодируется бережнее. Исключение — PNG без
+   реальной прозрачности (см. pngHasRealTransparency выше): такой конвертируем в
+   JPEG, это даёт основную экономию веса для фотографий рецептов/заведений.
    Раньше все эти эндпоинты просто писали файл на диск как есть — фото с телефона
    4000+ px и 3-5 МБ уходило пользователям сайта без единого изменения.
    maxDimension настраивается под контекст показа (аватар/иконка — меньше, фото
-   заведения — больше); quality одинаково щадящий для JPEG/WebP. */
+   заведения — больше). Возвращает и итоговый mimeType — он может отличаться от
+   входного (PNG → JPEG), вызывающему коду нужно сохранить файл с ПРАВИЛЬНЫМ
+   расширением, иначе Content-Type при отдаче файла разъедется с реальным форматом. */
 export async function resizeUploadIfNeeded(
   buffer: Buffer,
   mimeType: string,
   maxDimension: number
-): Promise<Buffer> {
+): Promise<{ buffer: Buffer; mimeType: string }> {
   const img = sharp(buffer).rotate(); // авто-поворот по EXIF, как и в encode() выше
   const meta = await img.metadata();
   const needsResize = (meta.width ?? 0) > maxDimension || (meta.height ?? 0) > maxDimension;
   const resized = needsResize ? img.resize(maxDimension, maxDimension, { fit: "inside", withoutEnlargement: true }) : img;
 
-  if (mimeType === "image/png") return resized.png({ compressionLevel: 9 }).toBuffer();
-  if (mimeType === "image/webp") return resized.webp({ quality: 85 }).toBuffer();
-  return resized.jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+  if (mimeType === "image/png") {
+    if (await pngHasRealTransparency(buffer)) {
+      return { buffer: await resized.png({ compressionLevel: 9 }).toBuffer(), mimeType: "image/png" };
+    }
+    // Непрозрачный PNG → JPEG. flatten() на белом фоне — подстраховка на случай
+    // редких частично-прозрачных пикселей по краям (сглаживание), которые сами
+    // по себе не считаются "реальной прозрачностью" по порогу выше, но JPEG
+    // всё равно не умеет хранить альфа-канал и его пришлось бы убирать.
+    return {
+      buffer: await resized.flatten({ background: "#ffffff" }).jpeg({ quality: 85, mozjpeg: true }).toBuffer(),
+      mimeType: "image/jpeg",
+    };
+  }
+  if (mimeType === "image/webp") return { buffer: await resized.webp({ quality: 85 }).toBuffer(), mimeType: "image/webp" };
+  return { buffer: await resized.jpeg({ quality: 85, mozjpeg: true }).toBuffer(), mimeType: "image/jpeg" };
 }
 
 export async function cropToOrientation(
