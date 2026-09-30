@@ -9,7 +9,7 @@ import { env } from "./lib/env";
 
 /* Пресеты сумм для кнопок «Поддержать». Донат — не тарифная сущность,
    поэтому сумма может быть любой (валидируем только разумные границы). */
-const DONATION_PRESETS_RUB = [200, 500, 1000] as const;
+const DONATION_PRESETS_RUB = [100, 500, 1000] as const;
 
 export const donationRouter = createRouter({
   /* ── Доступность приёма донатов + пресеты сумм ──

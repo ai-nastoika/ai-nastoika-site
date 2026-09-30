@@ -191,7 +191,7 @@ export function DonateModal({ onClose }: DonateModalProps) {
 
         .donate-modal-presets {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(2, 1fr);
           gap: 8px;
           margin-bottom: 12px;
         }
@@ -256,6 +256,21 @@ export function DonateModal({ onClose }: DonateModalProps) {
           color: #dc2626;
           margin-top: 8px;
           text-align: center;
+        }
+
+        .donate-modal-custom-amount {
+          margin-bottom: 12px;
+        }
+
+        .donate-modal-custom-amount .donate-modal-input {
+          margin-bottom: 4px;
+        }
+
+        .donate-modal-custom-hint {
+          font-size: 12px;
+          color: #dc2626;
+          text-align: left;
+          margin: 0;
         }
 
         .donate-modal-phone-note {
@@ -335,7 +350,27 @@ function ChoiceView({ info, onSelect }: { info: DonationInfo; onSelect: (v: View
 /* ── ЮKassa: сумма + имя → редирект на страницу оплаты сервиса ── */
 function YookassaView({ info, onBack }: { info: DonationInfo; onBack: () => void }) {
   const [amount, setAmount] = useState<number | null>(null);
+  // Свободная сумма — отдельное состояние от пресетов, чтобы клик по кнопке
+  // 100/500/1000 не путался с тем, что человек уже успел напечатать вручную.
+  const [customMode, setCustomMode] = useState(false);
+  const [customValue, setCustomValue] = useState("");
   const [name, setName] = useState("");
+
+  const MIN_DONATION_RUB = 10;
+  const customAmount = Number(customValue.replace(",", "."));
+  const customIsValid = customValue.trim() !== "" && Number.isFinite(customAmount) && customAmount >= MIN_DONATION_RUB;
+
+  function selectPreset(v: number) {
+    setCustomMode(false);
+    setAmount(v);
+  }
+
+  function openCustom() {
+    setCustomMode(true);
+    setAmount(null);
+  }
+
+  const finalAmount = customMode ? (customIsValid ? customAmount : null) : amount;
 
   const createDonation = trpc.donation.create.useMutation({
     onSuccess: (data) => {
@@ -353,13 +388,37 @@ function YookassaView({ info, onBack }: { info: DonationInfo; onBack: () => void
         {info.presetsRub.map((v) => (
           <button
             key={v}
-            onClick={() => setAmount(v)}
-            className={`donate-modal-preset ${amount === v ? "is-active" : ""}`}
+            onClick={() => selectPreset(v)}
+            className={`donate-modal-preset ${!customMode && amount === v ? "is-active" : ""}`}
           >
             {v} ₽
           </button>
         ))}
+        <button
+          onClick={openCustom}
+          className={`donate-modal-preset ${customMode ? "is-active" : ""}`}
+        >
+          Своя сумма
+        </button>
       </div>
+      {customMode && (
+        <div className="donate-modal-custom-amount">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={MIN_DONATION_RUB}
+            step={1}
+            autoFocus
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            placeholder={`От ${MIN_DONATION_RUB} ₽`}
+            className="donate-modal-input"
+          />
+          {customValue.trim() !== "" && !customIsValid && (
+            <p className="donate-modal-custom-hint">Минимальная сумма — {MIN_DONATION_RUB} ₽</p>
+          )}
+        </div>
+      )}
       <input
         type="text"
         value={name}
@@ -369,8 +428,8 @@ function YookassaView({ info, onBack }: { info: DonationInfo; onBack: () => void
         className="donate-modal-input"
       />
       <button
-        onClick={() => amount && createDonation.mutate({ amountRub: amount, name: name.trim() || undefined })}
-        disabled={!amount || createDonation.isPending}
+        onClick={() => finalAmount && createDonation.mutate({ amountRub: finalAmount, name: name.trim() || undefined })}
+        disabled={!finalAmount || createDonation.isPending}
         className="donate-modal-submit"
       >
         {createDonation.isPending ? (
