@@ -354,7 +354,6 @@ function YookassaView({ info, onBack }: { info: DonationInfo; onBack: () => void
   // 100/500/1000 не путался с тем, что человек уже успел напечатать вручную.
   const [customMode, setCustomMode] = useState(false);
   const [customValue, setCustomValue] = useState("");
-  const [name, setName] = useState("");
 
   const MIN_DONATION_RUB = 10;
   const customAmount = Number(customValue.replace(",", "."));
@@ -419,16 +418,8 @@ function YookassaView({ info, onBack }: { info: DonationInfo; onBack: () => void
           )}
         </div>
       )}
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Имя для списка благодарности (необязательно)"
-        maxLength={100}
-        className="donate-modal-input"
-      />
       <button
-        onClick={() => finalAmount && createDonation.mutate({ amountRub: finalAmount, name: name.trim() || undefined })}
+        onClick={() => finalAmount && createDonation.mutate({ amountRub: finalAmount })}
         disabled={!finalAmount || createDonation.isPending}
         className="donate-modal-submit"
       >
