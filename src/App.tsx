@@ -7,6 +7,7 @@ import About from "./sections/About";
 import Stats from "./sections/Stats";
 import Tools from "./sections/Tools";
 import Recipes from "./sections/Recipes";
+import RecentRecipes from "./sections/RecentRecipes";
 import Footer from "./sections/Footer";
 import BarMapPreview from "./sections/BarMapPreview";
 import VinokurPreview from "./sections/VinokurPreview";
@@ -66,6 +67,7 @@ function HomePage() {
       <BarMapPreview />
       <VinokurPreview />
       <Recipes />
+      <RecentRecipes />
     </main>
   );
 }
