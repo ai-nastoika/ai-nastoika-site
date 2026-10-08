@@ -6,11 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, UserPlus, ArrowLeft, CheckCircle2, Mail, RefreshCw, Eye, EyeOff, KeyRound } from "lucide-react";
+import { rememberNext, clearNext, consumeNext } from "@/lib/postAuthRedirect";
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const verifyToken = searchParams.get("verify");
   const resetToken = searchParams.get("token");
+  const nextParam = searchParams.get("next");
+
+  // Откуда пришёл гость (например, со страницы рецепта) — запоминаем, чтобы
+  // после входа/регистрации вернуть его туда. Если пришёл на /login «просто так»
+  // (не по ссылке из письма) — стираем старую пометку, чтобы не увезти человека
+  // на страницу из давно заброшенной попытки.
+  useEffect(() => {
+    if (nextParam) rememberNext(nextParam);
+    else if (!verifyToken && !resetToken) clearNext();
+  }, [nextParam, verifyToken, resetToken]);
 
   const [mode, setMode] = useState<"login" | "register" | "verify-email" | "forgot-password" | "reset-password">(
     () => (resetToken ? "reset-password" : searchParams.get("mode") === "register" ? "register" : "login")
@@ -54,7 +65,7 @@ export default function LoginPage() {
       if (data.token) {
         localStorage.setItem("auth-token", data.token);
         utils.auth.me.invalidate().then(() => {
-          window.location.href = "/";
+          window.location.href = consumeNext() ?? "/";
         });
       } else {
         setMode("verify-email");
@@ -95,7 +106,7 @@ export default function LoginPage() {
   const onAuthSuccess = (data: { token: string }) => {
     localStorage.setItem("auth-token", data.token);
     utils.auth.me.invalidate().then(() => {
-      window.location.href = "/";
+      window.location.href = consumeNext() ?? "/";
     });
   };
 

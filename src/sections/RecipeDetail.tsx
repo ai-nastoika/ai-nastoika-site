@@ -1,5 +1,5 @@
-import { useState, type CSSProperties } from "react";
-import { useParams, Link, useNavigate } from "react-router";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -65,20 +65,43 @@ export default function RecipeDetail() {
   const startInfusionMutation = trpc.infusion.create.useMutation({
     onSuccess: (data) => navigate(`/profile?tab=tracker&infusionId=${data.id}`),
   });
+  const { mutate: startInfusion } = startInfusionMutation;
 
   function handleStartInfusion() {
     if (!isLoggedIn) {
-      navigate("/login");
+      // Гостя ведём сразу на регистрацию и просим вернуть сюда с ?start=1 —
+      // после входа трекер создастся сам (см. эффект ниже), без повторного клика.
+      if (!recipe) return;
+      const back = encodeURIComponent(`/recipe/${recipe.slug}?start=1`);
+      navigate(`/login?mode=register&next=${back}`);
       return;
     }
     if (!recipe) return;
-    startInfusionMutation.mutate({
+    startInfusion({
       name: recipe.title,
       recipeId: recipe.id,
       startDate: new Date().toISOString().slice(0, 10),
       coverImage: recipe.heroImage ?? undefined,
     });
   }
+
+  // Гость нажал «Поставить настойку», зарегистрировался и вернулся сюда с
+  // ?start=1 — доделываем начатое. Ref защищает от двойного запуска
+  // (StrictMode, повторные рендеры), параметр сразу убираем из адреса.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoStartedRef = useRef(false);
+  const wantsAutoStart = searchParams.get("start") === "1";
+  useEffect(() => {
+    if (!wantsAutoStart || !isLoggedIn || !recipe || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    setSearchParams({}, { replace: true });
+    startInfusion({
+      name: recipe.title,
+      recipeId: recipe.id,
+      startDate: new Date().toISOString().slice(0, 10),
+      coverImage: recipe.heroImage ?? undefined,
+    });
+  }, [wantsAutoStart, isLoggedIn, recipe, setSearchParams, startInfusion]);
 
   async function handleShare() {
     const shareData = {
@@ -136,6 +159,21 @@ export default function RecipeDetail() {
   const steps = recipe.steps ?? [];
   const pairing: string[] = recipe.tastingPairing ? (recipe.tastingPairing as string[]) : [];
   const tips: string[] = recipe.tips ? (recipe.tips as string[]) : [];
+
+  const startButton = (
+    <button
+      onClick={handleStartInfusion}
+      disabled={startInfusionMutation.isPending}
+      className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-semibold text-white disabled:opacity-60 transition-transform hover:-translate-y-0.5"
+      style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+    >
+      <Timer size={20} />
+      {startInfusionMutation.isPending ? "Создаю трекер..." : "Поставить настойку"}
+    </button>
+  );
+  const startHint = isLoggedIn
+    ? "Создаст трекер созревания в личном кабинете с этапами по этому рецепту и напомнит на почту, когда пора действовать."
+    : "Бесплатно, регистрация за минуту. Мы составим календарь по этому рецепту и напомним на почту, когда взболтать, процедить и пробовать.";
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -228,6 +266,22 @@ export default function RecipeDetail() {
 
       {/* ===== CONTENT ===== */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20">
+        {/* --- Поставить настойку (вверху, чтобы не прятаться под всем текстом рецепта) --- */}
+        <section className="mb-10 print:hidden">
+          <div
+            className="rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex-1">
+              <div className="text-lg font-bold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>
+                Хотите приготовить? Мы подскажем, когда что делать
+              </div>
+              <p className="text-base" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-body)" }}>{startHint}</p>
+            </div>
+            {startButton}
+          </div>
+        </section>
+
         {/* --- History --- */}
         {recipe.historyTitle && (
           <section className="mb-14">
@@ -412,18 +466,8 @@ export default function RecipeDetail() {
 
         {/* --- Поставить настойку: создаёт трекер созревания в личном кабинете --- */}
         <section className="mb-14 print:hidden">
-          <button
-            onClick={handleStartInfusion}
-            disabled={startInfusionMutation.isPending}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-semibold text-white disabled:opacity-60 transition-transform hover:-translate-y-0.5"
-            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
-          >
-            <Timer size={20} />
-            {startInfusionMutation.isPending ? "Создаю трекер..." : "Поставить настойку"}
-          </button>
-          <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-            Создаст трекер созревания в личном кабинете с этапами по этому рецепту
-          </p>
+          {startButton}
+          <p className="text-sm mt-2" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>{startHint}</p>
         </section>
 
         {/* --- Консультация ИИ по этому рецепту (только для экрана) --- */}
