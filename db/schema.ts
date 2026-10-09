@@ -410,6 +410,17 @@ export const users = mysqlTable("users", {
   // Значок донора в профиле — выставляется после первого успешного доната
   // (см. donations ниже и вебхук в api/boot.ts). Не влияет на лимиты ИИ-запросов.
   isDonor: int("is_donor").default(0).notNull(),
+  // ─── Способы напоминаний трекера ───
+  // Telegram: chat_id личного чата с ботом (null — не подключён). Привязка идёт
+  // через одноразовый код (telegram_link_code), который пользователь отправляет
+  // боту ссылкой t.me/<бот>?start=<код>; код живёт недолго и стирается после
+  // использования. notify_* — галочки «слать сюда» (по умолчанию включены:
+  // почта работала всегда, Telegram начнёт работать после подключения).
+  telegramChatId: varchar("telegram_chat_id", { length: 32 }),
+  telegramLinkCode: varchar("telegram_link_code", { length: 64 }),
+  telegramLinkExpires: timestamp("telegram_link_expires"),
+  notifyEmail: int("notify_email").default(1).notNull(),
+  notifyTelegram: int("notify_telegram").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

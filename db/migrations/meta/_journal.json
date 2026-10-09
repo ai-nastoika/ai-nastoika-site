@@ -204,6 +204,13 @@
       "when": 1789923630492,
       "tag": "0028_label_prev_version",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1789924630492,
+      "tag": "0029_telegram_reminders",
+      "breakpoints": true
     }
   ]
 }

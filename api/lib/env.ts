@@ -30,6 +30,12 @@ export const env = {
   // того чтобы незаметно подписывать токены общедоступной строкой.
   jwtSecret: required("JWT_SECRET"),
   moonshotApiKey: process.env.MOONSHOT_API_KEY ?? "",
+  // Telegram-бот для напоминаний трекера. Не required(): без токена сайт
+  // работает как раньше (напоминания только на почту), блок «Telegram» в
+  // трекере просто не показывается. TELEGRAM_API_BASE — на случай, если с
+  // сервера api.telegram.org недоступен и нужен свой прокси/зеркало.
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+  telegramApiBase: (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replace(/\/+$/, ""),
   // ЮKassa (пополнение баланса личного кабинета) — не required(), т.к. без них
   // сайт должен продолжать работать, просто пополнение будет недоступно.
   yookassaShopId: process.env.YOOKASSA_SHOP_ID ?? "",

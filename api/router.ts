@@ -21,6 +21,7 @@ import { placeSubmissionRouter } from "./placeSubmissionRouter";
 import { favoritesRouter } from "./favoritesRouter";
 import { recipeConsultRouter } from "./recipeConsultRouter";
 import { infusionRouter } from "./infusionRouter";
+import { notifyRouter } from "./notifyRouter";
 import { infusionConsultRouter } from "./infusionConsultRouter";
 import { tasteCalculatorRouter } from "./tasteCalculatorRouter";
 import { tasteBuilderRouter } from "./tasteBuilderRouter";
@@ -762,6 +763,7 @@ export const appRouter = router({
 
   // ─── Трекер созревания ───
   infusion: infusionRouter,
+  notify: notifyRouter,
   infusionConsult: infusionConsultRouter,
   adminStats: adminStatsRouter,
   balance: balanceRouter,

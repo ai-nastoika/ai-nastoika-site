@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import ReminderChannels from "@/components/ReminderChannels";
 import { AiHonestNote, AiActionNote, ANSWER_LABEL } from "@/components/AiHints";
 import {
   Plus,
@@ -637,6 +638,8 @@ export default function InfusionTracker({ initialInfusionId }: { initialInfusion
           <Plus size={16} /> Новая настойка
         </button>
       </div>
+
+      <ReminderChannels />
 
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

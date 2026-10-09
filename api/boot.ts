@@ -8,6 +8,9 @@ import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
+import { isTelegramConfigured, registerTelegramWebhook, telegramWebhookSecret } from "./lib/telegram";
+import { handleTelegramUpdate } from "./lib/telegramBot";
+import { timingSafeEqual } from "node:crypto";
 import { creditTopup, recordDonation } from "./lib/balance";
 import { fetchPaymentStatus } from "./lib/payments";
 import { editImage, buildPhotoEditPrompt, ensureImageBase64 } from "./lib/imageClient";
@@ -646,6 +649,23 @@ app.post("/api/edit-label-photo", async (c) => {
   }
 });
 
+// ─── Telegram webhook: сообщения пользователей боту напоминаний ───
+// Регистрируется автоматически при старте сервера (см. serve() ниже).
+// Подлинность запроса проверяем секретным заголовком, который Telegram
+// присылает с каждым обновлением. Всегда отвечаем 200 после проверки —
+// иначе Telegram будет бесконечно повторять доставку при нашей ошибке.
+app.post("/api/webhooks/telegram", async (c) => {
+  if (!isTelegramConfigured()) return c.json({ error: "not configured" }, 404);
+  const got = Buffer.from(c.req.header("x-telegram-bot-api-secret-token") ?? "");
+  const want = Buffer.from(telegramWebhookSecret());
+  if (got.length !== want.length || !timingSafeEqual(got, want)) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  const update = await c.req.json().catch(() => null);
+  await handleTelegramUpdate(update);
+  return c.json({ ok: true });
+});
+
 // ─── ЮKassa webhook: подтверждение оплаты (пополнение баланса ИЛИ донат) ───
 // Настраивается в личном кабинете ЮKassa на событие payment.succeeded.
 // Телу вебхука не доверяем напрямую (его в теории можно подделать) —
@@ -983,6 +1003,10 @@ serve({ fetch: app.fetch, port }, () => {
   seedAdmin();
   startWebsiteCheckCron();
   startTrackerReminderCron();
+  if (isTelegramConfigured()) {
+    if (process.env.SITE_URL) void registerTelegramWebhook(process.env.SITE_URL);
+    else console.warn("[telegram] SITE_URL не задан — вебхук бота не зарегистрирован");
+  }
 });
 
 export default app;
