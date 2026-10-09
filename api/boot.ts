@@ -8,7 +8,8 @@ import { seedAdmin } from "./trpc";
 import { createContext } from "./context";
 import { startWebsiteCheckCron } from "./lib/websiteChecker";
 import { startTrackerReminderCron } from "./lib/trackerReminders";
-import { isTelegramConfigured, registerTelegramWebhook, telegramWebhookSecret } from "./lib/telegram";
+import { isTelegramConfigured, registerTelegramWebhook, telegramUsesPolling, telegramWebhookSecret } from "./lib/telegram";
+import { startTelegramPolling } from "./lib/telegramPolling";
 import { handleTelegramUpdate } from "./lib/telegramBot";
 import { timingSafeEqual } from "node:crypto";
 import { creditTopup, recordDonation } from "./lib/balance";
@@ -1004,7 +1005,8 @@ serve({ fetch: app.fetch, port }, () => {
   startWebsiteCheckCron();
   startTrackerReminderCron();
   if (isTelegramConfigured()) {
-    if (process.env.SITE_URL) void registerTelegramWebhook(process.env.SITE_URL);
+    if (telegramUsesPolling()) startTelegramPolling();
+    else if (process.env.SITE_URL) void registerTelegramWebhook(process.env.SITE_URL);
     else console.warn("[telegram] SITE_URL не задан — вебхук бота не зарегистрирован");
   }
 });

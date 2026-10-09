@@ -12,6 +12,14 @@ export function isTelegramConfigured(): boolean {
   return !!env.telegramBotToken;
 }
 
+/** Задан свой TELEGRAM_API_BASE (прокси) — значит, напрямую до Telegram с
+ *  сервера не достучаться, и обратно, скорее всего, тоже: Telegram не сможет
+ *  вызвать наш вебхук. Тогда новые сообщения получаем сами, запросами
+ *  getUpdates через тот же прокси (см. telegramPolling.ts). */
+export function telegramUsesPolling(): boolean {
+  return env.telegramApiBase !== "https://api.telegram.org";
+}
+
 /** Секрет для заголовка X-Telegram-Bot-Api-Secret-Token. Выводим из токена
  *  бота, чтобы не заводить ещё одну переменную в .env: сменился токен —
  *  сменился и секрет, а подделать запрос без знания токена нельзя. */
@@ -81,6 +89,17 @@ export async function sendTelegramMessage(
   return "error";
 }
 
+/** Подсказки команд в меню бота. Идемпотентно. */
+export async function registerTelegramCommands(): Promise<void> {
+  await tgCall("setMyCommands", {
+    commands: [
+      { command: "list", description: "Ближайшие дела по настойкам" },
+      { command: "stop", description: "Отключить напоминания в Telegram" },
+      { command: "help", description: "Как это работает" },
+    ],
+  });
+}
+
 /** Регистрирует вебхук и подсказки команд. Вызывается при старте сервера;
  *  операция идемпотентна, повторный запуск ничего не ломает. */
 export async function registerTelegramWebhook(siteUrl: string): Promise<boolean> {
@@ -95,13 +114,31 @@ export async function registerTelegramWebhook(siteUrl: string): Promise<boolean>
     console.error("[telegram] setWebhook не удался:", r.error_code, r.description);
     return false;
   }
-  await tgCall("setMyCommands", {
-    commands: [
-      { command: "list", description: "Ближайшие дела по настойкам" },
-      { command: "stop", description: "Отключить напоминания в Telegram" },
-      { command: "help", description: "Как это работает" },
-    ],
-  });
+  await registerTelegramCommands();
   console.log(`[telegram] вебхук зарегистрирован: ${url}`);
   return true;
+}
+
+/** Снимает вебхук: пока он установлен, Telegram не отдаёт getUpdates.
+ *  Непрочитанные сообщения не теряются (drop_pending_updates: false). */
+export async function deleteTelegramWebhook(): Promise<boolean> {
+  const r = await tgCall("deleteWebhook", { drop_pending_updates: false });
+  if (!r.ok) console.error("[telegram] deleteWebhook не удался:", r.error_code, r.description);
+  return r.ok;
+}
+
+export type TgUpdate = { update_id: number } & Record<string, unknown>;
+
+/** Длинный опрос: Telegram держит запрос до timeoutSec секунд и отвечает сразу,
+ *  как только появилось новое сообщение. */
+export async function getTelegramUpdates(
+  offset: number,
+  timeoutSec: number
+): Promise<{ ok: boolean; updates: TgUpdate[]; errorCode?: number; description?: string }> {
+  const r = await tgCall<TgUpdate[]>(
+    "getUpdates",
+    { offset, timeout: timeoutSec, allowed_updates: ["message"] },
+    (timeoutSec + 15) * 1000
+  );
+  return { ok: r.ok, updates: r.ok && Array.isArray(r.result) ? r.result : [], errorCode: r.error_code, description: r.description };
 }
