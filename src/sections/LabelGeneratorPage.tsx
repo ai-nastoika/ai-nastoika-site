@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { saveImage } from "@/lib/saveImage";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 import { printLabelOnA4 } from "@/lib/printLabel";
@@ -377,20 +378,10 @@ export default function LabelGeneratorPage() {
   // (лайтбокс + инструкция), а не оставляем человека с ошибкой на пустом месте.
   async function handleDownload() {
     if (!generatedImage) return;
-    try {
-      const response = await fetch(generatedImage);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `etiketka-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch {
-      setLightboxOpen(true);
-    }
+    // На телефоне — системное меню «Поделиться» → «Сохранить изображение»,
+    // на компьютере — обычное скачивание файла. Не вышло — крупный просмотр с подсказкой.
+    const r = await saveImage(generatedImage, `etiketka-${Date.now()}.png`);
+    if (r === "failed") setLightboxOpen(true);
   }
 
   return (
@@ -1005,7 +996,7 @@ export default function LabelGeneratorPage() {
                   <Download size={16} /> Скачать изображение
                 </button>
                 <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Сохранится как файл PNG в папку загрузок. Если скачивание не началось — картинка откроется крупно, сохраните её через контекстное меню (правой кнопкой → «Сохранить как» на компьютере, зажать палец → «Сохранить» на телефоне).
+                  На телефоне откроется меню — выберите «Сохранить изображение». На компьютере файл PNG сохранится в папку загрузок. Если не получилось — картинка откроется крупно, сохраните её через контекстное меню (правой кнопкой → «Сохранить как»).
                 </p>
                 <Link
                   to="/profile?tab=labels"
@@ -1032,6 +1023,16 @@ export default function LabelGeneratorPage() {
             className="max-w-full max-h-full rounded-lg"
             style={{ objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
           />
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              await saveImage(generatedImage, `etiketka-${Date.now()}.png`);
+            }}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-xl px-6 py-3 text-base font-medium text-white"
+            style={{ background: "var(--accent)", fontFamily: "var(--font-body)" }}
+          >
+            Сохранить изображение
+          </button>
           <button
             onClick={() => setLightboxOpen(false)}
             className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white text-2xl"
