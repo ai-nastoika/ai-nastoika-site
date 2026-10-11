@@ -4,6 +4,7 @@ import { infusionStages, infusions, users } from "@db/schema";
 import { eq, and, lte, isNull, inArray } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { escapeHtml, isTelegramConfigured, sendTelegramMessage } from "./telegram";
+import { stageActionRows } from "./telegramKeyboards";
 
 const SITE_URL = process.env.SITE_URL || "https://dev.ai-nastoika.ru";
 
@@ -119,12 +120,15 @@ export async function sendDueTrackerReminders(): Promise<{ usersNotified: number
     }
 
     if (telegramChatId) {
-      const lines = items.map((i) => `• <b>${escapeHtml(i.infusionName)}</b> — ${escapeHtml(i.label)}`);
+      const numbered = items.length > 1;
+      const lines = items.map((i, n) => `${numbered ? `${n + 1}. ` : "• "}<b>${escapeHtml(i.infusionName)}</b> — ${escapeHtml(i.label)}`);
       const text = ["🍹 <b>Пора по вашим настойкам:</b>", ...lines].join("\n");
-      const r = await sendTelegramMessage(telegramChatId, text, {
-        text: "Открыть трекер",
-        url: `${SITE_URL}/profile?tab=tracker`,
-      });
+      // Кнопки «Сделано / На день» — прямо под сообщением, не заходя на сайт.
+      // Кнопок не больше MAX_STAGE_BUTTONS; остальное — через «Открыть трекер».
+      const r = await sendTelegramMessage(telegramChatId, text, [
+        ...stageActionRows(stageIds),
+        [{ text: "Открыть трекер", url: `${SITE_URL}/profile?tab=tracker` }],
+      ]);
       if (r === "ok") delivered = true;
       if (r === "blocked") {
         // Пользователь заблокировал бота или удалил чат — снимаем привязку,

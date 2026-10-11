@@ -4,6 +4,7 @@ import { getDb } from "./queries/connection";
 import { infusions, infusionStages, recipes } from "@db/schema";
 import { eq, and, asc, count } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { markStageDone } from "./lib/stageActions";
 
 const stageTypeEnum = z.enum(["pour", "shake", "strain", "rest", "taste", "add_ingredient", "custom"]);
 
@@ -283,26 +284,7 @@ export const infusionRouter = createRouter({
     .input(z.object({ stageId: z.number(), note: z.string().max(1000).optional(), photoUrl: z.string().max(255).optional() }))
     .mutation(async ({ input, ctx }) => {
       const stage = await getOwnedStage(input.stageId, ctx.user.id);
-      const db = getDb();
-
-      await db
-        .update(infusionStages)
-        .set({ status: "done", completedAt: new Date(), note: input.note, photoUrl: input.photoUrl })
-        .where(eq(infusionStages.id, input.stageId));
-
-      if (stage.repeatIntervalDays) {
-        const nextDate = new Date(stage.plannedDate);
-        nextDate.setDate(nextDate.getDate() + stage.repeatIntervalDays);
-        await db.insert(infusionStages).values({
-          infusionId: stage.infusionId,
-          type: stage.type,
-          title: stage.title,
-          plannedDate: nextDate,
-          repeatIntervalDays: stage.repeatIntervalDays,
-          notifyEnabled: stage.notifyEnabled,
-          sortOrder: stage.sortOrder,
-        });
-      }
+      await markStageDone(stage, { note: input.note, photoUrl: input.photoUrl });
 
       return { success: true };
     }),

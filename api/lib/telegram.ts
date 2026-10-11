@@ -66,27 +66,45 @@ export async function getBotUsername(): Promise<string | null> {
 
 export type SendResult = "ok" | "blocked" | "error";
 
-/** "blocked" — пользователь заблокировал бота / удалил чат: привязку пора
- *  снять, иначе будем безуспешно стучаться каждые 5 минут. */
-export async function sendTelegramMessage(
-  chatId: string,
-  html: string,
-  button?: { text: string; url: string }
-): Promise<SendResult> {
-  const r = await tgCall("sendMessage", {
-    chat_id: chatId,
-    text: html,
-    parse_mode: "HTML",
-    disable_web_page_preview: true,
-    ...(button ? { reply_markup: { inline_keyboard: [[{ text: button.text, url: button.url }]] } } : {}),
-  });
+export type InlineButton = { text: string; url: string } | { text: string; callback_data: string };
+export type InlineKeyboard = InlineButton[][];
+
+function classify(r: TgResponse<unknown>, what: string): SendResult {
   if (r.ok) return "ok";
   const d = (r.description ?? "").toLowerCase();
   if (r.error_code === 403 || d.includes("bot was blocked") || d.includes("chat not found") || d.includes("user is deactivated")) {
     return "blocked";
   }
-  console.error("[telegram] sendMessage не удалось:", r.error_code, r.description);
+  console.error(`[telegram] ${what} не удалось:`, r.error_code, r.description);
   return "error";
+}
+
+/** "blocked" — пользователь заблокировал бота / удалил чат: привязку пора
+ *  снять, иначе будем безуспешно стучаться каждые 5 минут. */
+export async function sendTelegramMessage(chatId: string, html: string, keyboard?: InlineKeyboard): Promise<SendResult> {
+  const r = await tgCall("sendMessage", {
+    chat_id: chatId,
+    text: html,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    ...(keyboard && keyboard.length ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+  });
+  return classify(r, "sendMessage");
+}
+
+/** Ответ на нажатие инлайн-кнопки: без него у пользователя «крутится часики».
+ *  text — всплывающая подсказка вверху экрана. */
+export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+  await tgCall("answerCallbackQuery", { callback_query_id: callbackQueryId, ...(text ? { text: text.slice(0, 190) } : {}) }, 7_000);
+}
+
+/** Меняет кнопки под уже отправленным сообщением (пустой список — убирает все). */
+export async function editMessageKeyboard(chatId: string, messageId: number, keyboard: InlineKeyboard): Promise<void> {
+  await tgCall(
+    "editMessageReplyMarkup",
+    { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } },
+    7_000
+  );
 }
 
 /** Подсказки команд в меню бота. Идемпотентно. */
@@ -94,6 +112,8 @@ export async function registerTelegramCommands(): Promise<void> {
   await tgCall("setMyCommands", {
     commands: [
       { command: "list", description: "Ближайшие дела по настойкам" },
+      { command: "find", description: "Найти рецепт: /find вишня" },
+      { command: "new", description: "Свежие рецепты" },
       { command: "stop", description: "Отключить напоминания в Telegram" },
       { command: "help", description: "Как это работает" },
     ],
@@ -107,7 +127,7 @@ export async function registerTelegramWebhook(siteUrl: string): Promise<boolean>
   const r = await tgCall("setWebhook", {
     url,
     secret_token: telegramWebhookSecret(),
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "callback_query"],
     drop_pending_updates: false,
   });
   if (!r.ok) {
@@ -137,7 +157,7 @@ export async function getTelegramUpdates(
 ): Promise<{ ok: boolean; updates: TgUpdate[]; errorCode?: number; description?: string }> {
   const r = await tgCall<TgUpdate[]>(
     "getUpdates",
-    { offset, timeout: timeoutSec, allowed_updates: ["message"] },
+    { offset, timeout: timeoutSec, allowed_updates: ["message", "callback_query"] },
     (timeoutSec + 15) * 1000
   );
   return { ok: r.ok, updates: r.ok && Array.isArray(r.result) ? r.result : [], errorCode: r.error_code, description: r.description };
