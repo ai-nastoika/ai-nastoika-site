@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink, FileText, BarChart3 } from "lucide-react";
+import { Shield, Gavel, Check, X, Eye, Clock, User, AlertCircle, AlertTriangle, Sparkles, Upload, Plus, Trash2, Search, ArrowUpDown, Mail, Reply, ExternalLink, FileText, BarChart3, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -2082,6 +2082,19 @@ function LabelExamplesAdmin() {
   const del = trpc.labelExample.delete.useMutation({
     onSuccess: () => utils.labelExample.list.invalidate(),
   });
+  const reorder = trpc.labelExample.reorder.useMutation({
+    onSuccess: () => utils.labelExample.list.invalidate(),
+  });
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  function move(index: number, delta: -1 | 1) {
+    if (!examples) return;
+    const j = index + delta;
+    if (j < 0 || j >= examples.length) return;
+    const ids = examples.map((e) => e.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    reorder.mutate({ ids });
+  }
 
   const [image, setImage] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
@@ -2178,29 +2191,120 @@ function LabelExamplesAdmin() {
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>Пока нет ни одного примера.</p>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {examples.map((ex) => (
-                <div key={ex.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                  <div className="h-56" style={{ background: "var(--surface)" }}>
-                    <img loading="lazy" src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
+              {examples.map((ex, idx) =>
+                editingId === ex.id ? (
+                  <LabelExampleEditCard key={ex.id} example={ex} onDone={() => setEditingId(null)} />
+                ) : (
+                  <div key={ex.id} className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                    <div className="h-56" style={{ background: "var(--surface)" }}>
+                      <img loading="lazy" src={ex.imageUrl} alt={ex.title ?? "Пример этикетки"} className="w-full h-full object-contain" />
+                    </div>
+                    <div className="p-3">
+                      {ex.title && <p className="text-sm font-medium mb-1">{ex.title}</p>}
+                      <p className="text-xs line-clamp-3" style={{ color: "var(--text-muted)" }}>{ex.prompt}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <Button size="sm" variant="outline" onClick={() => setEditingId(ex.id)}>
+                          <Pencil size={14} className="mr-1.5" /> Изменить
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={idx === 0 || reorder.isPending} onClick={() => move(idx, -1)} aria-label="Выше">
+                          <ArrowUp size={14} />
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={idx === examples.length - 1 || reorder.isPending} onClick={() => move(idx, 1)} aria-label="Ниже">
+                          <ArrowDown size={14} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => { if (confirm("Удалить этот пример?")) del.mutate({ id: ex.id }); }}
+                        >
+                          Удалить
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-3">
-                    {ex.title && <p className="text-sm font-medium mb-1">{ex.title}</p>}
-                    <p className="text-xs line-clamp-3" style={{ color: "var(--text-muted)" }}>{ex.prompt}</p>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="mt-2"
-                      onClick={() => { if (confirm("Удалить этот пример?")) del.mutate({ id: ex.id }); }}
-                    >
-                      Удалить
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/* Карточка примера в режиме правки: заменить картинку (необязательно),
+   изменить промпт и подпись. */
+function LabelExampleEditCard({ example, onDone }: { example: { id: number; imageUrl: string; prompt: string; title: string | null }; onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const [image, setImage] = useState(example.imageUrl);
+  const [prompt, setPrompt] = useState(example.prompt);
+  const [title, setTitle] = useState(example.title ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const update = trpc.labelExample.update.useMutation({
+    onSuccess: () => {
+      utils.labelExample.list.invalidate();
+      onDone();
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("auth-token") || "";
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-label-example", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.path) throw new Error(data.error || "Не удалось загрузить файл");
+      setImage(data.path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки файла");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="rounded-lg border p-3 space-y-3 sm:col-span-2 lg:col-span-3" style={{ borderColor: "var(--accent)" }}>
+      <div className="flex items-start gap-3 flex-wrap">
+        <img src={image} alt="Превью" className="w-32 rounded-lg border" style={{ borderColor: "var(--border)" }} />
+        <div>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleUpload} className="hidden" />
+          <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+            {uploading ? "Загрузка..." : <><Upload size={14} className="mr-1.5" /> Заменить картинку</>}
+          </Button>
+        </div>
+      </div>
+      <div>
+        <label className="text-sm font-medium mb-1 block">Промпт / описание</label>
+        <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} />
+      </div>
+      <div>
+        <label className="text-sm font-medium mb-1 block">Короткая подпись (необязательно)</label>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} />
+      </div>
+      {error && <p className="text-sm" style={{ color: "#dc2626" }}>{error}</p>}
+      <div className="flex gap-2">
+        <Button
+          onClick={() => update.mutate({ id: example.id, imageUrl: image !== example.imageUrl ? image : undefined, prompt: prompt.trim(), title: title.trim() })}
+          disabled={!prompt.trim() || uploading || update.isPending}
+        >
+          {update.isPending ? "Сохранение..." : "Сохранить"}
+        </Button>
+        <Button variant="outline" onClick={onDone} disabled={update.isPending}>Отмена</Button>
+      </div>
     </div>
   );
 }
