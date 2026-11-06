@@ -7,6 +7,9 @@ import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
 /* «Не знаю, что нарисовать»: человек пишет, для кого этикетка и по какому поводу,
    текстовый ИИ предлагает несколько сюжетов, выбранный подставляется в описание
    (и в название/подпись, если те ещё пустые — решает родитель в onApply).
+   Один и тот же помощник работает в обоих режимах страницы; в режиме "photo" меняются
+   только тексты и стиль формулировки сюжета (герой — человек с будущего фото). Само фото
+   подсказчику не нужно и не отправляется: просить сюжет можно ещё до его загрузки.
    Подсказки бесплатны, но ограничены по частоте на сервере. */
 
 export type LabelIdea = { concept: string; description: string; title: string; subtitle: string };
@@ -14,15 +17,33 @@ export type LabelIdea = { concept: string; description: string; title: string; s
 const TONES = ["Тёплый", "Шутливый", "Торжественный", "Ностальгический", "Дерзкий"];
 const MAX_EXCLUDE = 12;
 
+const COPY = {
+  scratch: {
+    toggle: "Не знаю, что нарисовать — подскажите сюжет",
+    label: "Для кого этикетка, по какому поводу, что хотите сказать?",
+    placeholder: "Например: подарок тестю на 60-летие. Он рыбак и любит шутки. Хочу сказать, что мы его ценим и желаем хорошего клёва.",
+    applied: "Подставлено в описание",
+  },
+  photo: {
+    toggle: "Не знаю, какой сюжет выбрать — подскажите",
+    label: "Для кого этикетка, по какому поводу, что хотите сказать?",
+    placeholder: "Например: коллеге, ей 40, заводная, работает в офисе, готовит отчёты, всем помогает, любит шутки и сюрпризы.",
+    applied: "Подставлено в поле «Что сделать с фото»",
+  },
+} as const;
+
 export default function LabelIdeasHelper({
   isLoggedIn,
   title,
   onApply,
+  mode = "scratch",
 }: {
   isLoggedIn: boolean;
   title: string;
   onApply: (idea: LabelIdea) => void;
+  mode?: "scratch" | "photo";
 }) {
+  const copy = COPY[mode];
   const [open, setOpen] = useState(false);
   const [brief, setBrief] = useState("");
   const [tone, setTone] = useState("");
@@ -48,6 +69,7 @@ export default function LabelIdeasHelper({
       title: title.trim() || undefined,
       tone: tone || undefined,
       exclude: more && seen.length > 0 ? seen : undefined,
+      mode,
     });
   };
 
@@ -63,7 +85,7 @@ export default function LabelIdeasHelper({
         style={{ color: "var(--accent)", fontFamily: "var(--font-body)" }}
       >
         <Lightbulb size={16} className="shrink-0" />
-        <span>Не знаю, что нарисовать — подскажите сюжет</span>
+        <span>{copy.toggle}</span>
       </button>
 
       {open && (
@@ -79,13 +101,13 @@ export default function LabelIdeasHelper({
             <>
               <div>
                 <label className="text-sm font-medium mb-1.5 block" style={{ color: "var(--text-muted)" }}>
-                  Для кого этикетка, по какому поводу, что хотите сказать?
+                  {copy.label}
                 </label>
                 <textarea
                   value={brief}
                   onChange={(e) => setBrief(e.target.value)}
                   maxLength={400}
-                  placeholder="Например: подарок тестю на 60-летие. Он рыбак и любит шутки. Хочу сказать, что мы его ценим и желаем хорошего клёва."
+                  placeholder={copy.placeholder}
                   className="w-full rounded-lg px-3 py-2.5 text-base outline-none resize-none"
                   style={{ ...box, minHeight: 84 }}
                 />
@@ -148,7 +170,7 @@ export default function LabelIdeasHelper({
                           fontFamily: "var(--font-body)",
                         }}
                       >
-                        {appliedIdx === i ? <><Check size={14} /> Подставлено в описание</> : "Использовать"}
+                        {appliedIdx === i ? <><Check size={14} /> {copy.applied}</> : "Использовать"}
                       </button>
                     </div>
                   ))}

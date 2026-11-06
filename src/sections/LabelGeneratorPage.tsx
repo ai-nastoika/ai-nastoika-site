@@ -81,6 +81,7 @@ export default function LabelGeneratorPage() {
 
   const [description, setDescription] = useState("");
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const photoDescriptionRef = useRef<HTMLTextAreaElement>(null);
   const [style, setStyle] = useState("");
   const [colors, setColors] = useState("");
   const [elements, setElements] = useState("");
@@ -99,6 +100,13 @@ export default function LabelGeneratorPage() {
     if (!labelTitle.trim() && idea.title) setLabelTitle(idea.title);
     if (!labelSubtitle.trim() && idea.subtitle) setLabelSubtitle(idea.subtitle);
     descriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // То же для режима «по фото»: сюжет → «Что сделать с этим фото»; надпись — только в пустое поле.
+  function applyPhotoIdea(idea: LabelIdea) {
+    setPhotoDescription(idea.description);
+    if (!photoLabelText.trim() && idea.title) setPhotoLabelText(idea.title);
+    photoDescriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // ── Режим "своё фото + ИИ" ──
@@ -519,12 +527,17 @@ export default function LabelGeneratorPage() {
                 <Wand2 size={16} /> Что сделать с этим фото
               </label>
               <textarea
+                ref={photoDescriptionRef}
                 value={photoDescription}
                 onChange={(e) => setPhotoDescription(e.target.value)}
                 placeholder={`Например: "Добавь на бутылку этикетку с текстом «Вишнёвая настойка», в винтажном стиле, тёмно-бордовые и золотые тона" или "Замени фон на нейтральный светлый, добавь мягкие тени"`}
                 className="w-full rounded-lg px-4 py-3 text-base outline-none resize-none"
                 style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", color: "var(--text-primary)", minHeight: 100, fontFamily: "var(--font-body)" }}
               />
+
+              <div className="mt-3">
+                <LabelIdeasHelper mode="photo" isLoggedIn={isLoggedIn} title={photoLabelText} onApply={applyPhotoIdea} />
+              </div>
 
               <label className="flex items-center gap-2 text-sm font-medium mb-2 mt-4" style={{ color: "var(--text-muted)" }}>
                 <Palette size={16} /> Стиль (необязательно)
