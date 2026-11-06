@@ -4,6 +4,7 @@ import { trpc } from "@/providers/trpc";
 import { saveImage } from "@/lib/saveImage";
 import { useAuth } from "@/hooks/useAuth";
 import BottleThinkingIndicator from "@/components/BottleThinkingIndicator";
+import LabelIdeasHelper, { type LabelIdea } from "@/components/LabelIdeasHelper";
 import { printLabelOnA4 } from "@/lib/printLabel";
 import {
   ArrowLeft,
@@ -79,6 +80,7 @@ export default function LabelGeneratorPage() {
   const [sourceMode, setSourceMode] = useState<SourceMode>("scratch");
 
   const [description, setDescription] = useState("");
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [style, setStyle] = useState("");
   const [colors, setColors] = useState("");
   const [elements, setElements] = useState("");
@@ -89,6 +91,15 @@ export default function LabelGeneratorPage() {
   const [labelAbv, setLabelAbv] = useState("");
   const [labelDate, setLabelDate] = useState("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Выбранный сюжет из подсказок: описание заменяем всегда, название и подпись
+  // подставляем только в пустые поля — чтобы не затереть то, что человек уже написал.
+  function applyIdea(idea: LabelIdea) {
+    setDescription(idea.description);
+    if (!labelTitle.trim() && idea.title) setLabelTitle(idea.title);
+    if (!labelSubtitle.trim() && idea.subtitle) setLabelSubtitle(idea.subtitle);
+    descriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   // ── Режим "своё фото + ИИ" ──
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -596,6 +607,7 @@ export default function LabelGeneratorPage() {
                   <Wand2 size={16} /> Опишите этикетку своими словами
                 </label>
                 <textarea
+                  ref={descriptionRef}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Например: винтажная этикетка с золотыми виноградными лозами, тёмно-бордовый фон..."
@@ -606,6 +618,8 @@ export default function LabelGeneratorPage() {
                   Без лишних деталей: чем короче и яснее описание, тем аккуратнее получится результат.
                 </p>
               </div>
+
+              <LabelIdeasHelper isLoggedIn={isLoggedIn} title={labelTitle} onApply={applyIdea} />
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
