@@ -61,27 +61,9 @@ export default function PlaceParserPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [resolvingCoords, setResolvingCoords] = useState(false);
-  const [coordsError, setCoordsError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
-  const resolveCoords = trpc.place.resolveCoords.useMutation();
-
-  async function handleResolveCoords(url: string) {
-    if (!url.trim()) return;
-    setResolvingCoords(true);
-    setCoordsError("");
-    try {
-      const { lat, lng } = await resolveCoords.mutateAsync({ url });
-      patch({ lat: String(lat), lng: String(lng) });
-    } catch (err) {
-      setCoordsError(err instanceof Error ? err.message : "Не удалось определить координаты");
-    } finally {
-      setResolvingCoords(false);
-    }
-  }
-
   const upsertPlace = trpc.place.upsert.useMutation({
     onSuccess: () => {
       utils.place.list.invalidate();
@@ -100,9 +82,6 @@ export default function PlaceParserPage() {
       applyParsedData(data);
       setGenerating(false);
       setTab("edit");
-      if (data.yandexUrl) {
-        handleResolveCoords(data.yandexUrl);
-      }
     },
     onError: (err) => {
       setGenerating(false);
@@ -316,10 +295,9 @@ export default function PlaceParserPage() {
                 <div className="rounded-xl p-4 flex gap-3" style={{ background: "#fef3c7", border: "1px solid #fde68a" }}>
                   <MapPin size={20} style={{ color: "#92400e", flexShrink: 0 }} />
                   <p className="text-sm" style={{ color: "#78350f" }}>
-                    <strong>Обязательно включите ссылку на Яндекс.Карты</strong> — откройте карточку заведения на
-                    Яндекс.Картах, нажмите «Поделиться» и вставьте ссылку прямо в текст ниже. Она достаётся из
-                    текста напрямую кодом, ИИ её не трогает и не может найти сама — без неё точные координаты
-                    не определить, придётся сходить на карту вручную уже после разбора.
+                    <strong>Обязательно укажите координаты в тексте</strong> (например, «координаты: 55.7558, 37.6173»)
+                    и, по желанию, ссылку на Яндекс.Карты. ИИ не умеет искать координаты сам и переносит только
+                    те числа, что есть в тексте; отдельного определения по ссылке больше нет.
                   </p>
                 </div>
                 <Textarea
@@ -371,26 +349,10 @@ export default function PlaceParserPage() {
                         onChange={(e) => patch({ yandexUrl: e.target.value })}
                         placeholder="https://yandex.ru/maps/... или короткая ссылка с «Поделиться»"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => handleResolveCoords(form.yandexUrl)}
-                        disabled={!form.yandexUrl.trim() || resolvingCoords}
-                      >
-                        {resolvingCoords ? "Ищем..." : "Определить координаты"}
-                      </Button>
                     </div>
-                    {coordsError && <p className="text-xs mt-1" style={{ color: "#dc2626" }}>{coordsError}</p>}
-                    {!form.yandexUrl.trim() ? (
-                      <p className="text-xs mt-1 font-medium" style={{ color: "#b45309" }}>
-                        Пусто — ИИ не нашёл ссылку в тексте (и не умеет искать её сам). Откройте заведение на
-                        Яндекс.Картах, нажмите «Поделиться», вставьте ссылку сюда и нажмите «Определить координаты».
-                      </p>
-                    ) : (
-                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                        Координаты берутся напрямую из ссылки — точно та же точка, что видна по кнопке «Поделиться» на карте, без угадывания.
-                      </p>
-                    )}
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                      Ссылка сохраняется как есть; координаты заполняются из текста разбора — проверьте поля ниже.
+                    </p>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div>

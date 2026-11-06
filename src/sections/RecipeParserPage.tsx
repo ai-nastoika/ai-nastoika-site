@@ -8,11 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft, Sparkles, Loader2,
   Plus, Trash2, Save, Bot, Wand2, FileText,
-  Image as ImageIcon, Upload, X, RefreshCw, Shield,
+  Image as ImageIcon, Upload, X, Shield,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════
@@ -35,7 +34,6 @@ interface RecipeForm {
   sweet: number; sour: number; bitter: number;
   spicy: number; fruity: number; herbal: number;
   tips: string[]; authorName: string; authorDate: string;
-  imagePrompt: string;
   ingredients: IngredientInput[]; steps: StepInput[]; trackerStages: TrackerStageInput[];
 }
 
@@ -48,7 +46,6 @@ function emptyForm(): RecipeForm {
     tastingTemp: "", tastingGlass: "", tastingPairing: [],
     sweet: 50, sour: 30, bitter: 20, spicy: 10, fruity: 60, herbal: 15,
     tips: [], authorName: "", authorDate: "",
-    imagePrompt: "",
     ingredients: [], steps: [], trackerStages: [],
   };
 }
@@ -78,13 +75,10 @@ export default function RecipeParserPage() {
   const [recipeText, setRecipeText] = useState(prefill?.prefillText ?? "");
   const [form, setForm] = useState<RecipeForm>(emptyForm);
   const [generating, setGenerating] = useState(false);
-  const [generateImageEnabled, setGenerateImageEnabled] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
-  const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,7 +131,6 @@ export default function RecipeParserPage() {
       tips: Array.isArray(data.tips) ? data.tips : [],
       authorName: data.authorName || "",
       authorDate: data.authorDate || "",
-      imagePrompt: data.imagePrompt || "",
       ingredients: Array.isArray(data.ingredients) ? data.ingredients.map((ing: any) => ({
         name: ing.name || "", amount: ing.amount || "", note: ing.note || "",
       })) : [],
@@ -153,11 +146,10 @@ export default function RecipeParserPage() {
     setImagePreview(null);
   }
 
-  /* ── Шаг 1 → карточка + картинка одним запросом (Timeweb AI Gateway) ── */
+  /* ── Шаг 1 → карточка одним запросом (Timeweb AI Gateway) ── */
   const generateRecipe = trpc.recipeParser.generate.useMutation({
     onSuccess: (data) => {
       applyParsedData(data);
-      setImageWarning(data.imageError ?? null);
       setGenerating(false);
       setTab("edit");
     },
@@ -169,7 +161,7 @@ export default function RecipeParserPage() {
   const handleGenerate = () => {
     if (!recipeText.trim()) return;
     setGenerating(true);
-    generateRecipe.mutate({ rawText: recipeText, generateImage: generateImageEnabled });
+    generateRecipe.mutate({ rawText: recipeText });
   };
 
   /* ── Скриншот → распознанный текст (заполняет текстовое поле, дальше — как обычный текст) ── */
@@ -210,26 +202,7 @@ export default function RecipeParserPage() {
     }
   };
 
-  /* ── Перегенерировать картинку (если автоматическая не понравилась) ── */
-  const regenerateImage = trpc.recipeParser.regenerateImage.useMutation({
-    onSuccess: (data) => {
-      patch({ heroImage: data.heroImage });
-      setImagePreview(null);
-      setImageWarning(null);
-      setRegeneratingImage(false);
-    },
-    onError: (err) => {
-      setRegeneratingImage(false);
-      alert("Ошибка генерации картинки: " + err.message);
-    },
-  });
-  const handleRegenerateImage = () => {
-    if (!form.imagePrompt.trim()) return;
-    setRegeneratingImage(true);
-    regenerateImage.mutate({ prompt: form.imagePrompt });
-  };
-
-  /* ── Upload image (ручная загрузка своей картинки — как запасной вариант) ── */
+  /* ── Загрузка картинки рецепта вручную ── */
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -282,8 +255,7 @@ export default function RecipeParserPage() {
 
       if (data.success && data.path) {
         patch({ heroImage: data.path });
-        setImageWarning(null);
-      } else {
+        } else {
         alert("Ошибка загрузки: " + (data.error || "неизвестная ошибка"));
       }
     } catch {
@@ -373,7 +345,7 @@ export default function RecipeParserPage() {
   const delTrackerStage = (i: number) => patch({ trackerStages: form.trackerStages.filter((_, j) => j !== i) });
 
   /* Защита: страница видна кому угодно во фронтенде (роут не защищён), но
-     реальные действия (recipeParser.generate/regenerateImage, recipe.upsert)
+     реальные действия (recipeParser.generate, recipe.upsert)
      бэкенд уже отклоняет не-editor'ам (editorQuery) — здесь просто не даём
      дойти до формы зря, тем же паттерном, что и AdminPage.tsx. */
   if (isLoading) {
@@ -512,17 +484,9 @@ export default function RecipeParserPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                  <div className="flex items-center gap-2">
-                    <ImageIcon size={16} style={{ color: "var(--text-muted)" }} />
-                    <Label htmlFor="generate-image-toggle" className="cursor-pointer">Генерировать картинку</Label>
-                  </div>
-                  <Switch id="generate-image-toggle" checked={generateImageEnabled} onCheckedChange={setGenerateImageEnabled} />
-                </div>
-
                 <Button onClick={handleGenerate} disabled={!recipeText.trim() || generating} size="lg" className="w-full">
                   {generating ? (
-                    <><Loader2 size={18} className="mr-2 animate-spin" /> {generateImageEnabled ? "ИИ собирает карточку и рисует картинку..." : "ИИ собирает карточку..."}</>
+                    <><Loader2 size={18} className="mr-2 animate-spin" /> ИИ собирает карточку...</>
                   ) : (
                     <><Wand2 size={18} className="mr-2" /> Сгенерировать карточку</>
                   )}
@@ -584,30 +548,6 @@ export default function RecipeParserPage() {
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon size={20} /> Картинка рецепта</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  {imageWarning && (
-                    <div className="rounded-xl p-3 text-sm" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-                      Картинка не сгенерировалась автоматически: {imageWarning}. Можно попробовать ещё раз, загрузить свою или указать ссылку ниже.
-                    </div>
-                  )}
-
-                  {/* Промпт, по которому сгенерирована/будет сгенерирована картинка — редактируемый */}
-                  {(form.imagePrompt || form.heroImage) && (
-                    <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="font-semibold">Промпт картинки (можно поправить и перегенерировать)</Label>
-                        <Button size="sm" variant="outline" onClick={handleRegenerateImage} disabled={!form.imagePrompt.trim() || regeneratingImage}>
-                          {regeneratingImage ? <Loader2 size={14} className="mr-1 animate-spin" /> : <RefreshCw size={14} className="mr-1" />}
-                          {regeneratingImage ? "Рисуем..." : "Перегенерировать"}
-                        </Button>
-                      </div>
-                      <Textarea
-                        value={form.imagePrompt}
-                        onChange={(e) => patch({ imagePrompt: e.target.value })}
-                        className="text-sm font-mono min-h-[80px]"
-                      />
-                    </div>
-                  )}
-
                   {/* Upload area */}
                   <div>
                     <input
@@ -814,7 +754,7 @@ export default function RecipeParserPage() {
               <div className="flex items-center justify-between pt-4 pb-12">
                 <Button variant="outline" onClick={() => setTab("source")}>← Назад к источнику</Button>
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setRecipeText(""); setImagePreview(null); setImageWarning(null); setTab("source"); }}>Новый рецепт</Button>
+                  <Button variant="outline" onClick={() => { setForm(emptyForm()); setRecipeText(""); setImagePreview(null); setTab("source"); }}>Новый рецепт</Button>
                   <Button onClick={() => handleSave()} disabled={saving} size="lg">
                     <Save size={18} className="mr-2" />
                     {saving ? "Сохранение..." : "Сохранить рецепт"}
